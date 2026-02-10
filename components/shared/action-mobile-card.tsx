@@ -17,8 +17,22 @@ interface ActionMobileCardProps {
 
 export function ActionMobileCard({ action }: ActionMobileCardProps) {
   const [modalOpen, setModalOpen] = useState(false)
+  const isStoreAction = action.source_type === 'store' || !action.incident_id
   const isOverdue = new Date(action.due_date) < new Date() && 
     !['complete', 'cancelled'].includes(action.status)
+  const assigneeName = action.assigned_to?.full_name?.trim() || ''
+  const assigneeInitials = assigneeName
+    ? assigneeName.includes(' ')
+      ? assigneeName
+          .split(' ')
+          .filter(Boolean)
+          .map((part: string) => part[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
+      : assigneeName.toUpperCase().slice(0, 2)
+    : ''
+  const assigneeShortName = assigneeName.includes(' ') ? assigneeName.split(' ')[0] : assigneeName
 
   return (
     <>
@@ -29,11 +43,17 @@ export function ActionMobileCard({ action }: ActionMobileCardProps) {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0 pr-2">
               <h3 className="font-semibold text-slate-900 text-sm leading-tight mb-1">{action.title}</h3>
-              <Link href={`/incidents/${action.incident_id}`} className="hover:text-indigo-600 transition-colors inline-block">
-                <span className="font-mono text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                  {action.incident?.reference_no || 'Unknown'}
+              {isStoreAction ? (
+                <span className="font-mono text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 inline-block">
+                  {action.incident?.reference_no || 'Store Action'}
                 </span>
-              </Link>
+              ) : (
+                <Link href={`/incidents/${action.incident_id}`} className="hover:text-indigo-600 transition-colors inline-block">
+                  <span className="font-mono text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                    {action.incident?.reference_no || 'Unknown'}
+                  </span>
+                </Link>
+              )}
             </div>
             <div className="flex items-center gap-0.5 -mr-1 -mt-1 flex-shrink-0">
               <Button 
@@ -83,18 +103,13 @@ export function ActionMobileCard({ action }: ActionMobileCardProps) {
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-0.5">
             {/* Assigned To */}
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              {action.assigned_to?.full_name ? (
+              {assigneeName ? (
                 <>
                   <div className="h-5 w-5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                    {action.assigned_to.full_name
-                      .split(' ')
-                      .map((name: string) => name[0])
-                      .join('')
-                      .toUpperCase()
-                      .slice(0, 2)}
+                    {assigneeInitials}
                   </div>
                   <span className="text-[10px] sm:text-xs text-slate-600 truncate hidden sm:inline-block max-w-[100px]">
-                    {action.assigned_to.full_name.split(' ')[0]}
+                    {assigneeShortName}
                   </span>
                 </>
               ) : (
@@ -104,12 +119,18 @@ export function ActionMobileCard({ action }: ActionMobileCardProps) {
 
             {/* Actions */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              <div className="scale-90">
-                <DeleteActionButton actionId={action.id} actionTitle={action.title} />
-              </div>
-              <div className="scale-90">
-                <CloseActionButton actionId={action.id} actionTitle={action.title} currentStatus={action.status} />
-              </div>
+              {!isStoreAction ? (
+                <>
+                  <div className="scale-90">
+                    <DeleteActionButton actionId={action.id} actionTitle={action.title} />
+                  </div>
+                  <div className="scale-90">
+                    <CloseActionButton actionId={action.id} actionTitle={action.title} currentStatus={action.status} />
+                  </div>
+                </>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-medium">Store Action</span>
+              )}
             </div>
           </div>
 
@@ -126,4 +147,3 @@ export function ActionMobileCard({ action }: ActionMobileCardProps) {
     </>
   )
 }
-

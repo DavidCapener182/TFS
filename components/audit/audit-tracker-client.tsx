@@ -54,7 +54,12 @@ export function AuditTrackerClient({ stores, userRole }: AuditTrackerClientProps
             </TabsContent>
 
             <TabsContent value="league" className="mt-0">
-              <AuditLeagueTable rows={stores} areaFilter={areaFilter} onAreaFilterChange={setAreaFilter} />
+              <AuditLeagueTable
+                rows={stores}
+                userRole={userRole}
+                areaFilter={areaFilter}
+                onAreaFilterChange={setAreaFilter}
+              />
             </TabsContent>
           </Tabs>
         </div>

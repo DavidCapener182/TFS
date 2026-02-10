@@ -18,8 +18,21 @@ interface ViewActionModalProps {
 export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }: ViewActionModalProps) {
   if (!action) return null
 
+  const isStoreAction = action.source_type === 'store' || !action.incident_id
   const isOverdue = new Date(action.due_date) < new Date() && 
     !['complete', 'cancelled'].includes(action.status)
+  const assigneeName = action.assigned_to?.full_name?.trim() || ''
+  const assigneeInitials = assigneeName
+    ? assigneeName.includes(' ')
+      ? assigneeName
+          .split(' ')
+          .filter(Boolean)
+          .map((part: string) => part[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
+      : assigneeName.toUpperCase().slice(0, 2)
+    : ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,17 +76,12 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
 
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-2">Assigned To</h3>
-              {action.assigned_to?.full_name ? (
+              {assigneeName ? (
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0">
-                    {action.assigned_to.full_name
-                      .split(' ')
-                      .map((name: string) => name[0])
-                      .join('')
-                      .toUpperCase()
-                      .slice(0, 2)}
+                    {assigneeInitials}
                   </div>
-                  <span className="text-xs sm:text-sm text-slate-600 truncate">{action.assigned_to.full_name}</span>
+                  <span className="text-xs sm:text-sm text-slate-600 truncate">{assigneeName}</span>
                 </div>
               ) : (
                 <span className="text-xs sm:text-sm text-slate-400 italic">Unassigned</span>
@@ -81,8 +89,8 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
             </div>
           </div>
 
-          {/* Incident Reference */}
-          {action.incident_id && (
+          {/* Incident / Store Reference */}
+          {action.incident_id && !isStoreAction && (
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-2">Related Incident</h3>
               <Link 
@@ -96,6 +104,15 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
               </Link>
             </div>
           )}
+
+          {isStoreAction && action.store?.store_name ? (
+            <div>
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-2">Related Store</h3>
+              <p className="text-xs sm:text-sm text-slate-600">
+                {action.store.store_code ? `${action.store.store_code} - ` : ''}{action.store.store_name}
+              </p>
+            </div>
+          ) : null}
 
           {/* Evidence Required */}
           {action.evidence_required && (
@@ -123,7 +140,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
             <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] w-full sm:w-auto">
               Close
             </Button>
-            {action.incident_id && (
+            {action.incident_id && !isStoreAction && (
               <Link href={`/incidents/${action.incident_id}`} className="w-full sm:w-auto">
                 <Button className="min-h-[44px] w-full sm:w-auto">
                   <span className="hidden sm:inline">View Incident</span>
@@ -134,7 +151,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
             )}
           </div>
           <div className="flex justify-end">
-            {!['complete', 'cancelled'].includes(action.status) && (
+            {!isStoreAction && !['complete', 'cancelled'].includes(action.status) && (
               <CloseActionButton 
                 actionId={action.id} 
                 actionTitle={action.title}
@@ -151,4 +168,3 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
     </Dialog>
   )
 }
-

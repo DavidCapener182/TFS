@@ -20,6 +20,10 @@ export interface AuditRow {
   action_plan_3_sent: boolean | null
   area_average_pct: number | null
   total_audits_to_date: number | null
+  fire_risk_assessment_date: string | null
+  fire_risk_assessment_pdf_path: string | null
+  fire_risk_assessment_notes: string | null
+  fire_risk_assessment_pct: number | null
 }
 
 export function pctBadge(value: number | null) {

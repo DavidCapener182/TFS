@@ -1,13 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AuditRow, pctBadge, formatDate, getLatestPct } from './audit-table-helpers'
+import { StoreActionsModal } from './store-actions-modal'
 import { Eye, EyeOff } from 'lucide-react'
+import { UserRole } from '@/lib/auth'
 
 // Helper: Get the most recent audit date
 function getLatestDate(row: AuditRow): string | null {
@@ -18,10 +20,12 @@ function getLatestDate(row: AuditRow): string | null {
 
 export function AuditLeagueTable({ 
   rows, 
+  userRole,
   areaFilter: externalAreaFilter, 
   onAreaFilterChange 
 }: { 
   rows: AuditRow[]
+  userRole: UserRole
   areaFilter?: string
   onAreaFilterChange?: (area: string) => void
 }) {
@@ -30,6 +34,15 @@ export function AuditLeagueTable({
   const area = externalAreaFilter !== undefined ? externalAreaFilter : internalArea
   const setArea = onAreaFilterChange || setInternalArea
   const [hideCompleted, setHideCompleted] = useState(false)
+  const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
+  const [storeActionsRow, setStoreActionsRow] = useState<AuditRow | null>(null)
+  const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    if (!tableMessage) return
+    const timer = window.setTimeout(() => setTableMessage(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [tableMessage])
 
   const areaOptions = useMemo(() => {
     const set = new Set<string>()
@@ -81,6 +94,18 @@ export function AuditLeagueTable({
       })
   }, [rows, area, search, hideCompleted])
 
+  const handleOpenStoreActionsModal = (row: AuditRow) => {
+    setStoreActionsRow(row)
+    setStoreActionsModalOpen(true)
+  }
+
+  const handleStoreActionsCreated = (count: number, storeName: string) => {
+    setTableMessage({
+      type: 'success',
+      text: count === 1 ? `1 action created for ${storeName}.` : `${count} actions created for ${storeName}.`,
+    })
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -123,10 +148,23 @@ export function AuditLeagueTable({
             )}
           </Button>
         </div>
-        <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-muted-foreground">
           Showing {rankedStores.length} of {rows.length} stores
         </div>
       </div>
+
+      {tableMessage ? (
+        <div
+          className={cn(
+            'rounded-lg border px-3 py-2 text-sm',
+            tableMessage.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800'
+          )}
+        >
+          {tableMessage.text}
+        </div>
+      ) : null}
 
       {/* Table Container */}
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden flex flex-col">
@@ -234,7 +272,14 @@ export function AuditLeagueTable({
                         {row.store_code || '—'}
                       </TableCell>
                       <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
-                        {row.store_name}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStoreActionsModal(row)}
+                          className="text-left text-sm font-semibold text-slate-900 underline-offset-2 hover:text-blue-700 hover:underline"
+                          title="Open store actions"
+                        >
+                          {row.store_name}
+                        </button>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground border-b bg-white group-hover:bg-slate-50 hidden md:table-cell">
                         {row.region || '—'}
@@ -261,7 +306,14 @@ export function AuditLeagueTable({
           </Table>
         </div>
       </div>
+
+      <StoreActionsModal
+        open={storeActionsModalOpen}
+        onOpenChange={setStoreActionsModalOpen}
+        row={storeActionsRow}
+        userRole={userRole}
+        onActionsCreated={handleStoreActionsCreated}
+      />
     </div>
   )
 }
-

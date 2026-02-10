@@ -9,6 +9,17 @@ import { ActionMobileCard } from '@/components/shared/action-mobile-card'
 import { Search, CheckSquare2, FileText, Clock, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
+const AREA_LABELS: Record<string, string> = {
+  A1: 'Scotland & North East',
+  A2: 'Yorkshire & Midlands',
+  A3: 'Manchester',
+  A4: 'Lancashire & Merseyside',
+  A5: 'Birmingham',
+  A6: 'Wales',
+  A7: 'South',
+  A8: 'London',
+}
+
 type ActionFilters = {
   assigned_to?: string
   status?: string
@@ -19,9 +30,29 @@ type ActionFilters = {
   date_to?: string
 }
 
+type UnifiedAction = {
+  id: string
+  title: string
+  description: string | null
+  priority: string
+  due_date: string
+  status: string
+  incident_id: string | null
+  incident: { reference_no: string } | null
+  assigned_to: { id: string; full_name: string | null } | null
+  source_type: 'incident' | 'store'
+  store?: {
+    id: string
+    store_name: string
+    store_code: string | null
+    region: string | null
+    compliance_audit_2_assigned_manager_user_id: string | null
+  } | null
+}
+
 async function getActions(filters?: ActionFilters) {
   const supabase = createClient()
-  let query = supabase
+  let incidentQuery = supabase
     .from('fa_actions')
     .select(`
       *,
@@ -30,52 +61,105 @@ async function getActions(filters?: ActionFilters) {
     `)
     .order('due_date', { ascending: true })
 
-  if (filters?.assigned_to) {
-    query = query.eq('assigned_to_user_id', filters.assigned_to)
-  }
+  let storeQuery = supabase
+    .from('fa_store_actions')
+    .select(`
+      *,
+      store:fa_stores!fa_store_actions_store_id_fkey(id, store_name, store_code, region, compliance_audit_2_assigned_manager_user_id)
+    `)
+    .order('due_date', { ascending: true })
+
   if (filters?.status) {
-    query = query.eq('status', filters.status)
+    incidentQuery = incidentQuery.eq('status', filters.status)
+    storeQuery = storeQuery.eq('status', filters.status)
   }
   if (filters?.overdue) {
     const today = new Date().toISOString().split('T')[0]
-    query = query
+    incidentQuery = incidentQuery
+      .lt('due_date', today)
+      .not('status', 'in', '(complete,cancelled)')
+    storeQuery = storeQuery
       .lt('due_date', today)
       .not('status', 'in', '(complete,cancelled)')
   }
   if (filters?.date_from) {
-    query = query.gte('due_date', filters.date_from)
+    incidentQuery = incidentQuery.gte('due_date', filters.date_from)
+    storeQuery = storeQuery.gte('due_date', filters.date_from)
   }
   if (filters?.date_to) {
-    query = query.lte('due_date', filters.date_to)
+    incidentQuery = incidentQuery.lte('due_date', filters.date_to)
+    storeQuery = storeQuery.lte('due_date', filters.date_to)
   }
 
-  const { data, error } = await query
+  const [
+    { data: incidentData, error: incidentError },
+    { data: storeData, error: storeError },
+  ] = await Promise.all([incidentQuery, storeQuery])
 
-  if (error) {
-    console.error('Error fetching actions:', error)
+  if (incidentError) {
+    console.error('Error fetching incident actions:', incidentError)
+  }
+  if (storeError) {
+    console.error('Error fetching store actions:', storeError)
+  }
+  if (incidentError && storeError) {
     return []
   }
 
-  let actions = data || []
+  const incidentActions: UnifiedAction[] = (incidentData || []).map((action: any) => ({
+    ...action,
+    source_type: 'incident',
+    store: null,
+  }))
+
+  const storeActions: UnifiedAction[] = (storeData || []).map((action: any) => ({
+    ...action,
+    source_type: 'store',
+    incident_id: null,
+    incident: action.store
+      ? {
+          reference_no: action.store.store_code
+            ? `${action.store.store_code} - ${action.store.store_name}`
+            : action.store.store_name,
+        }
+      : { reference_no: 'Store Action' },
+    assigned_to: (() => {
+      const areaCode = typeof action?.store?.region === 'string' ? action.store.region.trim().toUpperCase() : ''
+      if (!areaCode) return null
+      const areaName = AREA_LABELS[areaCode]
+      const label = areaName || `Area ${areaCode}`
+      return { id: `area:${areaCode}`, full_name: label }
+    })(),
+  }))
+
+  let actions: UnifiedAction[] = [...incidentActions, ...storeActions].sort(
+    (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+  )
+
+  if (filters?.assigned_to) {
+    actions = actions.filter((action) => action.assigned_to?.id === filters.assigned_to)
+  }
 
   if (filters?.priority) {
-    actions = actions.filter((action: any) => action.priority === filters.priority)
+    actions = actions.filter((action) => action.priority === filters.priority)
   }
 
   if (filters?.q) {
     const q = filters.q.trim().toLowerCase()
     if (q.length > 0) {
-      actions = actions.filter((action: any) => {
+      actions = actions.filter((action) => {
         const title = String(action.title || '').toLowerCase()
         const incidentRef = String(action.incident?.reference_no || '').toLowerCase()
         const assignee = String(action.assigned_to?.full_name || '').toLowerCase()
         const description = String(action.description || '').toLowerCase()
+        const storeName = String(action.store?.store_name || '').toLowerCase()
 
         return (
           title.includes(q) ||
           incidentRef.includes(q) ||
           assignee.includes(q) ||
-          description.includes(q)
+          description.includes(q) ||
+          storeName.includes(q)
         )
       })
     }
@@ -120,6 +204,29 @@ export default async function ActionsPage({
     !['complete', 'cancelled'].includes(action.status)
   ).length
   const hasActiveFilters = Boolean(filters.q || filters.status || filters.priority || filters.overdue || filters.date_from || filters.date_to)
+
+  const groupedActions = Array.from(
+    actions.reduce((groups, action) => {
+      const isStoreAction = action.source_type === 'store'
+      const groupKey = isStoreAction
+        ? `store:${action.store?.id || action.id}`
+        : `incident:${action.incident_id || action.id}`
+      const groupLabel = isStoreAction
+        ? action.store?.store_code
+          ? `${action.store.store_code} - ${action.store.store_name}`
+          : action.store?.store_name || action.incident?.reference_no || 'Store Action'
+        : action.incident?.reference_no || 'Incident Action'
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, { key: groupKey, label: groupLabel, actions: [] as UnifiedAction[] })
+      }
+
+      groups.get(groupKey)!.actions.push(action)
+      return groups
+    }, new Map<string, { key: string; label: string; actions: UnifiedAction[] }>())
+  )
+    .map(([, value]) => value)
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
 
   return (
     <div className="flex flex-col gap-8 p-6 md:p-8 bg-slate-50/50 min-h-screen">
@@ -188,6 +295,9 @@ export default async function ActionsPage({
                 <span className="text-xs text-slate-500">Filtered results</span>
               ) : null}
             </div>
+            <p className="text-xs text-slate-500">
+              Grouped by store/reference. Click a group to open tasks for that store.
+            </p>
 
             <form method="get" className="grid grid-cols-1 md:grid-cols-6 gap-2">
               <div className="relative md:col-span-2">
@@ -195,7 +305,7 @@ export default async function ActionsPage({
                 <Input
                   name="q"
                   defaultValue={searchParams.q || ''}
-                  placeholder="Search title, incident ref, assignee..."
+                  placeholder="Search title, incident/store ref, assignee..."
                   className="pl-9 bg-white"
                 />
               </div>
@@ -218,7 +328,7 @@ export default async function ActionsPage({
                 className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
               >
                 <option value="all">All priorities</option>
-                <option value="critical">Critical</option>
+                <option value="urgent">Urgent</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
@@ -267,53 +377,78 @@ export default async function ActionsPage({
                   <FileText className="h-5 w-5 text-slate-400" />
                 </div>
                 <p className="font-medium text-slate-900">No actions found</p>
-                <p className="text-sm mt-1 text-center">Actions will appear here when created for incidents.</p>
+                <p className="text-sm mt-1 text-center">Actions will appear here when created for incidents or stores.</p>
               </div>
             ) : (
-              actions.map((action: any) => (
-                <ActionMobileCard key={action.id} action={action} />
+              groupedActions.map((group) => (
+                <details
+                  key={group.key}
+                  className="rounded-xl border border-slate-200 bg-white"
+                >
+                  <summary className="cursor-pointer list-none px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
+                      <span className="text-[11px] text-slate-500">{group.actions.length} tasks</span>
+                    </div>
+                  </summary>
+                  <div className="border-t p-3 space-y-3">
+                    {group.actions.map((action: any) => (
+                      <ActionMobileCard key={action.id} action={action} />
+                    ))}
+                  </div>
+                </details>
               ))
             )}
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="font-semibold text-slate-500">Title</TableHead>
-                  <TableHead className="font-semibold text-slate-500 w-[130px]">Incident</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Assigned To</TableHead>
-                  <TableHead className="w-[100px] font-semibold text-slate-500">Priority</TableHead>
-                  <TableHead className="font-semibold text-slate-500 w-[130px]">Due Date</TableHead>
-                  <TableHead className="w-[120px] font-semibold text-slate-500">Status</TableHead>
-                  <TableHead className="w-[160px] text-right font-semibold text-slate-500">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {actions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-40 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-500">
-                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                          <FileText className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <p className="font-medium text-slate-900">No actions found</p>
-                        <p className="text-sm mt-1">Actions will appear here when created for incidents.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  actions.map((action: any) => (
-                    <ActionsTableRow key={action.id} action={action} />
-                  ))
-                )}
-              </TableBody>
-            </Table>
+          <div className="hidden md:block p-4 space-y-3">
+            {actions.length === 0 ? (
+              <div className="h-40 flex items-center justify-center">
+                <div className="flex flex-col items-center justify-center text-slate-500">
+                  <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                    <FileText className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <p className="font-medium text-slate-900">No actions found</p>
+                  <p className="text-sm mt-1">Actions will appear here when created for incidents or stores.</p>
+                </div>
+              </div>
+            ) : (
+              groupedActions.map((group) => (
+                <details
+                  key={group.key}
+                  className="rounded-xl border border-slate-200 bg-white overflow-hidden"
+                >
+                  <summary className="cursor-pointer list-none bg-slate-50 px-4 py-3 border-b">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
+                      <span className="text-xs text-slate-500">{group.actions.length} tasks</span>
+                    </div>
+                  </summary>
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-slate-500">Title</TableHead>
+                        <TableHead className="font-semibold text-slate-500 w-[130px]">Reference</TableHead>
+                        <TableHead className="font-semibold text-slate-500">Assigned To</TableHead>
+                        <TableHead className="w-[100px] font-semibold text-slate-500">Priority</TableHead>
+                        <TableHead className="font-semibold text-slate-500 w-[130px]">Due Date</TableHead>
+                        <TableHead className="w-[120px] font-semibold text-slate-500">Status</TableHead>
+                        <TableHead className="w-[160px] text-right font-semibold text-slate-500">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.actions.map((action: any) => (
+                        <ActionsTableRow key={action.id} action={action} />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </details>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-

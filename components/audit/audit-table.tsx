@@ -12,6 +12,7 @@ import { getAuditPDFDownloadUrl, deleteAuditPDF } from '@/app/actions/audit-pdfs
 import { Upload, Eye, EyeOff, File, Trash2, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { StoreActionsModal } from './store-actions-modal'
 import { 
   AuditRow, 
   pctBadge, 
@@ -95,6 +96,8 @@ export function AuditTable({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [deletePdfDialog, setDeletePdfDialog] = useState<DeleteAuditPdfState | null>(null)
   const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
+  const [storeActionsRow, setStoreActionsRow] = useState<AuditRow | null>(null)
 
   useEffect(() => {
     if (!tableMessage) return
@@ -624,6 +627,18 @@ export function AuditTable({
     }
   }
 
+  const handleOpenStoreActionsModal = (row: AuditRow) => {
+    setStoreActionsRow(row)
+    setStoreActionsModalOpen(true)
+  }
+
+  const handleStoreActionsCreated = (count: number, storeName: string) => {
+    setTableMessage({
+      type: 'success',
+      text: count === 1 ? `1 action created for ${storeName}.` : `${count} actions created for ${storeName}.`,
+    })
+  }
+
   const renderDateCell = (date: string | null, pct: number | null, storeId: string, auditNum: 1 | 2, row: AuditRow) => {
     const isEditing = editing?.storeId === storeId && editing?.auditNumber === auditNum
     
@@ -931,9 +946,14 @@ export function AuditTable({
                       <div key={row.id} className="mobile-card-surface rounded-2xl border p-3.5 shadow-sm">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900 truncate leading-tight">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStoreActionsModal(row)}
+                              className="text-left text-sm font-semibold text-slate-900 truncate leading-tight underline-offset-2 hover:underline"
+                              title="Open store actions"
+                            >
                               {row.store_name}
-                            </div>
+                            </button>
                             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
                               <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono">
                                 {row.store_code || '—'}
@@ -1243,7 +1263,14 @@ export function AuditTable({
                             {row.store_code || '—'}
                           </TableCell>
                           <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
-                            {row.store_name}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStoreActionsModal(row)}
+                              className="text-left text-sm font-semibold text-slate-900 underline-offset-2 hover:text-blue-700 hover:underline"
+                              title="Open store actions"
+                            >
+                              {row.store_name}
+                            </button>
                           </TableCell>
                           
                           <TableCell className="border-b bg-white group-hover:bg-slate-50">{renderDateCell(row.compliance_audit_1_date, row.compliance_audit_1_overall_pct, row.id, 1, row)}</TableCell>
@@ -1600,6 +1627,14 @@ export function AuditTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StoreActionsModal
+        open={storeActionsModalOpen}
+        onOpenChange={setStoreActionsModalOpen}
+        row={storeActionsRow}
+        userRole={userRole}
+        onActionsCreated={handleStoreActionsCreated}
+      />
     </div>
   )
 }

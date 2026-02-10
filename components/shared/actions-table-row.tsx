@@ -17,8 +17,21 @@ interface ActionsTableRowProps {
 
 export function ActionsTableRow({ action }: ActionsTableRowProps) {
   const [modalOpen, setModalOpen] = useState(false)
+  const isStoreAction = action.source_type === 'store' || !action.incident_id
   const isOverdue = new Date(action.due_date) < new Date() && 
     !['complete', 'cancelled'].includes(action.status)
+  const assigneeName = action.assigned_to?.full_name?.trim() || ''
+  const assigneeInitials = assigneeName
+    ? assigneeName.includes(' ')
+      ? assigneeName
+          .split(' ')
+          .filter(Boolean)
+          .map((part: string) => part[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
+      : assigneeName.toUpperCase().slice(0, 2)
+    : ''
 
   return (
     <>
@@ -27,19 +40,25 @@ export function ActionsTableRow({ action }: ActionsTableRowProps) {
           {action.title}
         </TableCell>
         <TableCell style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-          <Link href={`/incidents/${action.incident_id}`} className="hover:text-indigo-600 transition-colors">
+          {isStoreAction ? (
             <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-              {action.incident?.reference_no || 'Unknown'}
+              {action.incident?.reference_no || 'Store Action'}
             </span>
-          </Link>
+          ) : (
+            <Link href={`/incidents/${action.incident_id}`} className="hover:text-indigo-600 transition-colors">
+              <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                {action.incident?.reference_no || 'Unknown'}
+              </span>
+            </Link>
+          )}
         </TableCell>
         <TableCell style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-          {action.assigned_to?.full_name ? (
+          {assigneeName ? (
             <div className="flex items-center gap-1.5">
               <div className="h-5 w-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                {action.assigned_to.full_name[0]}
+                {assigneeInitials}
               </div>
-              <span className="text-sm text-slate-600 truncate">{action.assigned_to.full_name}</span>
+              <span className="text-sm text-slate-600 truncate">{assigneeName}</span>
             </div>
           ) : (
             <span className="text-slate-400 text-xs italic">Unassigned</span>
@@ -68,8 +87,12 @@ export function ActionsTableRow({ action }: ActionsTableRowProps) {
               <Eye className="h-3.5 w-3.5 mr-1.5" />
               View
             </Button>
-            <CloseActionButton actionId={action.id} actionTitle={action.title} currentStatus={action.status} />
-            <DeleteActionButton actionId={action.id} actionTitle={action.title} />
+            {!isStoreAction ? (
+              <>
+                <CloseActionButton actionId={action.id} actionTitle={action.title} currentStatus={action.status} />
+                <DeleteActionButton actionId={action.id} actionTitle={action.title} />
+              </>
+            ) : null}
           </div>
         </TableCell>
       </TableRow>
@@ -84,4 +107,3 @@ export function ActionsTableRow({ action }: ActionsTableRowProps) {
     </>
   )
 }
-
