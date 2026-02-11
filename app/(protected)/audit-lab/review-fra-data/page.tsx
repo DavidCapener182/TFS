@@ -49,7 +49,7 @@ export default function ReviewFRADataPage({
           pdfTextLength: data.pdfTextLength,
           pdfExtractedCount: data.pdfExtractedCount,
           dbExtractedCount: data.dbExtractedCount,
-          fields: Object.keys(data).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount')
+          fields: Object.keys(data).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'sourceQuestions' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount')
         })
         
         // If no PDF text found, retry once after a short delay (PDF might still be processing after upload)
@@ -149,6 +149,26 @@ export default function ReviewFRADataPage({
     )
   }
 
+  const getSourceQuestion = (fieldKey: string) => {
+    const question = extractedData?.sourceQuestions?.[fieldKey]
+    if (!question || typeof question !== 'string') return null
+    return question
+  }
+
+  const renderFieldLabel = (title: string, fieldKey: string) => (
+    <label className="block text-sm font-semibold text-slate-900 mb-2">
+      <span className="inline-flex items-center gap-2 flex-wrap">
+        <span>{title}</span>
+        {extractedData?.sources?.[fieldKey] && getSourceBadge(extractedData.sources[fieldKey])}
+      </span>
+      {getSourceQuestion(fieldKey) ? (
+        <span className="mt-1 block text-xs font-normal text-slate-500">
+          Pulled from: {getSourceQuestion(fieldKey)}
+        </span>
+      ) : null}
+    </label>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -244,7 +264,7 @@ export default function ReviewFRADataPage({
                     </div>
                   )}
                 </div>
-                {extractedData && Object.keys(extractedData).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength').length === 0 && (
+                {extractedData && Object.keys(extractedData).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'sourceQuestions' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength').length === 0 && (
                   <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
                     ⚠️ No data was extracted. Please check the browser console for extraction logs, or manually enter the information below.
                   </div>
@@ -260,10 +280,7 @@ export default function ReviewFRADataPage({
 
               {/* Store Manager */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Store Manager / Person in Charge
-                  {extractedData?.sources?.storeManager && getSourceBadge(extractedData.sources.storeManager)}
-                </label>
+                {renderFieldLabel('Store Manager / Person in Charge', 'storeManager')}
                 <Textarea
                   value={editedData.storeManager || ''}
                   onChange={(e) => setEditedData({ ...editedData, storeManager: e.target.value })}
@@ -274,10 +291,7 @@ export default function ReviewFRADataPage({
 
               {/* Assessment Date */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Assessment Date (Conducted Date)
-                  {extractedData?.sources?.conductedDate && getSourceBadge(extractedData.sources.conductedDate)}
-                </label>
+                {renderFieldLabel('Assessment Date (Conducted Date)', 'conductedDate')}
                 <Textarea
                   value={editedData.conductedDate || ''}
                   onChange={(e) => setEditedData({ ...editedData, conductedDate: e.target.value })}
@@ -288,10 +302,7 @@ export default function ReviewFRADataPage({
 
               {/* Assessment Start Time */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Assessment start time
-                  {extractedData?.sources?.assessmentStartTime && getSourceBadge(extractedData.sources.assessmentStartTime)}
-                </label>
+                {renderFieldLabel('Assessment start time', 'assessmentStartTime')}
                 <Textarea
                   value={editedData.assessmentStartTime || ''}
                   onChange={(e) => setEditedData({ ...editedData, assessmentStartTime: e.target.value })}
@@ -302,10 +313,7 @@ export default function ReviewFRADataPage({
 
               {/* Number of Floors */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Number of Floors
-                  {extractedData?.sources?.numberOfFloors && getSourceBadge(extractedData.sources.numberOfFloors)}
-                </label>
+                {renderFieldLabel('Number of Floors', 'numberOfFloors')}
                 <Textarea
                   value={editedData.numberOfFloors || ''}
                   onChange={(e) => setEditedData({ ...editedData, numberOfFloors: e.target.value })}
@@ -316,10 +324,7 @@ export default function ReviewFRADataPage({
 
               {/* Square Footage */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Square Footage / Floor Area
-                  {extractedData?.sources?.squareFootage && getSourceBadge(extractedData.sources.squareFootage)}
-                </label>
+                {renderFieldLabel('Square Footage / Floor Area', 'squareFootage')}
                 <Textarea
                   value={editedData.squareFootage || ''}
                   onChange={(e) => setEditedData({ ...editedData, squareFootage: e.target.value })}
@@ -330,10 +335,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire Panel Location */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire Panel Location
-                  {extractedData?.sources?.firePanelLocation && getSourceBadge(extractedData.sources.firePanelLocation)}
-                </label>
+                {renderFieldLabel('Fire Panel Location', 'firePanelLocation')}
                 <Textarea
                   value={editedData.firePanelLocation || ''}
                   onChange={(e) => setEditedData({ ...editedData, firePanelLocation: e.target.value })}
@@ -344,10 +346,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire Panel Faults */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire Panel Faults Status
-                  {extractedData?.sources?.firePanelFaults && getSourceBadge(extractedData.sources.firePanelFaults)}
-                </label>
+                {renderFieldLabel('Fire Panel Faults Status', 'firePanelFaults')}
                 <Textarea
                   value={editedData.firePanelFaults || ''}
                   onChange={(e) => setEditedData({ ...editedData, firePanelFaults: e.target.value })}
@@ -358,10 +357,7 @@ export default function ReviewFRADataPage({
 
               {/* Emergency Lighting Switch Location */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Emergency Lighting Test Switch Location
-                  {extractedData?.sources?.emergencyLightingSwitch && getSourceBadge(extractedData.sources.emergencyLightingSwitch)}
-                </label>
+                {renderFieldLabel('Emergency Lighting Test Switch Location', 'emergencyLightingSwitch')}
                 <Textarea
                   value={editedData.emergencyLightingSwitch || ''}
                   onChange={(e) => setEditedData({ ...editedData, emergencyLightingSwitch: e.target.value })}
@@ -372,10 +368,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire exit routes / escape routes */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire exit routes / escape routes
-                  {extractedData?.sources?.escapeRoutesEvidence && getSourceBadge(extractedData.sources.escapeRoutesEvidence)}
-                </label>
+                {renderFieldLabel('Fire exit routes / escape routes', 'escapeRoutesEvidence')}
                 <Textarea
                   value={editedData.escapeRoutesEvidence || ''}
                   onChange={(e) => setEditedData({ ...editedData, escapeRoutesEvidence: e.target.value })}
@@ -386,10 +379,7 @@ export default function ReviewFRADataPage({
 
               {/* Combustible storage & escape routes */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Combustible storage & escape routes
-                  {extractedData?.sources?.combustibleStorageEscapeCompromise && getSourceBadge(extractedData.sources.combustibleStorageEscapeCompromise)}
-                </label>
+                {renderFieldLabel('Combustible storage & escape routes', 'combustibleStorageEscapeCompromise')}
                 <Textarea
                   value={editedData.combustibleStorageEscapeCompromise || ''}
                   onChange={(e) => setEditedData({ ...editedData, combustibleStorageEscapeCompromise: e.target.value })}
@@ -400,10 +390,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire safety training */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire safety training
-                  {extractedData?.sources?.fireSafetyTrainingNarrative && getSourceBadge(extractedData.sources.fireSafetyTrainingNarrative)}
-                </label>
+                {renderFieldLabel('Fire safety training', 'fireSafetyTrainingNarrative')}
                 <Textarea
                   value={editedData.fireSafetyTrainingNarrative || ''}
                   onChange={(e) => setEditedData({ ...editedData, fireSafetyTrainingNarrative: e.target.value })}
@@ -414,10 +401,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire doors & compartmentation */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire doors & compartmentation
-                  {extractedData?.sources?.fireDoorsCondition && getSourceBadge(extractedData.sources.fireDoorsCondition)}
-                </label>
+                {renderFieldLabel('Fire doors & compartmentation', 'fireDoorsCondition')}
                 <Textarea
                   value={editedData.fireDoorsCondition || ''}
                   onChange={(e) => setEditedData({ ...editedData, fireDoorsCondition: e.target.value })}
@@ -428,10 +412,7 @@ export default function ReviewFRADataPage({
 
               {/* Weekly fire alarm tests */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Weekly fire alarm tests
-                  {extractedData?.sources?.weeklyFireTests && getSourceBadge(extractedData.sources.weeklyFireTests)}
-                </label>
+                {renderFieldLabel('Weekly fire alarm tests', 'weeklyFireTests')}
                 <Textarea
                   value={editedData.weeklyFireTests || ''}
                   onChange={(e) => setEditedData({ ...editedData, weeklyFireTests: e.target.value })}
@@ -442,10 +423,7 @@ export default function ReviewFRADataPage({
 
               {/* Monthly emergency lighting tests */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Monthly emergency lighting tests
-                  {extractedData?.sources?.emergencyLightingMonthlyTest && getSourceBadge(extractedData.sources.emergencyLightingMonthlyTest)}
-                </label>
+                {renderFieldLabel('Monthly emergency lighting tests', 'emergencyLightingMonthlyTest')}
                 <Textarea
                   value={editedData.emergencyLightingMonthlyTest || ''}
                   onChange={(e) => setEditedData({ ...editedData, emergencyLightingMonthlyTest: e.target.value })}
@@ -456,10 +434,7 @@ export default function ReviewFRADataPage({
 
               {/* Fire extinguishers serviced */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fire extinguishers serviced
-                  {extractedData?.sources?.fireExtinguisherService && getSourceBadge(extractedData.sources.fireExtinguisherService)}
-                </label>
+                {renderFieldLabel('Fire extinguishers serviced', 'fireExtinguisherService')}
                 <Textarea
                   value={editedData.fireExtinguisherService || ''}
                   onChange={(e) => setEditedData({ ...editedData, fireExtinguisherService: e.target.value })}
@@ -470,10 +445,7 @@ export default function ReviewFRADataPage({
 
               {/* Management review statement */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Management review statement
-                  {extractedData?.sources?.managementReviewStatement && getSourceBadge(extractedData.sources.managementReviewStatement)}
-                </label>
+                {renderFieldLabel('Management review statement', 'managementReviewStatement')}
                 <Textarea
                   value={editedData.managementReviewStatement || ''}
                   onChange={(e) => setEditedData({ ...editedData, managementReviewStatement: e.target.value })}
@@ -484,10 +456,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Number of fire exits */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Number of fire exits
-                  {extractedData?.sources?.numberOfFireExits && getSourceBadge(extractedData.sources.numberOfFireExits)}
-                </label>
+                {renderFieldLabel('Number of fire exits', 'numberOfFireExits')}
                 <Textarea
                   value={editedData.numberOfFireExits || ''}
                   onChange={(e) => setEditedData({ ...editedData, numberOfFireExits: e.target.value })}
@@ -498,10 +467,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Total staff employed */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Total staff employed
-                  {extractedData?.sources?.totalStaffEmployed && getSourceBadge(extractedData.sources.totalStaffEmployed)}
-                </label>
+                {renderFieldLabel('Total staff employed', 'totalStaffEmployed')}
                 <Textarea
                   value={editedData.totalStaffEmployed || ''}
                   onChange={(e) => setEditedData({ ...editedData, totalStaffEmployed: e.target.value })}
@@ -512,10 +478,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Maximum staff on site */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Maximum staff on site at any time
-                  {extractedData?.sources?.maxStaffOnSite && getSourceBadge(extractedData.sources.maxStaffOnSite)}
-                </label>
+                {renderFieldLabel('Maximum staff on site at any time', 'maxStaffOnSite')}
                 <Textarea
                   value={editedData.maxStaffOnSite || ''}
                   onChange={(e) => setEditedData({ ...editedData, maxStaffOnSite: e.target.value })}
@@ -526,10 +489,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Young persons count */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Young persons employed
-                  {extractedData?.sources?.youngPersonsCount && getSourceBadge(extractedData.sources.youngPersonsCount)}
-                </label>
+                {renderFieldLabel('Young persons employed', 'youngPersonsCount')}
                 <Textarea
                   value={editedData.youngPersonsCount || ''}
                   onChange={(e) => setEditedData({ ...editedData, youngPersonsCount: e.target.value })}
@@ -540,10 +500,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Fire drill date */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Last fire drill date
-                  {extractedData?.sources?.fireDrillDate && getSourceBadge(extractedData.sources.fireDrillDate)}
-                </label>
+                {renderFieldLabel('Last fire drill date', 'fireDrillDate')}
                 <Textarea
                   value={editedData.fireDrillDate || ''}
                   onChange={(e) => setEditedData({ ...editedData, fireDrillDate: e.target.value })}
@@ -554,10 +511,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: PAT testing status */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  PAT / electrical testing status
-                  {extractedData?.sources?.patTestingStatus && getSourceBadge(extractedData.sources.patTestingStatus)}
-                </label>
+                {renderFieldLabel('PAT / electrical testing status', 'patTestingStatus')}
                 <Textarea
                   value={editedData.patTestingStatus || ''}
                   onChange={(e) => setEditedData({ ...editedData, patTestingStatus: e.target.value })}
@@ -568,10 +522,7 @@ export default function ReviewFRADataPage({
 
               {/* HIGH PRIORITY: Fixed wire test date */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Fixed wire installation – date inspected/tested
-                  {extractedData?.sources?.fixedWireTestDate && getSourceBadge(extractedData.sources.fixedWireTestDate)}
-                </label>
+                {renderFieldLabel('Fixed wire installation – date inspected/tested', 'fixedWireTestDate')}
                 <Textarea
                   value={editedData.fixedWireTestDate || ''}
                   onChange={(e) => setEditedData({ ...editedData, fixedWireTestDate: e.target.value })}
@@ -582,10 +533,7 @@ export default function ReviewFRADataPage({
 
               {/* MEDIUM PRIORITY: Exit signage condition */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Exit signage condition
-                  {extractedData?.sources?.exitSignageCondition && getSourceBadge(extractedData.sources.exitSignageCondition)}
-                </label>
+                {renderFieldLabel('Exit signage condition', 'exitSignageCondition')}
                 <Textarea
                   value={editedData.exitSignageCondition || ''}
                   onChange={(e) => setEditedData({ ...editedData, exitSignageCondition: e.target.value })}
@@ -596,10 +544,7 @@ export default function ReviewFRADataPage({
 
               {/* MEDIUM PRIORITY: Compartmentation status */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Compartmentation / ceiling tiles
-                  {extractedData?.sources?.compartmentationStatus && getSourceBadge(extractedData.sources.compartmentationStatus)}
-                </label>
+                {renderFieldLabel('Compartmentation / ceiling tiles', 'compartmentationStatus')}
                 <Textarea
                   value={editedData.compartmentationStatus || ''}
                   onChange={(e) => setEditedData({ ...editedData, compartmentationStatus: e.target.value })}
@@ -610,10 +555,7 @@ export default function ReviewFRADataPage({
 
               {/* MEDIUM PRIORITY: Extinguisher service date */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Last fire extinguisher service date
-                  {extractedData?.sources?.extinguisherServiceDate && getSourceBadge(extractedData.sources.extinguisherServiceDate)}
-                </label>
+                {renderFieldLabel('Last fire extinguisher service date', 'extinguisherServiceDate')}
                 <Textarea
                   value={editedData.extinguisherServiceDate || ''}
                   onChange={(e) => setEditedData({ ...editedData, extinguisherServiceDate: e.target.value })}
@@ -624,10 +566,7 @@ export default function ReviewFRADataPage({
 
               {/* MEDIUM PRIORITY: Call point accessibility */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Call point accessibility
-                  {extractedData?.sources?.callPointAccessibility && getSourceBadge(extractedData.sources.callPointAccessibility)}
-                </label>
+                {renderFieldLabel('Call point accessibility', 'callPointAccessibility')}
                 <Textarea
                   value={editedData.callPointAccessibility || ''}
                   onChange={(e) => setEditedData({ ...editedData, callPointAccessibility: e.target.value })}

@@ -41,6 +41,7 @@ export interface FRARow {
 }
 
 export type FRAStatus = 'up_to_date' | 'due' | 'overdue' | 'not_required' | 'required'
+const FRA_DUE_WINDOW_DAYS = 20
 
 /**
  * Calculate the next FRA due date (12 months from last FRA date)
@@ -72,7 +73,7 @@ export function getFRAStatus(fraDate: string | null, needsFRA: boolean): FRAStat
   const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   
   if (daysDiff < 0) return 'overdue'
-  if (daysDiff <= 30) return 'due'
+  if (daysDiff <= FRA_DUE_WINDOW_DAYS) return 'due'
   return 'up_to_date'
 }
 

@@ -580,7 +580,7 @@ export async function completeAudit(instanceId: string) {
 export async function getAuditHistory(filters?: {
   templateId?: string
   storeId?: string
-  status?: string
+  status?: string | string[]
   dateFrom?: string
   dateTo?: string
 }) {
@@ -618,7 +618,11 @@ export async function getAuditHistory(filters?: {
   }
 
   if (filters?.status) {
-    query = query.eq('status', filters.status)
+    if (Array.isArray(filters.status)) {
+      query = query.in('status', filters.status)
+    } else {
+      query = query.eq('status', filters.status)
+    }
   }
 
   if (filters?.dateFrom) {

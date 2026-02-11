@@ -38,6 +38,7 @@ export interface ComplianceForecastResult {
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const FRA_DUE_WINDOW_DAYS = 20
 
 function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null
@@ -69,7 +70,7 @@ export function getFRAStatusFromDate(
 
   const daysUntilDue = getDaysBetween(nextDue, referenceDate)
   if (daysUntilDue < 0) return 'overdue'
-  if (daysUntilDue <= 30) return 'due'
+  if (daysUntilDue <= FRA_DUE_WINDOW_DAYS) return 'due'
   return 'up_to_date'
 }
 
@@ -140,7 +141,7 @@ export function computeComplianceForecast(
       drivers.push('No in-date FRA recorded')
     } else if (fraStatus === 'due') {
       riskScore += 12
-      drivers.push('FRA expires within 30 days')
+      drivers.push(`FRA expires within ${FRA_DUE_WINDOW_DAYS} days`)
     }
 
     if (overdueActions > 0) {

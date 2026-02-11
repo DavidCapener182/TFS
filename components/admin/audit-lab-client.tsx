@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { getFRAStatusFromDate } from '@/lib/compliance-forecast'
 import { 
   getTemplates, 
   getTemplate, 
@@ -152,9 +153,7 @@ export function AuditLabClient() {
   const loadActiveAudits = async () => {
     try {
       setLoadingAudits(true)
-      // Get both draft and in_progress audits
-      const allData = await getAuditHistory()
-      const active = allData.filter((a: any) => a.status === 'draft' || a.status === 'in_progress')
+      const active = await getAuditHistory({ status: ['draft', 'in_progress'] })
       setActiveAudits(active)
     } catch (error) {
       console.error('Error loading active audits:', error)
@@ -1383,15 +1382,21 @@ function AuditFormView({
       const supabase = createClient()
       const { data, error } = await supabase
         .from('fa_stores')
-        .select('id, store_code, store_name, city, region, compliance_audit_1_date, compliance_audit_2_date')
+        .select('id, store_code, store_name, city, region, compliance_audit_1_date, compliance_audit_2_date, fire_risk_assessment_date')
         .eq('is_active', true)
         .order('store_name', { ascending: true })
 
       if (!error && data) {
         if (template?.category === 'fire_risk_assessment') {
-          const eligible = data.filter(
-            (store) => store.compliance_audit_1_date || store.compliance_audit_2_date
-          )
+          const eligible = data.filter((store) => {
+            const hasCompletedComplianceAudit = Boolean(
+              store.compliance_audit_1_date || store.compliance_audit_2_date
+            )
+            if (!hasCompletedComplianceAudit) return false
+
+            const fraStatus = getFRAStatusFromDate(store.fire_risk_assessment_date)
+            return fraStatus !== 'up_to_date'
+          })
           setStores(eligible)
         } else {
           setStores(data)
@@ -1420,7 +1425,7 @@ function AuditFormView({
       const instance = await createAuditInstance(templateId, selectedStoreId)
       console.log('[AUDIT-LAB] Audit instance created:', instance.id)
       
-      // For FRA templates, auto-complete and show report directly
+      // For FRA templates, open the review/report flow and wait for explicit Save + Complete.
       if (template?.category === 'fire_risk_assessment') {
         console.log('[AUDIT-LAB] FRA template detected, checking for H&S audit file:', {
           hasFile: !!hsAuditFile,
@@ -1509,30 +1514,9 @@ function AuditFormView({
           console.log('[AUDIT-LAB] No H&S audit PDF file or pasted text - will use database audit only')
         }
         
-        // Auto-complete the FRA audit (it's generated from H&S data)
-        // For FRA, we don't need responses - just mark as completed
-        console.log('Completing FRA audit...')
-        try {
-          const completeRes = await fetch('/api/fra-reports/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ instanceId: instance.id }),
-          })
-          if (!completeRes.ok) {
-            const completeErr = await completeRes.json().catch(() => ({}))
-            throw new Error(completeErr.error || completeErr.details || `Failed to complete FRA (${completeRes.status})`)
-          }
-          console.log('FRA audit completed successfully via /api/fra-reports/complete')
-        } catch (completeError: any) {
-          console.warn('FRA completion failed:', completeError?.message || completeError)
-          alert(`Failed to complete FRA: ${completeError?.message || 'Unknown error'}`)
-          setStartingAudit(false)
-          return
-        }
-        
-        // Wait longer to ensure database is fully updated (PDF text storage, audit completion)
-        console.log('[AUDIT-LAB] Waiting 2 more seconds to ensure all database updates are complete...')
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Do not auto-complete FRA here.
+        // Completion is performed from the report view when the user clicks Save.
+        console.log('[AUDIT-LAB] FRA instance prepared; waiting for user to review and save before completion.')
         
         // Navigate to review page first to show extracted data
         // Use window.location instead of window.open to avoid popup blockers

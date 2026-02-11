@@ -28,6 +28,154 @@ function extractFromPDFText(pdfText: string, patterns: { key: string; regex: Reg
   return results
 }
 
+type ParsedYesNoQuestion = {
+  answer: 'yes' | 'no' | 'na' | null
+  comment: string | null
+}
+
+function parseYesNoQuestionBlock(
+  text: string,
+  questionRegex: RegExp
+): ParsedYesNoQuestion {
+  const questionMatch = text.match(questionRegex)
+  if (!questionMatch || questionMatch.index === undefined) {
+    return { answer: null, comment: null }
+  }
+
+  const start = questionMatch.index + questionMatch[0].length
+  const afterQuestion = text.slice(start, start + 2000)
+  const answerMatch = afterQuestion.match(/(?:^|\n)\s*(Yes|No|N\/A|NA)\s*(?:\n|$)/im)
+  const rawAnswer = answerMatch?.[1]?.toLowerCase() || ''
+  const answer: ParsedYesNoQuestion['answer'] =
+    rawAnswer === 'yes' ? 'yes' :
+    rawAnswer === 'no' ? 'no' :
+    rawAnswer === 'n/a' || rawAnswer === 'na' ? 'na' :
+    null
+
+  let commentRaw = ''
+  if (answerMatch && answerMatch.index !== undefined) {
+    commentRaw = afterQuestion.slice(0, answerMatch.index)
+  } else {
+    commentRaw = afterQuestion
+  }
+
+  const comment = commentRaw
+    .replace(/\bPhoto\s+\d+(?:\s+Photo\s+\d+)*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return {
+    answer,
+    comment: comment || null,
+  }
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function extractDateFromText(value: string): string | null {
+  const normalized = normalizeWhitespace(value)
+  if (!normalized) return null
+  const dated =
+    normalized.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/)?.[1]
+    || normalized.match(/\b(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})\b/i)?.[1]
+    || null
+  return dated ? normalizeWhitespace(dated) : null
+}
+
+function isLikelyGeneralSiteLabel(value: string): boolean {
+  const lower = normalizeWhitespace(value).toLowerCase()
+  if (!lower) return false
+  return [
+    'general site information',
+    'number of floors',
+    'square footage',
+    'number of fire exits',
+    'number of staff',
+    'maximum number of staff',
+    'number of young persons',
+    'any know enforcement action',
+    'any known enforcement action',
+    'health and safety policy',
+    'risk assessments',
+    'training',
+    'statutory testing',
+    'fire safety',
+  ].some((label) => lower.startsWith(label))
+}
+
+function extractNumericAfterLabel(text: string, labelRegex: RegExp): string | null {
+  const sameLineRegex = new RegExp(`${labelRegex.source}[^\\n\\r]*`, 'i')
+  const sameLine = text.match(sameLineRegex)?.[0] || null
+  if (sameLine) {
+    const trailingNumber = sameLine.match(/(\d+)\s*$/)?.[1] || null
+    if (trailingNumber) return trailingNumber
+  }
+
+  const blockRegex = new RegExp(`${labelRegex.source}[\\s\\S]{0,160}`, 'i')
+  const block = text.match(blockRegex)?.[0] || null
+  if (!block) return null
+
+  const lines = block
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const labelIndex = lines.findIndex((line) => labelRegex.test(line))
+  if (labelIndex < 0) return null
+
+  for (let i = labelIndex + 1; i < lines.length && i <= labelIndex + 3; i += 1) {
+    const line = lines[i]
+    if (isLikelyGeneralSiteLabel(line)) break
+    const numeric = line.match(/^(\d+)\b/)?.[1] || null
+    if (numeric) return numeric
+  }
+
+  return null
+}
+
+function isValidSquareFootageValue(value: string): boolean {
+  const cleaned = normalizeWhitespace(value).replace(/^[:\-–]\s*/, '')
+  if (!cleaned) return false
+  if (/^(n\/a|na|none|nil|not applicable|not provided|—|-)$/.test(cleaned.toLowerCase())) return false
+  if (!/\d/.test(cleaned)) return false
+  if (isLikelyGeneralSiteLabel(cleaned)) return false
+  if (/number of fire exits|number of staff|maximum number of staff|young persons|enforcement action/i.test(cleaned)) return false
+
+  return /^(\d[\d,]*(?:\.\d+)?)\s*(sq\s*ft|sq\s*m|m²|ft²|square\s*(feet|meters|metres))?$/i.test(cleaned)
+}
+
+function extractSquareFootageAfterLabel(text: string): string | null {
+  const labelRegex = /square footage or square meterage of site/i
+  const sameLine = text.match(/square footage or square meterage of site[^\n\r]*/i)?.[0] || null
+  if (sameLine) {
+    const candidate = normalizeWhitespace(sameLine.replace(labelRegex, ''))
+    if (isValidSquareFootageValue(candidate)) {
+      return candidate
+    }
+  }
+
+  const block = text.match(/square footage or square meterage of site[\s\S]{0,200}/i)?.[0] || null
+  if (!block) return null
+
+  const lines = block
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const labelIndex = lines.findIndex((line) => labelRegex.test(line))
+  if (labelIndex < 0) return null
+
+  for (let i = labelIndex + 1; i < lines.length && i <= labelIndex + 4; i += 1) {
+    const line = normalizeWhitespace(lines[i]).replace(/^[:\-–]\s*/, '')
+    if (isLikelyGeneralSiteLabel(line)) break
+    if (isValidSquareFootageValue(line)) return line
+  }
+
+  return null
+}
+
 /**
  * Get the most recent H&S audit for a store to use as source data for FRA
  * Also checks for uploaded H&S audit PDFs
@@ -358,17 +506,11 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       console.log('[FRA] Found emergency lighting switch from PDF:', pdfExtractedData.emergencyLightingSwitch)
     }
 
-    // Number of Floors
-    let floorsMatch = originalText.match(/(?:number of floors|floors?)[\s:]*(\d+)/i)
-    if (!floorsMatch) {
-      const generalSiteSection = originalText.match(/general site information[\s\S]{0,500}number of floors[\s:]*(\d+)/i)
-      if (generalSiteSection) {
-        floorsMatch = generalSiteSection
-      }
-    }
-    if (floorsMatch) {
-      pdfExtractedData.numberOfFloors = floorsMatch[1] || null
-      console.log('[FRA] Found number of floors from PDF:', pdfExtractedData.numberOfFloors)
+    // Number of floors: strict extraction from the matching General Site Information label.
+    const extractedFloors = extractNumericAfterLabel(originalText, /number of floors/i)
+    if (extractedFloors) {
+      pdfExtractedData.numberOfFloors = extractedFloors
+      console.log('[FRA] Found number of floors from PDF:', extractedFloors)
     }
 
     // Operating Hours
@@ -397,28 +539,45 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       console.log('[FRA] Found conducted date from PDF:', pdfExtractedData.conductedDate)
     }
 
-    // Square Footage
-    const squareFootageMatch = originalText.match(/(?:square footage|square meterage|floor area)[\s:]*([^\n\r]*?\d+[^\n\r]*?)(?:\n|$|number of|occupancy)/i)
-    if (squareFootageMatch) {
-      pdfExtractedData.squareFootage = squareFootageMatch[1]?.trim() || null
-      console.log('[FRA] Found square footage from PDF:', pdfExtractedData.squareFootage)
+    // Square footage: strict extraction from its own label only.
+    const extractedSquareFootage = extractSquareFootageAfterLabel(originalText)
+    if (extractedSquareFootage) {
+      pdfExtractedData.squareFootage = extractedSquareFootage
+      console.log('[FRA] Found square footage from PDF:', extractedSquareFootage)
     }
 
-    // H&S audit evidence for FRA: obstructed fire exits / escape routes
-    const escapeObstructedMatch = originalText.match(/(?:fire\s+exit|escape\s+route|delivery\s+door).*?(?:blocked|obstructed|partially\s+blocked|restricted|pallets|boxes)/i)
-      || originalText.match(/(?:blocked|obstructed|partially\s+blocked).*?(?:fire\s+exit|escape\s+route|delivery\s+door|stockroom|rear\s+fire\s+door)/i)
-      || originalText.match(/(?:pallets|boxes).*?(?:fire\s+exit|delivery\s+door|stockroom|escape)/i)
-    if (escapeObstructedMatch) {
+    // H&S audit evidence for FRA: parse exact question blocks before fallback inference.
+    const fireExitRoutesQuestion = parseYesNoQuestionBlock(
+      originalText,
+      /fire exit routes clear and unobstructed\?/i
+    )
+    if (fireExitRoutesQuestion.comment) {
+      pdfExtractedData.escapeRoutesEvidence = fireExitRoutesQuestion.comment
+    }
+    if (fireExitRoutesQuestion.answer === 'no') {
       pdfExtractedData.escapeRoutesObstructed = 'yes'
-      console.log('[FRA] Found escape route obstruction from PDF (evidence-led FRA)')
+      console.log('[FRA] Found fire exit routes question = NO')
     }
 
-    // Combustible storage / escape route compromise
-    const combustibleEscapeMatch = originalText.match(/(?:combustible|storage).*?(?:escape\s+route|compromised)/i)
-      || originalText.match(/(?:escape\s+route).*?(?:compromised|combustible)/i)
-    if (combustibleEscapeMatch) {
+    // Conservative fallback: only treat as obstruction when clearly negative (not "unobstructed").
+    if (!pdfExtractedData.escapeRoutesObstructed) {
+      const explicitObstruction = originalText.match(/\b(?:fire\s+exit|escape\s+route|delivery\s+door)s?\b[\s\S]{0,80}\b(?:blocked|partially\s+blocked|restricted)\b/i)
+      if (explicitObstruction && !/\bunobstructed\b/i.test(explicitObstruction[0])) {
+        pdfExtractedData.escapeRoutesObstructed = 'yes'
+        console.log('[FRA] Found explicit escape obstruction from PDF text')
+      }
+    }
+
+    // Combustible storage / escape route compromise: use exact question answer.
+    const combustibleStorageQuestion = parseYesNoQuestionBlock(
+      originalText,
+      /combustible materials are stored correctly\?/i
+    )
+    if (combustibleStorageQuestion.answer === 'no') {
       pdfExtractedData.combustibleStorageEscapeCompromise = 'yes'
-      console.log('[FRA] Found combustible storage / escape compromise from PDF')
+      console.log('[FRA] Found combustible materials question = NO')
+    } else if (combustibleStorageQuestion.answer === 'yes') {
+      pdfExtractedData.combustibleStorageEscapeCompromise = 'no'
     }
 
     // Fire safety training shortfall (toolbox not 100%, induction incomplete)
@@ -430,12 +589,11 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       console.log('[FRA] Found fire safety training shortfall from PDF')
     }
 
-    // HIGH PRIORITY: Number of fire exits
-    const fireExitsMatch = originalText.match(/(?:number of fire exits|fire exits)[\s:]*(\d+)/i)
-      || originalText.match(/fire exits[\s\S]{0,20}?(\d+)/i)
-    if (fireExitsMatch) {
-      pdfExtractedData.numberOfFireExits = fireExitsMatch[1]
-      console.log('[FRA] Found number of fire exits from PDF:', pdfExtractedData.numberOfFireExits)
+    // Number of fire exits: strict extraction from the General Site Information label.
+    const extractedFireExits = extractNumericAfterLabel(originalText, /number of fire exits/i)
+    if (extractedFireExits) {
+      pdfExtractedData.numberOfFireExits = extractedFireExits
+      console.log('[FRA] Found number of fire exits from PDF:', extractedFireExits)
     }
 
     // HIGH PRIORITY: Staff numbers - multiple patterns for different formats
@@ -488,44 +646,87 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       }
     }
 
-    // HIGH PRIORITY: Fire drill date - multiple patterns and formats
-    const fireDrillPatterns = [
-      /(?:fire drill|last drill|drill.*carried out|evacuation drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      /(?:fire drill|last drill|drill.*carried out)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      /(?:drill|evacuation).*?(?:date|carried out|conducted)[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      /(?:fire drill has been carried out)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      /(?:when was.*drill|last fire drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-    ]
-    for (const pattern of fireDrillPatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.fireDrillDate = match[1]
-        console.log('[FRA] Found fire drill date from PDF:', pdfExtractedData.fireDrillDate)
-        break
+    // Fire drill date: use exact question comment first, then fallback patterns.
+    const fireDrillQuestion = parseYesNoQuestionBlock(
+      originalText,
+      /fire drill has been carried out in the past 6 months and records available on site\?/i
+    )
+    const fireDrillDateFromQuestion = extractDateFromText(fireDrillQuestion.comment || '')
+    if (fireDrillDateFromQuestion) {
+      pdfExtractedData.fireDrillDate = fireDrillDateFromQuestion
+    } else if (
+      fireDrillQuestion.answer === 'yes'
+      && fireDrillQuestion.comment
+      && /no date|not been recorded|not recorded/i.test(fireDrillQuestion.comment)
+    ) {
+      pdfExtractedData.fireDrillDate = 'Not recorded (drill marked complete)'
+    }
+    if (!pdfExtractedData.fireDrillDate) {
+      const fireDrillPatterns = [
+        /(?:fire drill|last drill|drill.*carried out|evacuation drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+        /(?:fire drill|last drill|drill.*carried out)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+        /(?:drill|evacuation).*?(?:date|carried out|conducted)[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+        /(?:fire drill has been carried out)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+        /(?:when was.*drill|last fire drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+      ]
+      for (const pattern of fireDrillPatterns) {
+        const match = originalText.match(pattern)
+        if (match) {
+          pdfExtractedData.fireDrillDate = match[1]
+          break
+        }
       }
     }
-
-    // HIGH PRIORITY: PAT/electrical testing status
-    if (originalText.match(/(?:pat|portable appliance|electrical.*test).*?(?:passed|satisfactory|up to date|completed|yes)/i)
-      || originalText.match(/(?:fixed wiring|electrical installation).*?(?:satisfactory|passed|completed)/i)
-      || originalText.match(/(?:pat testing|pat test)[\s\S]{0,30}?(?:yes|ok|satisfactory|passed)/i)) {
-      pdfExtractedData.patTestingStatus = 'Satisfactory'
-      console.log('[FRA] Found PAT testing status from PDF: Satisfactory')
+    if (pdfExtractedData.fireDrillDate) {
+      console.log('[FRA] Found fire drill date from PDF:', pdfExtractedData.fireDrillDate)
     }
 
-    // Fixed wire installation – inspected/tested date
-    const fixedWireDatePatterns = [
-      /(?:fixed wire|fixed wiring|fixed wire installation)[\s\S]{0,100}?(?:last tested|inspected and tested|tested)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      /(?:fixed wire|fixed wiring)[\s\S]{0,80}?(?:yes|satisfactory)[\s\S]{0,80}?last (?:tested|conducted)[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      /(?:electrical installation|fixed wiring)[\s\S]{0,60}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-    ]
-    for (const pattern of fixedWireDatePatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.fixedWireTestDate = match[1]
-        console.log('[FRA] Found fixed wire test date from PDF:', pdfExtractedData.fixedWireTestDate)
-        break
+    // PAT/electrical testing status: exact PAT question first.
+    const patQuestion = parseYesNoQuestionBlock(originalText, /\bPAT\?/i)
+    const patDateFromQuestion = extractDateFromText(patQuestion.comment || '')
+    if (patQuestion.answer === 'yes') {
+      pdfExtractedData.patTestingStatus = patDateFromQuestion
+        ? `Satisfactory, last conducted ${patDateFromQuestion}`
+        : (patQuestion.comment || 'Satisfactory')
+    } else if (patQuestion.answer === 'no') {
+      pdfExtractedData.patTestingStatus = patQuestion.comment || 'Unsatisfactory'
+    }
+    if (!pdfExtractedData.patTestingStatus) {
+      if (originalText.match(/(?:pat|portable appliance|electrical.*test).*?(?:passed|satisfactory|up to date|completed|yes)/i)
+        || originalText.match(/(?:fixed wiring|electrical installation).*?(?:satisfactory|passed|completed)/i)
+        || originalText.match(/(?:pat testing|pat test)[\s\S]{0,30}?(?:yes|ok|satisfactory|passed)/i)) {
+        pdfExtractedData.patTestingStatus = 'Satisfactory'
       }
+    }
+    if (pdfExtractedData.patTestingStatus) {
+      console.log('[FRA] Found PAT testing status from PDF:', pdfExtractedData.patTestingStatus)
+    }
+
+    // Fixed wire date: exact "Fixed Electrical Wiring?" question first.
+    const fixedWiringQuestion = parseYesNoQuestionBlock(
+      originalText,
+      /fixed electrical wiring\?/i
+    )
+    const fixedWiringDateFromQuestion = extractDateFromText(fixedWiringQuestion.comment || '')
+    if (fixedWiringDateFromQuestion) {
+      pdfExtractedData.fixedWireTestDate = fixedWiringDateFromQuestion
+    }
+    if (!pdfExtractedData.fixedWireTestDate) {
+      const fixedWireDatePatterns = [
+        /(?:fixed electrical wiring|fixed wire|fixed wiring|fixed wire installation)[\s\S]{0,100}?(?:last tested|inspected and tested|tested|last conducted|conducted)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+        /(?:fixed electrical wiring|fixed wire|fixed wiring)[\s\S]{0,80}?(?:yes|satisfactory)[\s\S]{0,80}?last (?:tested|conducted)[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+        /(?:electrical installation|fixed wiring)[\s\S]{0,60}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+      ]
+      for (const pattern of fixedWireDatePatterns) {
+        const match = originalText.match(pattern)
+        if (match) {
+          pdfExtractedData.fixedWireTestDate = match[1]
+          break
+        }
+      }
+    }
+    if (pdfExtractedData.fixedWireTestDate) {
+      console.log('[FRA] Found fixed wire test date from PDF:', pdfExtractedData.fixedWireTestDate)
     }
 
     // MEDIUM PRIORITY: Exit signage condition - more flexible patterns
@@ -937,6 +1138,52 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
     return trimmed
   }
 
+  const reviewedEscapeRoutesNarrative = normalizeNarrativeText(editedExtractedData?.escapeRoutesEvidence)
+  const pdfEscapeRoutesNarrative = normalizeNarrativeText((pdfExtractedData as any).escapeRoutesEvidence)
+  const auditEscapeRoutesNarrative = normalizeNarrativeText(fireExitRoutes?.comment)
+
+  const isLikelyLegacyEscapeRoutesFallback = (value: string | null): boolean => {
+    if (!value) return false
+    return /\bdelivery doors?\b|\bpallets?\b|\bboxes?\b/i.test(value)
+  }
+
+  const hasEscapeRouteObstructionSignal = (value: string | null): boolean => {
+    if (!value) return false
+    const lower = value.toLowerCase()
+    const hasNegativeSignal = /\b(obstructed|blocked|partially blocked|restricted|compromised?|impeded|not clear)\b/.test(lower)
+    const hasExplicitPositiveSignal = /\b(unobstructed|clear and unobstructed|clear and fully accessible|fully accessible|remain clear|kept clear|clear paths?)\b/.test(lower)
+    return hasNegativeSignal && !hasExplicitPositiveSignal
+  }
+
+  const escapeRoutesNarrativeFromAudit =
+    (reviewedEscapeRoutesNarrative && !isLikelyLegacyEscapeRoutesFallback(reviewedEscapeRoutesNarrative)
+      ? reviewedEscapeRoutesNarrative
+      : null)
+    || pdfEscapeRoutesNarrative
+    || auditEscapeRoutesNarrative
+    || reviewedEscapeRoutesNarrative
+
+  const escapeRoutesNarrativeSource = (() => {
+    if (!escapeRoutesNarrativeFromAudit) return null
+    if (
+      reviewedEscapeRoutesNarrative
+      && escapeRoutesNarrativeFromAudit === reviewedEscapeRoutesNarrative
+      && !isLikelyLegacyEscapeRoutesFallback(reviewedEscapeRoutesNarrative)
+    ) {
+      return 'REVIEW'
+    }
+    if (pdfEscapeRoutesNarrative && escapeRoutesNarrativeFromAudit === pdfEscapeRoutesNarrative) {
+      return 'PDF'
+    }
+    if (auditEscapeRoutesNarrative && escapeRoutesNarrativeFromAudit === auditEscapeRoutesNarrative) {
+      return 'H&S_AUDIT'
+    }
+    if (reviewedEscapeRoutesNarrative && escapeRoutesNarrativeFromAudit === reviewedEscapeRoutesNarrative) {
+      return 'REVIEW'
+    }
+    return 'H&S_AUDIT'
+  })()
+
   type CompartmentationSource = 'REVIEW' | 'PDF' | 'H&S_AUDIT'
   const normalizeCompartmentationNarrative = (value: unknown): string | null => {
     return normalizeNarrativeText(value)
@@ -1015,8 +1262,11 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   const laddersNumbered = findAnswer('ladders clearly numbered')
 
   // Evidence-led flags from PDF or H&S audit responses
-  const escapeObstructed = pdfExtractedData.escapeRoutesObstructed === 'yes' ||
+  const escapeObstructedFromAnswers = pdfExtractedData.escapeRoutesObstructed === 'yes' ||
     (fireExitRoutes && String(fireExitRoutes.value).toLowerCase() === 'no')
+  const escapeObstructedFromNarrative = hasEscapeRouteObstructionSignal(escapeRoutesNarrativeFromAudit)
+  const escapeObstructed = escapeObstructedFromAnswers || escapeObstructedFromNarrative
+  const hasEscapeRouteConcern = escapeObstructed
   const combustibleEscapeCompromise = pdfExtractedData.combustibleStorageEscapeCompromise === 'yes' ||
     (combustibleMaterials && String(combustibleMaterials.value).toLowerCase() === 'no')
   const fireSafetyTrainingShortfall = pdfExtractedData.fireSafetyTrainingShortfall === 'yes' ||
@@ -1225,7 +1475,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       sourcesOfOxygen: 'DEFAULT',
       peopleAtRisk: 'DEFAULT',
       recommendedControls: 'H&S_AUDIT_MIXED',
-      escapeRoutesEvidence: editedExtractedData?.escapeRoutesEvidence ? 'REVIEW' : (aiSummaries?.escapeRoutesSummary ? 'AI' : (escapeObstructed ? 'H&S_AUDIT' : 'N/A')),
+      escapeRoutesEvidence: escapeRoutesNarrativeSource || (aiSummaries?.escapeRoutesSummary ? 'AI' : (escapeObstructed ? 'H&S_AUDIT' : 'N/A')),
       fireSafetyTrainingNarrative: editedExtractedData?.fireSafetyTrainingNarrative ? 'REVIEW' : (aiSummaries?.fireSafetyTrainingSummary ? 'AI' : (fireSafetyTrainingShortfall ? 'H&S_AUDIT' : 'DEFAULT')),
       managementReviewStatement: editedExtractedData?.managementReviewStatement ? 'REVIEW' : (aiSummaries?.managementReviewStatement ? 'AI' : ((pdfText || hsAudit) ? 'H&S_AUDIT' : 'N/A')),
       significantFindings: aiSummaries?.significantFindings?.length ? 'AI' : ((pdfText || hsAudit) ? 'H&S_AUDIT' : 'DEFAULT'),
@@ -1370,11 +1620,11 @@ Sprinkler heads are installed throughout the premises in accordance with the ori
       'Young persons – where employed, subject to appropriate risk assessment and controls'
     ],
 
-    // Evidence-led narrative: escape routes (prefer edited, then AI, then regex-derived)
-    escapeRoutesEvidence: (editedExtractedData?.escapeRoutesEvidence?.trim())
+    // Evidence-led narrative: escape routes (prefer reviewed/audit evidence first, then AI)
+    escapeRoutesEvidence: escapeRoutesNarrativeFromAudit
       || (aiSummaries?.escapeRoutesSummary?.trim())
       || (escapeObstructed
-        ? 'Observed during recent inspections: fire exits and delivery doors were partially blocked by pallets and boxes (stockroom and rear fire door), restricting effective escape width during evacuation.'
+        ? 'Observed during recent inspections: escape routes and/or final exits were obstructed, reducing effective egress width.'
         : null),
 
     // Evidence-led narrative: fire safety training (prefer edited, then AI, then regex-derived)
@@ -1415,10 +1665,9 @@ Sprinkler heads are installed throughout the premises in accordance with the ori
       if (aiSummaries?.significantFindings?.length) {
         return normalizeFindings(aiSummaries.significantFindings as string[])
       }
-      const editedEscape = editedExtractedData?.escapeRoutesEvidence?.trim()
-      const escapeSentence = editedEscape
-        || (escapeObstructed
-          ? 'Observed during recent inspections: fire exits and delivery doors were partially blocked by pallets and boxes (stockroom and rear fire door), restricting effective escape width during evacuation.'
+      const escapeSentence = escapeRoutesNarrativeFromAudit
+        || (hasEscapeRouteConcern
+          ? 'Observed during recent inspections: escape routes and/or final exits were obstructed, reducing effective egress width.'
           : 'Escape routes were clearly identifiable and generally maintained free from obstruction.')
       const detectionFinding = 'The premises is provided with appropriate fire detection and alarm systems, emergency lighting, fire-fighting equipment and clearly defined escape routes. These systems were observed to be in place and operational, supporting safe evacuation in the event of a fire.'
       const fireDoorsFinding = hasCompartmentationDefect
@@ -1436,7 +1685,7 @@ Sprinkler heads are installed throughout the premises in accordance with the ori
       coshhSheets?.value === 'No' ? 'Ensure fire safety documentation relevant to the premises is available on site and maintained in an accessible format, including COSHH safety data sheets.' : null,
       laddersNumbered?.value === 'No' ? 'Ensure all ladders and steps are clearly numbered for identification purposes.' : null,
       hasCompartmentationDefect ? compartmentationActionRecommendation : null,
-      (editedExtractedData?.escapeRoutesEvidence?.trim() || escapeObstructed) ? 'Address obstruction of fire exits and delivery doors (e.g. pallets, boxes) to maintain effective escape width; ensure escape routes and final exits are always kept clear and unobstructed.' : 'Continue to ensure escape routes and final exits are always kept clear and unobstructed.',
+      hasEscapeRouteConcern ? 'Address any obstruction to fire exits and escape routes; ensure final exits and evacuation paths remain clear and unobstructed.' : 'Continue to ensure escape routes and final exits are always kept clear and unobstructed.',
       combustibleEscapeCompromise ? 'Maintain good housekeeping standards; ensure combustible materials and packaging do not compromise escape routes.' : 'Maintain good housekeeping standards, particularly in relation to the control and storage of combustible materials and packaging.',
       'Continue routine testing, inspection and servicing of fire alarm systems, emergency lighting and fire-fighting equipment in accordance with statutory requirements and British Standards.',
       'Ensure internal fire doors are maintained in effective working order and are not wedged or held open.',
@@ -1462,11 +1711,11 @@ Sprinkler heads are installed throughout the premises in accordance with the ori
       }
       type ActionItem = { recommendation: string; priority: 'Low' | 'Medium' | 'High'; dueNote?: string }
       const derived: ActionItem[] = []
-      const hasEscapeIssue = !!(editedExtractedData?.escapeRoutesEvidence?.trim() || escapeObstructed)
+      const hasEscapeIssue = hasEscapeRouteConcern
       if (hasEscapeIssue) {
         derived.push({
           priority: 'High',
-          recommendation: 'Address obstruction of fire exits and delivery doors (e.g. pallets, boxes); ensure escape routes and final exits are kept clear and unobstructed.',
+          recommendation: 'Address any obstruction to fire exits and escape routes; ensure final exits and evacuation paths are kept clear and unobstructed.',
         })
       }
       if (trainingInduction?.value === 'No') {

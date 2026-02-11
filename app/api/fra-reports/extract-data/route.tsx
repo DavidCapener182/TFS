@@ -6,6 +6,160 @@ import { POST as searchStoreData } from '../search-store-data/route'
 
 export const dynamic = 'force-dynamic'
 
+type ParsedYesNoQuestion = {
+  answer: 'yes' | 'no' | 'na' | null
+  comment: string | null
+}
+
+function parseYesNoQuestionBlock(
+  text: string,
+  questionRegex: RegExp
+): ParsedYesNoQuestion {
+  const questionMatch = text.match(questionRegex)
+  if (!questionMatch || questionMatch.index === undefined) {
+    return { answer: null, comment: null }
+  }
+
+  const afterQuestion = text.slice(questionMatch.index + questionMatch[0].length, questionMatch.index + questionMatch[0].length + 2000)
+  const answerMatch = afterQuestion.match(/(?:^|\n)\s*(Yes|No|N\/A|NA)\s*(?:\n|$)/im)
+  const rawAnswer = answerMatch?.[1]?.toLowerCase() || ''
+  const answer: ParsedYesNoQuestion['answer'] =
+    rawAnswer === 'yes' ? 'yes' :
+    rawAnswer === 'no' ? 'no' :
+    rawAnswer === 'n/a' || rawAnswer === 'na' ? 'na' :
+    null
+
+  let commentRaw = ''
+  if (answerMatch && answerMatch.index !== undefined) {
+    commentRaw = afterQuestion.slice(0, answerMatch.index)
+  } else {
+    commentRaw = afterQuestion
+  }
+
+  const comment = commentRaw
+    .replace(/\bPhoto\s+\d+(?:\s+Photo\s+\d+)*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return {
+    answer,
+    comment: comment || null,
+  }
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function toDisplayAnswer(answer: ParsedYesNoQuestion['answer']): string | null {
+  if (answer === 'yes') return 'Yes'
+  if (answer === 'no') return 'No'
+  if (answer === 'na') return 'N/A'
+  return null
+}
+
+function extractDateFromText(value: string): string | null {
+  const normalized = normalizeWhitespace(value)
+  if (!normalized) return null
+  const dated =
+    normalized.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/)?.[1]
+    || normalized.match(/\b(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})\b/i)?.[1]
+    || null
+  return dated ? normalizeWhitespace(dated) : null
+}
+
+function isLikelyGeneralSiteLabel(value: string): boolean {
+  const lower = normalizeWhitespace(value).toLowerCase()
+  if (!lower) return false
+  return [
+    'general site information',
+    'number of floors',
+    'square footage',
+    'number of fire exits',
+    'number of staff',
+    'maximum number of staff',
+    'number of young persons',
+    'any know enforcement action',
+    'any known enforcement action',
+    'health and safety policy',
+    'risk assessments',
+    'training',
+    'statutory testing',
+    'fire safety',
+  ].some((label) => lower.startsWith(label))
+}
+
+function extractNumericAfterLabel(text: string, labelRegex: RegExp): string | null {
+  const sameLineRegex = new RegExp(`${labelRegex.source}[^\\n\\r]*`, 'i')
+  const sameLine = text.match(sameLineRegex)?.[0] || null
+  if (sameLine) {
+    const trailingNumber = sameLine.match(/(\d+)\s*$/)?.[1] || null
+    if (trailingNumber) return trailingNumber
+  }
+
+  const blockRegex = new RegExp(`${labelRegex.source}[\\s\\S]{0,160}`, 'i')
+  const block = text.match(blockRegex)?.[0] || null
+  if (!block) return null
+
+  const lines = block
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const labelIndex = lines.findIndex((line) => labelRegex.test(line))
+  if (labelIndex < 0) return null
+
+  for (let i = labelIndex + 1; i < lines.length && i <= labelIndex + 3; i += 1) {
+    const line = lines[i]
+    if (isLikelyGeneralSiteLabel(line)) break
+    const numeric = line.match(/^(\d+)\b/)?.[1] || null
+    if (numeric) return numeric
+  }
+
+  return null
+}
+
+function isValidSquareFootageValue(value: string): boolean {
+  const cleaned = normalizeWhitespace(value).replace(/^[:\-–]\s*/, '')
+  if (!cleaned) return false
+  if (/^(n\/a|na|none|nil|not applicable|not provided|—|-)$/.test(cleaned.toLowerCase())) return false
+  if (!/\d/.test(cleaned)) return false
+  if (isLikelyGeneralSiteLabel(cleaned)) return false
+  if (/number of fire exits|number of staff|maximum number of staff|young persons|enforcement action/i.test(cleaned)) return false
+
+  return /^(\d[\d,]*(?:\.\d+)?)\s*(sq\s*ft|sq\s*m|m²|ft²|square\s*(feet|meters|metres))?$/i.test(cleaned)
+}
+
+function extractSquareFootageAfterLabel(text: string): string | null {
+  const labelRegex = /square footage or square meterage of site/i
+  const sameLine = text.match(/square footage or square meterage of site[^\n\r]*/i)?.[0] || null
+  if (sameLine) {
+    const candidate = normalizeWhitespace(sameLine.replace(labelRegex, ''))
+    if (isValidSquareFootageValue(candidate)) {
+      return candidate
+    }
+  }
+
+  const block = text.match(/square footage or square meterage of site[\s\S]{0,200}/i)?.[0] || null
+  if (!block) return null
+
+  const lines = block
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const labelIndex = lines.findIndex((line) => labelRegex.test(line))
+  if (labelIndex < 0) return null
+
+  for (let i = labelIndex + 1; i < lines.length && i <= labelIndex + 4; i += 1) {
+    const line = normalizeWhitespace(lines[i]).replace(/^[:\-–]\s*/, '')
+    if (isLikelyGeneralSiteLabel(line)) break
+    if (isValidSquareFootageValue(line)) return line
+  }
+
+  return null
+}
+
 /**
  * Extract data from H&S audit (PDF or database) without generating full FRA
  * Returns raw extracted data for review
@@ -274,38 +428,12 @@ export async function GET(request: NextRequest) {
         console.log('[EXTRACT] ✗ No emergency lighting switch found')
       }
 
-      // Number of Floors - look in "General Site Information" section
-      // Pattern: "Number of floors (list ie Basement; Ground; 1st, 2nd in comments section) 1"
-      let floorsMatch = null
-      const floorsPatterns = [
-        // Pattern 1: "Number of floors" followed by number on same line or next line
-        /number of floors[^\n\r]*?(\d+)/i,
-        // Pattern 2: Look in general site section specifically
-        /general site information[\s\S]{0,500}number of floors[^\n\r]*?(\d+)/i,
-        // Pattern 3: "operates over X level" or "X level" or "X floor"
-        /(?:operates over|comprises|has)[\s]+(?:one|two|three|four|five|1|2|3|4|5)\s+(?:level|floor|storey)/i,
-        // Pattern 4: "one level (Ground Floor)"
-        /(?:one|1)\s+level[\s(]*(?:ground\s+floor|basement)/i,
-      ]
-      
-      for (const pattern of floorsPatterns) {
-        floorsMatch = originalText.match(pattern)
-        if (floorsMatch) {
-          console.log('[EXTRACT] Floors pattern matched:', pattern.toString())
-          // Extract number from match
-          const numberMatch = floorsMatch[1] || floorsMatch[0].match(/(\d+)/)?.[1] ||
-                             (floorsMatch[0].match(/one/i) ? '1' : null) ||
-                             (floorsMatch[0].match(/two/i) ? '2' : null) ||
-                             (floorsMatch[0].match(/three/i) ? '3' : null)
-          if (numberMatch) {
-            pdfExtractedData.numberOfFloors = numberMatch
-            console.log('[EXTRACT] ✓ Found number of floors:', pdfExtractedData.numberOfFloors)
-            break
-          }
-        }
-      }
-      
-      if (!floorsMatch || !pdfExtractedData.numberOfFloors) {
+      // Number of floors: strict extraction from the matching General Site Information label.
+      const extractedFloors = extractNumericAfterLabel(originalText, /number of floors/i)
+      if (extractedFloors) {
+        pdfExtractedData.numberOfFloors = extractedFloors
+        console.log('[EXTRACT] ✓ Found number of floors:', extractedFloors)
+      } else {
         console.log('[EXTRACT] ✗ No number of floors found')
       }
 
@@ -391,53 +519,36 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Square Footage - "Square Footage or Square Meterage of site" (value may be on same or next line, or empty)
-      let squareFootageMatch = null
-      const squareFootagePatterns = [
-        // "Square Footage or Square Meterage of site" then number or N/A
-        /(?:square footage or square meterage of site|square footage or square meterage)[\s:]*([^\n\r]*?\d+[,\d]*[^\n\r]*?)(?:\n|$)/i,
-        /(?:square footage or square meterage of site)[\s:]*(\d+[,\d]*)/i,
-        // Standard "Square Footage" or "Square Meterage"
-        /(?:square footage|square meterage|floor area|site area)[\s:]*([^\n\r]*?\d+[,\d]*(?:\s*(?:sq\s*ft|sq\s*m|m²|ft²|square\s*(?:feet|meters|metres))))/i,
-        /(?:square footage|square meterage|floor area)[\s:]*(\d+[,\d]*)\s*(?:sq\s*ft|sq\s*m|m²|ft²|square\s*(?:feet|meters|metres))/i,
-        /(\d+[,\d]*)\s*(?:sq\s*ft|sq\s*m|m²|ft²|square\s*(?:feet|meters|metres))(?:\s+or\s+\d+)?/i,
-        /general site information[\s\S]{0,500}(?:square footage|square meterage|floor area)[\s:]*([^\n\r]*?\d+[^\n\r]*?)(?:\n|$)/i,
-      ]
-      
-      for (const pattern of squareFootagePatterns) {
-        squareFootageMatch = originalText.match(pattern)
-        if (squareFootageMatch) {
-          console.log('[EXTRACT] Square footage pattern matched:', pattern.toString())
-          const footage = squareFootageMatch[1]?.trim() || null
-          if (footage && /\d+/.test(footage)) {
-            // Include units if found
-            const fullMatch = squareFootageMatch[0]
-            const unitsMatch = fullMatch.match(/(?:sq\s*ft|sq\s*m|m²|ft²|square\s*(?:feet|meters|metres))/i)
-            pdfExtractedData.squareFootage = footage + (unitsMatch ? ' ' + unitsMatch[0] : '')
-            console.log('[EXTRACT] ✓ Found square footage:', pdfExtractedData.squareFootage)
-            break
-          }
-        }
-      }
-      
-      if (!squareFootageMatch || !pdfExtractedData.squareFootage) {
+      // Square footage: strict extraction from its own label only.
+      const extractedSquareFootage = extractSquareFootageAfterLabel(originalText)
+      if (extractedSquareFootage) {
+        pdfExtractedData.squareFootage = extractedSquareFootage
+        console.log('[EXTRACT] ✓ Found square footage:', extractedSquareFootage)
+      } else {
         console.log('[EXTRACT] ✗ No square footage found')
       }
 
-      // Evidence-led FRA fields (same patterns as fra-reports.ts)
-      const escapeObstructedMatch = originalText.match(/(?:fire\s+exit|escape\s+route|delivery\s+door).*?(?:blocked|obstructed|partially\s+blocked|restricted|pallets|boxes)/i)
-        || originalText.match(/(?:blocked|obstructed|partially\s+blocked).*?(?:fire\s+exit|escape\s+route|delivery\s+door|stockroom|rear\s+fire\s+door)/i)
-        || originalText.match(/(?:pallets|boxes).*?(?:fire\s+exit|delivery\s+door|stockroom|escape)/i)
-      if (escapeObstructedMatch) {
-        pdfExtractedData.escapeRoutesEvidence = 'Observed during recent inspections: fire exits and delivery doors were partially blocked by pallets and boxes (stockroom and rear fire door), restricting effective escape width during evacuation.'
-        console.log('[EXTRACT] ✓ Found escape route obstruction from PDF')
+      // Evidence-led FRA fields from exact audit questions.
+      const fireExitRoutesQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fire exit routes clear and unobstructed\?/i
+      )
+      if (fireExitRoutesQuestion.comment) {
+        pdfExtractedData.escapeRoutesEvidence = fireExitRoutesQuestion.comment
+      }
+      if (fireExitRoutesQuestion.answer === 'no') {
+        console.log('[EXTRACT] ✓ Fire exit routes question answered NO')
+      } else if (fireExitRoutesQuestion.answer === 'yes') {
+        console.log('[EXTRACT] ✓ Fire exit routes question answered YES')
       }
 
-      const combustibleEscapeMatch = originalText.match(/(?:combustible|storage).*?(?:escape\s+route|compromised)/i)
-        || originalText.match(/(?:escape\s+route).*?(?:compromised|combustible)/i)
-      if (combustibleEscapeMatch) {
+      const combustibleStorageQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /combustible materials are stored correctly\?/i
+      )
+      if (combustibleStorageQuestion.answer === 'no') {
         pdfExtractedData.combustibleStorageEscapeCompromise = 'Escape routes compromised'
-      } else if (originalText.match(/(?:combustible|storage).*?(?:correct|ok|stored correctly)/i)) {
+      } else if (combustibleStorageQuestion.answer === 'yes') {
         pdfExtractedData.combustibleStorageEscapeCompromise = 'OK'
       }
 
@@ -456,49 +567,77 @@ export async function GET(request: NextRequest) {
         console.log('[EXTRACT] ✓ Found fire safety training (induction/onboarding 100%)')
       }
 
-      const fireDoorsGoodMatch = originalText.match(/(?:fire\s+door|fire doors).*?(?:good\s+condition|in good condition)/i)
-        || originalText.match(/(?:intumescent|intact).*?(?:strip|door)/i)
-        || originalText.match(/(?:not\s+wedged|doors not wedged)/i)
-      if (fireDoorsGoodMatch) {
-        pdfExtractedData.fireDoorsCondition = 'Good condition; intumescent strips present; doors not wedged open.'
+      // Fire doors and compartmentation: use the matching fire-door questions.
+      const fireDoorsClosedQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fire doors closed and not held open\?/i
+      )
+      const fireDoorsConditionQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fire doors in a good condition\?/i
+      )
+      const intumescentQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /are fire door intumescent strips in place and intact/i
+      )
+      const fireDoorNarrative =
+        fireDoorsConditionQuestion.comment
+        || intumescentQuestion.comment
+        || fireDoorsClosedQuestion.comment
+        || [toDisplayAnswer(fireDoorsConditionQuestion.answer), toDisplayAnswer(intumescentQuestion.answer), toDisplayAnswer(fireDoorsClosedQuestion.answer)].filter(Boolean).join(' / ')
+      if (fireDoorNarrative) {
+        pdfExtractedData.fireDoorsCondition = fireDoorNarrative
       }
 
-      if (originalText.match(/(?:weekly\s+fire\s+alarm|fire\s+alarm\s+test).*?(?:documented|conducted|yes)/i)
-        || originalText.match(/(?:fire\s+alarm).*?weekly/i)) {
-        pdfExtractedData.weeklyFireTests = 'Documented'
+      // Weekly fire tests: exact question mapping.
+      const weeklyFireTestsQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /weekly fire tests carried out and documented\?/i
+      )
+      if (weeklyFireTestsQuestion.comment) {
+        pdfExtractedData.weeklyFireTests = weeklyFireTestsQuestion.comment
+      } else {
+        const weeklyAnswer = toDisplayAnswer(weeklyFireTestsQuestion.answer)
+        if (weeklyAnswer) pdfExtractedData.weeklyFireTests = weeklyAnswer
       }
 
-      // Monthly emergency lighting - "Emergency Lighting Maintenance? Yes, Last conducted 07/10/2025"
-      const emergencyLightingMonthlyMatch = originalText.match(/(?:emergency\s+lighting\s+maintenance|monthly\s+emergency\s+lighting|emergency\s+lighting\s+test)[\s\S]{0,80}?(?:yes|conducted|documented)/i)
-        || originalText.match(/(?:emergency\s+lighting).*?monthly/i)
-        || originalText.match(/(?:emergency\s+lighting)[\s\S]{0,120}?last conducted[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i)
-      if (emergencyLightingMonthlyMatch) {
-        const datePart = emergencyLightingMonthlyMatch[1]
-        pdfExtractedData.emergencyLightingMonthlyTest = datePart ? `Conducted ${datePart}` : 'Conducted'
-        console.log('[EXTRACT] ✓ Found emergency lighting monthly test:', pdfExtractedData.emergencyLightingMonthlyTest)
+      // Monthly emergency lighting tests: exact question mapping.
+      const monthlyEmergencyLightingQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /evidence of monthly emergency lighting test being conducted\?/i
+      )
+      if (monthlyEmergencyLightingQuestion.comment) {
+        pdfExtractedData.emergencyLightingMonthlyTest = monthlyEmergencyLightingQuestion.comment
+      } else {
+        const monthlyLightingAnswer = toDisplayAnswer(monthlyEmergencyLightingQuestion.answer)
+        if (monthlyLightingAnswer) pdfExtractedData.emergencyLightingMonthlyTest = monthlyLightingAnswer
       }
 
-      if (originalText.match(/(?:fire\s+extinguisher|extinguisher).*?(?:serviced|accessible|in position)/i)) {
-        pdfExtractedData.fireExtinguisherService = 'Serviced and accessible'
+      // Fire extinguisher service: exact question mapping.
+      const fireExtinguisherServiceQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fire extinguisher service\?/i
+      )
+      if (fireExtinguisherServiceQuestion.comment) {
+        pdfExtractedData.fireExtinguisherService = fireExtinguisherServiceQuestion.comment
+      } else {
+        const extinguisherAnswer = toDisplayAnswer(fireExtinguisherServiceQuestion.answer)
+        if (extinguisherAnswer) pdfExtractedData.fireExtinguisherService = extinguisherAnswer
+      }
+      const extinguisherDateFromQuestion = extractDateFromText(fireExtinguisherServiceQuestion.comment || '')
+      if (extinguisherDateFromQuestion) {
+        pdfExtractedData.extinguisherServiceDate = extinguisherDateFromQuestion
       }
 
       if (pdfText) {
         pdfExtractedData.managementReviewStatement = 'This assessment has been informed by recent health and safety inspections and site observations.'
       }
 
-      // HIGH PRIORITY: Number of fire exits (accept number or "Other" / text)
-      const fireExitsNumMatch = originalText.match(/(?:number of fire exits|fire exits)[\s:]*(\d+)/i)
-        || originalText.match(/fire exits[\s\S]{0,20}?(\d+)/i)
-      const fireExitsTextMatch = originalText.match(/(?:number of fire exits|fire exits)[\s:]*([^\n\r]+?)(?:\n|$)/i)
-      if (fireExitsNumMatch) {
-        pdfExtractedData.numberOfFireExits = fireExitsNumMatch[1]
-        console.log('[EXTRACT] ✓ Found number of fire exits:', pdfExtractedData.numberOfFireExits)
-      } else if (fireExitsTextMatch) {
-        const value = fireExitsTextMatch[1].trim()
-        if (value && value.length < 50) {
-          pdfExtractedData.numberOfFireExits = value
-          console.log('[EXTRACT] ✓ Found number of fire exits (text):', pdfExtractedData.numberOfFireExits)
-        }
+      // Number of fire exits: strict extraction from the General Site Information label.
+      const extractedFireExits = extractNumericAfterLabel(originalText, /number of fire exits/i)
+      if (extractedFireExits) {
+        pdfExtractedData.numberOfFireExits = extractedFireExits
+        console.log('[EXTRACT] ✓ Found number of fire exits:', extractedFireExits)
       }
 
       // HIGH PRIORITY: Staff numbers - multiple patterns for different formats
@@ -556,47 +695,90 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // HIGH PRIORITY: Fire drill date - multiple patterns and formats
-      const fireDrillPatterns = [
-        /(?:fire drill|last drill|drill.*carried out|evacuation drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:fire drill|last drill|drill.*carried out)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:drill|evacuation).*?(?:date|carried out|conducted)[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:fire drill has been carried out)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:when was.*drill|last fire drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      ]
-      for (const pattern of fireDrillPatterns) {
-        const match = originalText.match(pattern)
-        if (match) {
-          pdfExtractedData.fireDrillDate = match[1]
-          console.log('[EXTRACT] ✓ Found fire drill date:', pdfExtractedData.fireDrillDate)
-          break
+      // Fire drill date: use exact question comment first, then fallback date patterns.
+      const fireDrillQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fire drill has been carried out in the past 6 months and records available on site\?/i
+      )
+      const fireDrillDateFromQuestion = extractDateFromText(fireDrillQuestion.comment || '')
+      if (fireDrillDateFromQuestion) {
+        pdfExtractedData.fireDrillDate = fireDrillDateFromQuestion
+      } else if (
+        fireDrillQuestion.answer === 'yes'
+        && fireDrillQuestion.comment
+        && /no date|not been recorded|not recorded/i.test(fireDrillQuestion.comment)
+      ) {
+        pdfExtractedData.fireDrillDate = 'Not recorded (drill marked complete)'
+      }
+      if (!pdfExtractedData.fireDrillDate) {
+        const fireDrillPatterns = [
+          /(?:fire drill|last drill|drill.*carried out|evacuation drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+          /(?:fire drill|last drill|drill.*carried out)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+          /(?:drill|evacuation).*?(?:date|carried out|conducted)[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+          /(?:fire drill has been carried out)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+          /(?:when was.*drill|last fire drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
+        ]
+        for (const pattern of fireDrillPatterns) {
+          const match = originalText.match(pattern)
+          if (match) {
+            pdfExtractedData.fireDrillDate = match[1]
+            break
+          }
         }
       }
+      if (pdfExtractedData.fireDrillDate) {
+        console.log('[EXTRACT] ✓ Found fire drill date:', pdfExtractedData.fireDrillDate)
+      }
 
-      // HIGH PRIORITY: PAT/electrical testing - "PAT? Yes, Last conducted 01/09/2025" in Statutory Testing
-      const patYesMatch = originalText.match(/\bPAT\??[\s\S]{0,60}?(?:yes|satisfactory|passed|ok)/i)
-        || originalText.match(/(?:pat|portable appliance|electrical.*test).*?(?:passed|satisfactory|up to date|completed|yes)/i)
-        || originalText.match(/(?:fixed wiring|electrical installation).*?(?:satisfactory|passed|completed)/i)
-        || originalText.match(/(?:pat testing|pat test)[\s\S]{0,30}?(?:yes|ok|satisfactory|passed)/i)
-      const patDateMatch = originalText.match(/\bPAT\??[\s\S]{0,100}?last conducted[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i)
-      if (patYesMatch) {
-        pdfExtractedData.patTestingStatus = patDateMatch?.[1] ? `Satisfactory, last conducted ${patDateMatch[1]}` : 'Satisfactory'
+      // PAT testing status: exact PAT question first.
+      const patQuestion = parseYesNoQuestionBlock(originalText, /\bPAT\?/i)
+      const patDateFromQuestion = extractDateFromText(patQuestion.comment || '')
+      if (patQuestion.answer === 'yes') {
+        pdfExtractedData.patTestingStatus = patDateFromQuestion
+          ? `Satisfactory, last conducted ${patDateFromQuestion}`
+          : (patQuestion.comment || 'Satisfactory')
+      } else if (patQuestion.answer === 'no') {
+        pdfExtractedData.patTestingStatus = patQuestion.comment || 'Unsatisfactory'
+      }
+      if (!pdfExtractedData.patTestingStatus) {
+        const patYesMatch = originalText.match(/\bPAT\??[\s\S]{0,60}?(?:yes|satisfactory|passed|ok)/i)
+          || originalText.match(/(?:pat|portable appliance|electrical.*test).*?(?:passed|satisfactory|up to date|completed|yes)/i)
+          || originalText.match(/(?:fixed wiring|electrical installation).*?(?:satisfactory|passed|completed)/i)
+          || originalText.match(/(?:pat testing|pat test)[\s\S]{0,30}?(?:yes|ok|satisfactory|passed)/i)
+        const patDateMatch = originalText.match(/\bPAT\??[\s\S]{0,100}?last conducted[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i)
+        if (patYesMatch) {
+          pdfExtractedData.patTestingStatus = patDateMatch?.[1] ? `Satisfactory, last conducted ${patDateMatch[1]}` : 'Satisfactory'
+        }
+      }
+      if (pdfExtractedData.patTestingStatus) {
         console.log('[EXTRACT] ✓ Found PAT testing status:', pdfExtractedData.patTestingStatus)
       }
 
-      // Fixed wire installation – inspected/tested date
-      const fixedWireDatePatterns = [
-        /(?:fixed wire|fixed wiring|fixed wire installation)[\s\S]{0,100}?(?:last tested|inspected and tested|tested)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:fixed wire|fixed wiring)[\s\S]{0,80}?(?:yes|satisfactory)[\s\S]{0,80}?last (?:tested|conducted)[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:electrical installation|fixed wiring)[\s\S]{0,60}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      ]
-      for (const pattern of fixedWireDatePatterns) {
-        const match = originalText.match(pattern)
-        if (match) {
-          pdfExtractedData.fixedWireTestDate = match[1]
-          console.log('[EXTRACT] ✓ Found fixed wire test date:', pdfExtractedData.fixedWireTestDate)
-          break
+      // Fixed wire date: exact "Fixed Electrical Wiring?" question first.
+      const fixedWiringQuestion = parseYesNoQuestionBlock(
+        originalText,
+        /fixed electrical wiring\?/i
+      )
+      const fixedWiringDateFromQuestion = extractDateFromText(fixedWiringQuestion.comment || '')
+      if (fixedWiringDateFromQuestion) {
+        pdfExtractedData.fixedWireTestDate = fixedWiringDateFromQuestion
+      }
+      if (!pdfExtractedData.fixedWireTestDate) {
+        const fixedWireDatePatterns = [
+          /(?:fixed electrical wiring|fixed wire|fixed wiring|fixed wire installation)[\s\S]{0,100}?(?:last tested|inspected and tested|tested|last conducted|conducted)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+          /(?:fixed electrical wiring|fixed wire|fixed wiring)[\s\S]{0,80}?(?:yes|satisfactory)[\s\S]{0,80}?last (?:tested|conducted)[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+          /(?:electrical installation|fixed wiring)[\s\S]{0,60}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
+        ]
+        for (const pattern of fixedWireDatePatterns) {
+          const match = originalText.match(pattern)
+          if (match) {
+            pdfExtractedData.fixedWireTestDate = match[1]
+            break
+          }
         }
+      }
+      if (pdfExtractedData.fixedWireTestDate) {
+        console.log('[EXTRACT] ✓ Found fixed wire test date:', pdfExtractedData.fixedWireTestDate)
       }
 
       // MEDIUM PRIORITY: Exit signage condition - more flexible patterns
@@ -669,6 +851,37 @@ export async function GET(request: NextRequest) {
 
     // FRA uses ONLY the uploaded PDF text - no database audit fallback
     // All data comes from PDF text extraction
+    const sourceQuestions: Record<string, string> = {
+      storeManager: 'Signature of Person in Charge of store at time of assessment.',
+      conductedDate: 'Conducted on',
+      assessmentStartTime: 'Conducted on (time portion, if present)',
+      numberOfFloors: 'Number of floors (list ie Basement; Ground; 1st, 2nd in comments section)',
+      squareFootage: 'Square Footage or Square Meterage of site',
+      operatingHours: 'Web search from store details (not from H&S audit PDF)',
+      firePanelLocation: 'Location of Fire Panel',
+      firePanelFaults: 'Is panel free of faults',
+      emergencyLightingSwitch: 'Location of Emergency Lighting Test Switch (Photograph)',
+      escapeRoutesEvidence: 'Fire exit routes clear and unobstructed?',
+      combustibleStorageEscapeCompromise: 'Combustible materials are stored correctly?',
+      fireSafetyTrainingNarrative: 'H&S induction training onboarding... / H&S toolbox refresher training...',
+      fireDoorsCondition: 'Fire doors in a good condition? / Are fire door intumescent strips in place and intact? / Fire doors closed and not held open?',
+      weeklyFireTests: 'Weekly Fire Tests carried out and documented?',
+      emergencyLightingMonthlyTest: 'Evidence of Monthly Emergency Lighting test being conducted?',
+      fireExtinguisherService: 'Fire Extinguisher Service?',
+      managementReviewStatement: 'Derived from full uploaded H&S audit content',
+      numberOfFireExits: 'Number of Fire Exits',
+      totalStaffEmployed: 'Number of Staff employed at the site',
+      maxStaffOnSite: 'Maximum number of staff working on site at any one time',
+      youngPersonsCount: 'Number of Young persons (under the age of 18 yrs) employed at the site',
+      fireDrillDate: 'Fire drill has been carried out in the past 6 months and records available on site?',
+      patTestingStatus: 'PAT?',
+      fixedWireTestDate: 'Fixed Electrical Wiring?',
+      exitSignageCondition: 'Fire exit signage / exit sign condition statements in the audit PDF',
+      compartmentationStatus: 'Structure found to be in a good condition... (missing ceiling tiles / gaps from area to area?)',
+      extinguisherServiceDate: 'Fire Extinguisher Service?',
+      callPointAccessibility: 'Are all call points clear and easily accessible',
+    }
+
     const extractedData = {
       storeManager: pdfExtractedData.storeManager || null,
       firePanelLocation: pdfExtractedData.firePanelLocation || null,
@@ -730,6 +943,7 @@ export async function GET(request: NextRequest) {
         extinguisherServiceDate: pdfExtractedData.extinguisherServiceDate ? 'PDF' : 'NOT_FOUND',
         callPointAccessibility: pdfExtractedData.callPointAccessibility ? 'PDF' : 'NOT_FOUND',
       },
+      sourceQuestions,
       hasPdfText: !!pdfText,
       hasDatabaseAudit: false, // FRA doesn't use database audits
       pdfTextLength: pdfText?.length || 0,
@@ -754,8 +968,8 @@ export async function GET(request: NextRequest) {
       hasPdfText: responseData.hasPdfText,
       hasDatabaseAudit: responseData.hasDatabaseAudit,
       pdfTextLength: responseData.pdfTextLength,
-      fieldCount: Object.keys(extractedData).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount').length,
-      extractedFields: Object.keys(extractedData).filter(k => (extractedData as Record<string, unknown>)[k] !== null && !k.startsWith('_') && k !== 'sources' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount')
+      fieldCount: Object.keys(extractedData).filter(k => !k.startsWith('_') && k !== 'sources' && k !== 'sourceQuestions' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount').length,
+      extractedFields: Object.keys(extractedData).filter(k => (extractedData as Record<string, unknown>)[k] !== null && !k.startsWith('_') && k !== 'sources' && k !== 'sourceQuestions' && k !== 'hasPdfText' && k !== 'hasDatabaseAudit' && k !== 'pdfTextLength' && k !== 'rawPdfText' && k !== 'pdfExtractedCount' && k !== 'dbExtractedCount')
     })
 
     return NextResponse.json(responseData)

@@ -42,18 +42,13 @@ export function FRACompletedTable({
     return Array.from(set).sort()
   }, [rows])
 
-  // Filter stores that have completed FRA (any store with an FRA date)
+  // Filter stores that have an in-date FRA only.
+  // Due/overdue/required stores stay in the Required tab.
   const filtered = useMemo(() => {
     return rows.filter((row) => {
       const needsFRA = storeNeedsFRA(row)
       const status = getFRAStatus(row.fire_risk_assessment_date, needsFRA)
-
-      // Completed tab should include any store with an FRA completion date,
-      // including due/overdue records that still need follow-up.
-      const hasCompletedFRA = Boolean(row.fire_risk_assessment_date)
-      if (!hasCompletedFRA && status !== 'up_to_date') {
-        return false
-      }
+      if (!needsFRA || status !== 'up_to_date') return false
 
       const matchesArea = area === 'all' || row.region === area
       const term = search.trim().toLowerCase()
