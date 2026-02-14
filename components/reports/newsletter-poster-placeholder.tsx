@@ -10,7 +10,7 @@ interface NewsletterPosterPlaceholderProps {
   newsletterMonth: string
 }
 
-type FocusTone = 'emerald' | 'slate' | 'red' | 'lime'
+type FocusTone = 'mint' | 'indigo' | 'rose' | 'amber' | 'cyan' | 'slate'
 type ComplianceStatus = 'GREEN' | 'AMBER' | 'RED'
 
 interface PosterFocusCard {
@@ -20,21 +20,19 @@ interface PosterFocusCard {
   tone: FocusTone
 }
 
-const FOCUS_TONES: FocusTone[] = ['emerald', 'slate', 'red', 'lime']
+const MAX_POSTER_FOCUS_CARDS = 6
+const FOCUS_TONES: FocusTone[] = ['mint', 'indigo', 'rose', 'amber', 'cyan', 'slate']
 const FOCUS_IMAGE_FALLBACK_PATH = '/newsletter-placeholders/focus-generic.svg'
-const REMINDERS_COMPOSITE_IMAGE_PATH =
-  '/newsletter-placeholders/reminders-updates-composite-user.png'
-const REMINDERS_COMPOSITE_FALLBACK_PATH =
-  '/newsletter-placeholders/reminders-updates-composite.svg'
 
 function formatMonthLabel(value: string): string {
   const match = value.match(/^(\d{4})-(\d{2})$/)
   if (!match) return value
+
   const year = Number(match[1])
   const month = Number(match[2]) - 1
   const date = new Date(Date.UTC(year, month, 1))
-
   if (Number.isNaN(date.getTime())) return value
+
   return new Intl.DateTimeFormat('en-GB', {
     month: 'long',
     year: 'numeric',
@@ -86,22 +84,22 @@ function normalizeFocusTitle(topic: string, index: number): string {
 
   const lower = trimmed.toLowerCase()
   if (lower.includes('housekeeping') || lower.includes('slip') || lower.includes('trip')) {
-    return 'Housekeeping And Safe Access'
+    return 'Stockroom Housekeeping'
   }
   if (lower.includes('contractor') || lower.includes('visitor') || lower.includes('permit')) {
-    return 'Contractor And Visitor Controls'
+    return 'Contractor / Visitor Controls'
   }
   if (
     lower.includes('fire') &&
     (lower.includes('door') || lower.includes('exit') || lower.includes('escape'))
   ) {
-    return 'Fire Door And Escape Route Controls'
+    return 'Fire Door & Escape Routes'
   }
   if (lower.includes('height') || lower.includes('ladder') || lower.includes('step')) {
-    return 'Work-At-Height Equipment Checks'
+    return 'Work-at-Height Equipment'
   }
   if (lower.includes('training') || lower.includes('refresher') || lower.includes('induction')) {
-    return 'Training And Refresher Completion'
+    return 'Training Completion'
   }
   if (
     lower.includes('coshh') ||
@@ -109,30 +107,18 @@ function normalizeFocusTitle(topic: string, index: number): string {
     lower.includes('chemical') ||
     lower.includes('sds')
   ) {
-    return 'COSHH And Hazardous Substances'
-  }
-  if (lower.includes('emergency') && lower.includes('lighting')) {
-    return 'Emergency Lighting Tests'
-  }
-  if (lower.includes('panel') && lower.includes('fault')) {
-    return 'Fire Panel Fault Follow-Up'
+    return 'COSHH Controls'
   }
 
   const compact = trimmed.replace(/\s+/g, ' ').replace(/[.?!]+$/, '')
   const words = compact.split(' ')
-  if (words.length <= 5) return compact
-  return `${words.slice(0, 5).join(' ')}...`
-}
-
-function buildFocusImageStyle(imagePath: string): React.CSSProperties {
-  return {
-    backgroundImage: `url(${imagePath}), url(${FOCUS_IMAGE_FALLBACK_PATH})`,
-  }
+  if (words.length <= 4) return compact
+  return `${words.slice(0, 4).join(' ')}...`
 }
 
 function tightenManagerPrompt(prompt: string): string {
   const trimmed = prompt.trim()
-  if (!trimmed) return 'Maintain controls and verify evidence is logged against each action.'
+  if (!trimmed) return 'Ensure standards are maintained and evidence is uploaded.'
 
   return trimmed
     .replace(
@@ -155,32 +141,32 @@ function resolveComplianceStatus(
   return 'GREEN'
 }
 
+function buildFocusImageStyle(imagePath: string): React.CSSProperties {
+  return {
+    backgroundImage: `url(${imagePath}), url(${FOCUS_IMAGE_FALLBACK_PATH})`,
+  }
+}
+
 function toFocusCard(item: NewsletterStoreActionFocusItem, index: number): PosterFocusCard {
   return {
     title: normalizeFocusTitle(item.topic || '', index),
-    prompt: tightenManagerPrompt(
-      item.managerPrompt?.trim() || 'Review and close related actions with clear ownership.'
-    ),
+    prompt: tightenManagerPrompt(item.managerPrompt || ''),
     imagePath: resolveFocusImagePath(item.topic || ''),
     tone: FOCUS_TONES[index % FOCUS_TONES.length],
   }
 }
 
 function buildFocusCards(report: AreaNewsletterReport): PosterFocusCard[] {
-  return report.storeActionMetrics.focusItems.map(toFocusCard)
-}
-
-function splitFocusCardsForBento(cards: PosterFocusCard[]): [PosterFocusCard[], PosterFocusCard[]] {
-  if (cards.length <= 1) return [cards, []]
-  const topRowCount = Math.ceil(cards.length / 2)
-  return [cards.slice(0, topRowCount), cards.slice(topRowCount)]
+  return report.storeActionMetrics.focusItems.slice(0, MAX_POSTER_FOCUS_CARDS).map(toFocusCard)
 }
 
 const focusToneClass: Record<FocusTone, string> = {
-  emerald: styles.focusToneEmerald,
-  slate: styles.focusToneSlate,
-  red: styles.focusToneRed,
-  lime: styles.focusToneLime,
+  mint: styles.priorityMint,
+  indigo: styles.priorityIndigo,
+  rose: styles.priorityRose,
+  amber: styles.priorityAmber,
+  cyan: styles.priorityCyan,
+  slate: styles.prioritySlate,
 }
 
 export function NewsletterPosterPlaceholder({
@@ -188,30 +174,25 @@ export function NewsletterPosterPlaceholder({
   newsletterMonth,
 }: NewsletterPosterPlaceholderProps) {
   const focusCards = buildFocusCards(report)
-  const [focusTopRow, focusBottomRow] = splitFocusCardsForBento(focusCards)
-  const focusBentoColumns = Math.max(1, Math.ceil(focusCards.length / 2))
-  const bottomRowIsPartial =
-    focusBottomRow.length > 0 && focusBottomRow.length < focusBentoColumns
-  const focusTopRowStyle = {
-    '--focus-cols': focusBentoColumns,
-    '--focus-items': focusTopRow.length,
-  } as React.CSSProperties
-  const focusBottomRowStyle = {
-    '--focus-cols': focusBentoColumns,
-    '--focus-items': focusBottomRow.length,
-  } as React.CSSProperties
-  const focusGridColumns = Math.min(4, Math.max(1, focusCards.length))
+  const focusSlots = Array.from({ length: MAX_POSTER_FOCUS_CARDS }, (_, index) => focusCards[index] || null)
   const complianceStatus = resolveComplianceStatus(report.storeActionMetrics)
   const monthLabel = formatMonthLabel(newsletterMonth)
 
-  const complianceStatusMeta =
+  const statusHeadline =
+    complianceStatus === 'GREEN'
+      ? 'On Track'
+      : complianceStatus === 'AMBER'
+        ? 'Action Required'
+        : 'Critical'
+
+  const statusMeta =
     complianceStatus === 'GREEN'
       ? 'No open actions. Maintain standards and continue daily checks.'
       : complianceStatus === 'AMBER'
         ? 'Open actions require active management and evidence upload.'
         : 'Escalation required. Immediate corrective action and evidence upload.'
 
-  const complianceStatusClass =
+  const statusClass =
     complianceStatus === 'GREEN'
       ? styles.statusGreen
       : complianceStatus === 'AMBER'
@@ -220,146 +201,106 @@ export function NewsletterPosterPlaceholder({
 
   return (
     <section className={styles.poster} aria-label={`${report.areaLabel} poster placeholder`}>
-      <div className={styles.topRule} />
+      <div className={styles.glowOne} aria-hidden="true" />
+      <div className={styles.glowTwo} aria-hidden="true" />
 
       <header className={styles.header}>
         <p className={styles.brand}>FOOTASYLUM</p>
-        <h5 className={styles.title}>HEALTH & SAFETY AUDIT UPDATE</h5>
-        <p className={styles.meta}>
-          {report.areaLabel} | {monthLabel}
-        </p>
+        <p className={styles.updatePill}>HEALTH &amp; SAFETY AUDIT UPDATE • {monthLabel.toUpperCase()}</p>
       </header>
 
       <div className={styles.metricsGrid}>
-        <div className={styles.metricTile}>
+        <article className={styles.metricTile}>
           <p className={styles.metricLabel}>Open Actions</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.activeCount}</p>
-        </div>
-        <div className={styles.metricTile}>
+        </article>
+        <article className={styles.metricTile}>
           <p className={styles.metricLabel}>High Risk</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.highPriorityCount}</p>
-        </div>
-        <div className={styles.metricTile}>
+        </article>
+        <article className={styles.metricTile}>
           <p className={styles.metricLabel}>Overdue</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.overdueCount}</p>
-        </div>
-        <div className={`${styles.metricTile} ${styles.statusTile}`}>
-          <p className={styles.metricLabel}>Compliance Status</p>
-          <p className={`${styles.statusBadge} ${complianceStatusClass}`}>
-            <span className={styles.statusDot} />
-            COMPLIANCE STATUS: {complianceStatus}
-          </p>
-          <p className={styles.statusMeta}>{complianceStatusMeta}</p>
-        </div>
+        </article>
+        <article className={`${styles.statusTile} ${statusClass}`}>
+          <p className={styles.metricLabel}>Current Status</p>
+          <p className={styles.statusHeadline}>{statusHeadline}</p>
+          <p className={styles.statusBadge}>{complianceStatus}</p>
+          <p className={styles.statusMeta}>{statusMeta}</p>
+        </article>
       </div>
+
       <p className={styles.trendLine}>
         Previous Month: Baseline pending | This Month: {report.storeActionMetrics.activeCount} Open |{' '}
         {report.storeActionMetrics.highPriorityCount} High Risk
       </p>
-      <div className={styles.statusLegend}>
-        <p className={styles.statusLegendTitle}>Status Legend</p>
-        <div className={styles.statusLegendRow}>
-          <span className={styles.statusLegendItem}>
-            <span className={`${styles.statusLegendDot} ${styles.statusLegendDotGreen}`} />
-            GREEN: 0-2 low risk
-          </span>
-          <span className={styles.statusLegendItem}>
-            <span className={`${styles.statusLegendDot} ${styles.statusLegendDotAmber}`} />
-            AMBER: 3-10 open or high risk present
-          </span>
-          <span className={styles.statusLegendItem}>
-            <span className={`${styles.statusLegendDot} ${styles.statusLegendDotRed}`} />
-            RED: escalation required
-          </span>
-        </div>
+
+      <p className={styles.sectionTitle}>
+        <span className={styles.sectionLine} />
+        Priority Focus Areas
+        <span className={styles.sectionLine} />
+      </p>
+
+      <div className={styles.focusGrid}>
+        {focusSlots.map((card, index) =>
+          card ? (
+            <article key={`${card.title}-${index}`} className={styles.focusCard}>
+              <p className={`${styles.priorityTag} ${focusToneClass[card.tone]}`}>PRIORITY {index + 1}</p>
+              <h6 className={styles.focusTitle}>{card.title}</h6>
+              <div className={styles.focusImage} style={buildFocusImageStyle(card.imagePath)} />
+              <p className={styles.focusPrompt}>{card.prompt}</p>
+            </article>
+          ) : (
+            <article key={`empty-${index}`} className={`${styles.focusCard} ${styles.focusCardEmpty}`}>
+              <span>No active focus item</span>
+            </article>
+          )
+        )}
       </div>
 
-      {focusCards.length > 0 ? (
-        <>
-          <p className={styles.sectionTitle}>AREA FOCUS FROM H&amp;S TASKS</p>
-          {focusCards.length > 4 ? (
-            <div className={styles.focusBento}>
-              <div
-                className={styles.focusBentoRow}
-                style={focusTopRowStyle}
-              >
-                {focusTopRow.map((card, index) => (
-                  <article
-                    key={`${card.title}-top-${index}`}
-                    className={`${styles.focusCard} ${focusToneClass[card.tone]}`}
-                  >
-                    <h6 className={styles.focusHeader}>{card.title}</h6>
-                    <div
-                      className={styles.imagePlaceholder}
-                      style={buildFocusImageStyle(card.imagePath)}
-                    />
-                    <p className={styles.prompt}>{card.prompt}</p>
-                  </article>
-                ))}
-              </div>
-              {focusBottomRow.length > 0 ? (
-                <div
-                  className={`${styles.focusBentoRow} ${
-                    bottomRowIsPartial ? styles.focusBentoRowCentered : ''
-                  }`}
-                  style={focusBottomRowStyle}
-                >
-                  {focusBottomRow.map((card, index) => (
-                    <article
-                      key={`${card.title}-bottom-${index}`}
-                      className={`${styles.focusCard} ${focusToneClass[card.tone]}`}
-                    >
-                      <h6 className={styles.focusHeader}>{card.title}</h6>
-                      <div
-                        className={styles.imagePlaceholder}
-                        style={buildFocusImageStyle(card.imagePath)}
-                      />
-                      <p className={styles.prompt}>{card.prompt}</p>
-                    </article>
+      <div className={styles.bottomRow}>
+        <div className={styles.remindersPanel}>
+          <div className={styles.remindersColumns}>
+            <div className={styles.remindersColumn}>
+              <p className={styles.remindersTitle}>Reminders &amp; Updates</p>
+              {report.reminders.length > 0 ? (
+                <ul className={styles.remindersList}>
+                  {report.reminders.map((line, idx) => (
+                    <li key={`reminder-${idx}`}>{line}</li>
                   ))}
-                </div>
-              ) : null}
+                </ul>
+              ) : (
+                <p className={styles.remindersEmpty}>No reminder text provided.</p>
+              )}
             </div>
-          ) : (
-            <div
-              className={styles.focusGrid}
-              style={{ '--focus-cols': focusGridColumns } as React.CSSProperties}
-            >
-              {focusCards.map((card, index) => (
-                <article
-                  key={`${card.title}-${index}`}
-                  className={`${styles.focusCard} ${focusToneClass[card.tone]}`}
-                >
-                  <h6 className={styles.focusHeader}>{card.title}</h6>
-                  <div
-                    className={styles.imagePlaceholder}
-                    style={buildFocusImageStyle(card.imagePath)}
-                  />
-                  <p className={styles.prompt}>{card.prompt}</p>
-                </article>
-              ))}
-            </div>
-          )}
-        </>
-      ) : null}
 
-      <div className={styles.remindersPanel}>
-        <p className={`${styles.sectionTitle} ${styles.sectionTitleLight}`}>REMINDERS &amp; UPDATES</p>
-        <article
-          className={styles.remindersCompositeImage}
-          aria-label="Reminders and updates composite"
-          style={{
-            backgroundImage: `url(${REMINDERS_COMPOSITE_IMAGE_PATH}), url(${REMINDERS_COMPOSITE_FALLBACK_PATH})`,
-          }}
-        />
+            <div className={styles.remindersDivider} />
+
+            <div className={styles.remindersColumn}>
+              <p className={styles.legislationTitle}>Legislation / Policy</p>
+              {report.legislationUpdates.length > 0 ? (
+                <ul className={styles.remindersList}>
+                  {report.legislationUpdates.map((line, idx) => (
+                    <li key={`legislation-${idx}`}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.remindersEmpty}>No legislation updates provided.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.targetPanel}>
+          <p className={styles.targetValue}>{report.storeActionMetrics.activeCount === 0 ? '100%' : 'Action'}</p>
+          <p className={styles.targetLabel}>Target Completion</p>
+        </div>
       </div>
 
       <p className={styles.accountabilityLine}>
         All actions must include an owner, target date and evidence upload.
       </p>
-      <div className={styles.footerMeta}>
-        <p>www.kssnwltd.co.uk - Health &amp; Safety Consultants</p>
-      </div>
+      <p className={styles.footerMeta}>www.kssnwltd.co.uk - Health &amp; Safety Consultants</p>
     </section>
   )
 }

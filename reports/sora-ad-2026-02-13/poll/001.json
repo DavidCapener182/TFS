@@ -1,0 +1,32 @@
+{
+  "create": {
+    "completed_at": null,
+    "created_at": 1771017642,
+    "error": null,
+    "expires_at": null,
+    "id": "video_698f95aa2bdc8190b538d671e7acc3630f8b4bfee115426c",
+    "model": "sora-2",
+    "object": "video",
+    "progress": 0,
+    "prompt": "Use case: social ad shot 1 of 6\nPrimary request: Minimal abstract opening where floating geometric data cards drift in from all sides and assemble into one clean dashboard grid.\nScene/background: neutral digital studio gradient, no people\nSubject: translucent rectangles, simple chart glyphs, interface blocks\nAction: beat 1: cards drift in; beat 2: cards align into a tidy layout; beat 3: layout holds center frame\nCamera: slow push-in, steady\nLighting/mood: crisp and professional\nColor palette: navy, slate, white, cyan\nStyle/format: premium abstract tech ad\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters\nAvoid: weapons, violence, injury, panic",
+    "remixed_from_video_id": null,
+    "seconds": "4",
+    "size": "1280x720",
+    "status": "queued"
+  },
+  "final": {
+    "completed_at": 1771017703,
+    "created_at": 1771017642,
+    "error": null,
+    "expires_at": 1771021303,
+    "id": "video_698f95aa2bdc8190b538d671e7acc3630f8b4bfee115426c",
+    "model": "sora-2",
+    "object": "video",
+    "progress": 100,
+    "prompt": "Use case: social ad shot 1 of 6\nPrimary request: Minimal abstract opening where floating geometric data cards drift in from all sides and assemble into one clean dashboard grid.\nScene/background: neutral digital studio gradient, no people\nSubject: translucent rectangles, simple chart glyphs, interface blocks\nAction: beat 1: cards drift in; beat 2: cards align into a tidy layout; beat 3: layout holds center frame\nCamera: slow push-in, steady\nLighting/mood: crisp and professional\nColor palette: navy, slate, white, cyan\nStyle/format: premium abstract tech ad\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters\nAvoid: weapons, violence, injury, panic",
+    "remixed_from_video_id": null,
+    "seconds": "4",
+    "size": "1280x720",
+    "status": "completed"
+  }
+}

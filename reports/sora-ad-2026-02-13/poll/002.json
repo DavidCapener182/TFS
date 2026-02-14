@@ -1,0 +1,15 @@
+{
+  "completed_at": 1771017384,
+  "created_at": 1771017321,
+  "error": null,
+  "expires_at": 1771020984,
+  "id": "video_698f94698af48191a4846839202589c9036537f56ee8a899",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 100,
+  "prompt": "Use case: social ad shot 2 of 6\nPrimary request: The unified platform reveal: one modern compliance command center interface showing incidents, audits, actions, FRA status, and planned routes in a single coherent view.\nScene/background: clean enterprise software hero scene\nSubject: single integrated command-center UI\nAction: beat 1: interface fades in; beat 2: key KPI cards illuminate; beat 3: stable hero hold\nCamera: gentle push-in\nLighting/mood: bright, confident, premium\nColor palette: white, charcoal, deep blue, emerald accents\nStyle/format: investor demo reel\nText (verbatim): \"One compliance command center.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "completed"
+}

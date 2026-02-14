@@ -1,0 +1,15 @@
+{
+  "completed_at": 1771017385,
+  "created_at": 1771017325,
+  "error": null,
+  "expires_at": 1771020985,
+  "id": "video_698f946cf0088193bacd6f29e35ef16c06141cd534ee7940",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 100,
+  "prompt": "Use case: social ad shot 6 of 6\nPrimary request: Final investor/influencer payoff: executive intelligence panels and risk forecast settle into a bold closing frame with one clear call to action.\nScene/background: premium closing lockup scene\nSubject: executive summary cards, forecast graph, polished platform lockup\nAction: beat 1: insights animate in; beat 2: risk graph stabilizes; beat 3: CTA holds center-frame\nCamera: slow closing push-in\nLighting/mood: confident cinematic with bright key\nColor palette: deep navy, white, emerald, silver\nStyle/format: high-conviction B2B close\nText (verbatim): \"Book your 15-minute walkthrough.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "completed"
+}

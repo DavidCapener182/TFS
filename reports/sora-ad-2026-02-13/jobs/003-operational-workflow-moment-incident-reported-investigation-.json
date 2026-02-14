@@ -1,0 +1,15 @@
+{
+  "completed_at": null,
+  "created_at": 1771017323,
+  "error": null,
+  "expires_at": null,
+  "id": "video_698f946afa388193b95b2e61c47115ba09819d95f5b5dfcb",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 0,
+  "prompt": "Use case: social ad shot 3 of 6\nPrimary request: Operational workflow moment: incident reported, investigation assigned, action tracked, evidence attached, activity timeline updated in one continuous product flow.\nScene/background: software workflow close-up\nSubject: tabbed incident workspace and timeline\nAction: beat 1: incident card opens; beat 2: investigation and action states update; beat 3: attachment and timeline checkmark appears\nCamera: lateral glide across panels\nLighting/mood: neutral studio screen glow\nColor palette: slate, white, teal, amber\nStyle/format: high-clarity SaaS commercial\nText (verbatim): \"From report to resolution.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "queued"
+}

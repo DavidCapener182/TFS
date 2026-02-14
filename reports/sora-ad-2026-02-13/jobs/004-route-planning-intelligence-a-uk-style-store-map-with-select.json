@@ -1,0 +1,15 @@
+{
+  "completed_at": null,
+  "created_at": 1771017322,
+  "error": null,
+  "expires_at": null,
+  "id": "video_698f946a4f688191b1d186e5a99f9c7e0e56c6e08afb160e",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 0,
+  "prompt": "Use case: social ad shot 4 of 6\nPrimary request: Route planning intelligence: a UK-style store map with selected stops and optimized route sequence appears, showing efficient daily planning under manager constraints.\nScene/background: stylized geographic planning map, no real addresses\nSubject: route path, numbered stops, planning panel\nAction: beat 1: stops highlight; beat 2: route line draws smoothly; beat 3: sequence badges settle\nCamera: top-down map pan with slight zoom\nLighting/mood: clear analytical look\nColor palette: midnight blue, cyan, lime, white\nStyle/format: data-driven operations ad\nText (verbatim): \"Smarter field planning.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "queued"
+}

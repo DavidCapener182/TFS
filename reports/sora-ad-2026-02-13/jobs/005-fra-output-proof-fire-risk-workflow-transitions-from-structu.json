@@ -1,0 +1,15 @@
+{
+  "completed_at": null,
+  "created_at": 1771017324,
+  "error": null,
+  "expires_at": null,
+  "id": "video_698f946c449081909432d6aa3d1f120102dcb390ddda820c",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 0,
+  "prompt": "Use case: social ad shot 5 of 6\nPrimary request: FRA output proof: fire-risk workflow transitions from structured review to professional PDF and DOCX export cards, signaling audit-ready documentation.\nScene/background: document generation UI reveal\nSubject: FRA review panel, export controls, finished document previews\nAction: beat 1: review fields lock in; beat 2: export buttons activate; beat 3: PDF and DOCX cards slide into view\nCamera: clean orbit then lock-off\nLighting/mood: crisp product lighting\nColor palette: white, graphite, orange accent, blue accent\nStyle/format: enterprise trust signal\nText (verbatim): \"Evidence-ready FRA outputs.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "queued"
+}

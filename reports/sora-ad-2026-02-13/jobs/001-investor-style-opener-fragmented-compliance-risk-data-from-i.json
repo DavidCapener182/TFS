@@ -1,0 +1,15 @@
+{
+  "completed_at": null,
+  "created_at": 1771017321,
+  "error": null,
+  "expires_at": null,
+  "id": "video_698f9469618881919a1a224cc931981d054001d9e284fae5",
+  "model": "sora-2",
+  "object": "video",
+  "progress": 0,
+  "prompt": "Use case: social ad shot 1 of 6\nPrimary request: Investor-style opener: fragmented compliance risk data from incidents, audits, actions, and route plans appears as chaotic floating panels, then converges into one clean central frame.\nScene/background: abstract digital control room, no people\nSubject: floating compliance dashboards, incident logs, audit sheets, map snippets\nAction: beat 1: chaotic panel motion; beat 2: panels align; beat 3: central frame locks\nCamera: slow dolly-in with subtle parallax\nLighting/mood: high-contrast corporate cinematic\nColor palette: navy, slate, steel, electric blue\nStyle/format: premium B2B promo\nText (verbatim): \"Risk is fragmented.\"\nConstraints: all-ages safe, no real people, no logos, no copyrighted characters",
+  "remixed_from_video_id": null,
+  "seconds": "4",
+  "size": "1280x720",
+  "status": "queued"
+}

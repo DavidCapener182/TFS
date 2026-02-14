@@ -7,16 +7,29 @@ import type {
   MonthlyNewsletterRequestBody,
   NewsletterAIPromptPack,
 } from '@/lib/reports/monthly-newsletter-types'
-import { MonthlyNewsletterPDF } from '@/lib/pdf/monthly-newsletter-document'
+import { MonthlyNewsletterPDF } from '@/lib/pdf/monthly-newsletter-document-v5'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+const MONTHLY_NEWSLETTER_PDF_TEMPLATE_VERSION = 'v5'
 
 function toFileSafeName(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+function toTimestampToken(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return `${Date.now()}`
+  const yyyy = `${date.getUTCFullYear()}`
+  const mm = `${date.getUTCMonth() + 1}`.padStart(2, '0')
+  const dd = `${date.getUTCDate()}`.padStart(2, '0')
+  const hh = `${date.getUTCHours()}`.padStart(2, '0')
+  const min = `${date.getUTCMinutes()}`.padStart(2, '0')
+  const sec = `${date.getUTCSeconds()}`.padStart(2, '0')
+  return `${yyyy}${mm}${dd}-${hh}${min}${sec}`
 }
 
 function parseAiPromptPack(value: unknown): NewsletterAIPromptPack | null {
@@ -90,12 +103,18 @@ export async function POST(request: NextRequest) {
     const buffer = await renderToBuffer(pdfDocument)
     const fileName = `monthly-newsletter-${newsletter.period.month}-${toFileSafeName(
       report.areaLabel || 'area'
-    ) || 'area'}.pdf`
+    ) || 'area'}-${MONTHLY_NEWSLETTER_PDF_TEMPLATE_VERSION}-${toTimestampToken(
+      newsletter.generatedAt
+    )}.pdf`
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        Pragma: 'no-cache',
+        Expires: '0',
+        'X-Pdf-Template-Version': MONTHLY_NEWSLETTER_PDF_TEMPLATE_VERSION,
       },
     })
   } catch (error: any) {

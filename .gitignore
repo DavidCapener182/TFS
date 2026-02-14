@@ -17,6 +17,7 @@
 
 # misc
 .DS_Store
+.venv-sora/
 *.pem
 
 # debug

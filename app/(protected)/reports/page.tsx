@@ -19,18 +19,13 @@ import {
   FileDown,
   CheckCircle2,
   AlertTriangle,
+  Shield,
+  MapPin,
+  Calendar,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Cell,
-} from 'recharts'
 import type {
   AreaNewsletterReport,
   MonthlyNewsletterResponse,
@@ -76,6 +71,106 @@ function getScoreColor(score: number | null): string {
   return '#dc2626'
 }
 
+function getScoreTextClass(score: number | null): string {
+  if (typeof score !== 'number') return 'text-slate-400'
+  if (score >= 90) return 'text-emerald-600'
+  if (score >= 85) return 'text-blue-600'
+  if (score >= 80) return 'text-amber-600'
+  return 'text-rose-600'
+}
+
+function getScoreBarClass(score: number | null): string {
+  if (typeof score !== 'number') return 'bg-slate-300'
+  if (score >= 90) return 'bg-emerald-500'
+  if (score >= 85) return 'bg-blue-500'
+  if (score >= 80) return 'bg-amber-500'
+  return 'bg-rose-500'
+}
+
+function getScoreBadgeClass(score: number | null): string {
+  if (typeof score !== 'number') return 'bg-slate-100 text-slate-500 ring-slate-300/80'
+  if (score >= 90) return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+  if (score >= 85) return 'bg-blue-50 text-blue-700 ring-blue-600/20'
+  if (score >= 80) return 'bg-amber-50 text-amber-700 ring-amber-600/20'
+  return 'bg-rose-50 text-rose-700 ring-rose-600/20'
+}
+
+function getNewsletterCardElementId(areaCode: string): string {
+  return `newsletter-card-${areaCode.toLowerCase()}`
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
+
+function collectPdfHeadMarkup(): string {
+  const nodes = Array.from(
+    document.head.querySelectorAll('style, link[rel="stylesheet"], link[rel="preload"][as="font"]')
+  )
+  return nodes.map((node) => node.outerHTML).join('\n')
+}
+
+function collectRootCssVariableMarkup(): string {
+  const computed = window.getComputedStyle(document.documentElement)
+  return Array.from(computed)
+    .filter((property) => property.startsWith('--'))
+    .map((property) => `${property}:${computed.getPropertyValue(property)};`)
+    .join('')
+}
+
+function copyComputedStylesRecursive(source: Element, target: Element): void {
+  const computedStyle = window.getComputedStyle(source)
+  const declarations = Array.from(computedStyle)
+    .map((property) => `${property}:${computedStyle.getPropertyValue(property)};`)
+    .join('')
+
+  target.setAttribute('style', declarations)
+
+  const sourceChildren = Array.from(source.children)
+  const targetChildren = Array.from(target.children)
+  sourceChildren.forEach((child, index) => {
+    const targetChild = targetChildren[index]
+    if (targetChild) {
+      copyComputedStylesRecursive(child, targetChild)
+    }
+  })
+}
+
+function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): string {
+  const clone = cardElement.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('[data-pdf-exclude="true"]').forEach((node) => node.remove())
+
+  copyComputedStylesRecursive(cardElement, clone)
+
+  const width = Math.max(1, Math.ceil(cardElement.getBoundingClientRect().width))
+  const headMarkup = collectPdfHeadMarkup()
+  const rootCssVariables = collectRootCssVariableMarkup()
+  const htmlClass = escapeHtmlAttribute(document.documentElement.className || '')
+  const bodyClass = escapeHtmlAttribute(document.body.className || '')
+  const baseHref = escapeHtmlAttribute(
+    window.location.origin.endsWith('/') ? window.location.origin : `${window.location.origin}/`
+  )
+
+  return `<!doctype html>
+<html lang="en" class="${htmlClass}" style="${escapeHtmlAttribute(rootCssVariables)}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="${baseHref}" />
+    ${headMarkup}
+    <style>
+      html, body { margin: 0; padding: 0; background: #f8fafc; }
+      body { width: ${width}px; margin: 0 auto; }
+      #pdf-root { width: ${width}px; margin: 0 auto; box-sizing: border-box; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style>
+  </head>
+  <body class="${bodyClass}">
+    <main id="pdf-root">${clone.outerHTML}</main>
+  </body>
+</html>`
+}
+
 interface AreaNewsletterDashboardCardProps {
   report: AreaNewsletterReport
   newsletterMonth: string
@@ -93,92 +188,279 @@ function AreaNewsletterDashboardCard({
   aiLoadingAreaCode,
   pdfLoadingAreaCode,
 }: AreaNewsletterDashboardCardProps) {
-  const chartData = report.stores
-    .filter((store) => typeof store.latestAuditScore === 'number')
-    .slice(0, 12)
-    .map((store) => ({
-      name: store.storeName,
-      score: store.latestAuditScore as number,
-    }))
+  const monthDate = new Date(`${newsletterMonth}-01T00:00:00`)
+  const periodLabel = Number.isNaN(monthDate.getTime())
+    ? newsletterMonth
+    : format(monthDate, 'MMMM yyyy')
 
-  const leaderboardSplitIndex = Math.ceil(report.stores.length / 2)
-  const leaderboardFirstColumn = report.stores.slice(0, leaderboardSplitIndex)
-  const leaderboardSecondColumn = report.stores.slice(leaderboardSplitIndex)
+  const rankedStores = [...report.stores].sort(
+    (a, b) => (b.latestAuditScore ?? -1) - (a.latestAuditScore ?? -1)
+  )
+  const storesWithRank = rankedStores.map((store, index) => ({
+    ...store,
+    rank: index + 1,
+  }))
+  const leaderboardSplitIndex = Math.ceil(storesWithRank.length / 2)
+  const leaderboardFirstColumn = storesWithRank.slice(0, leaderboardSplitIndex)
+  const leaderboardSecondColumn = storesWithRank.slice(leaderboardSplitIndex)
+  const trendStores = storesWithRank
+    .filter(
+      (store): store is typeof store & { latestAuditScore: number } =>
+        typeof store.latestAuditScore === 'number'
+    )
+    .slice(0, 6)
+
+  const { activeCount, highPriorityCount, overdueCount } = report.storeActionMetrics
+  const complianceStatus: 'GREEN' | 'AMBER' | 'RED' =
+    overdueCount > 0 ? 'RED' : highPriorityCount > 0 || activeCount > 2 ? 'AMBER' : 'GREEN'
+  const complianceStatusClass =
+    complianceStatus === 'GREEN'
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+      : complianceStatus === 'AMBER'
+        ? 'bg-amber-50 text-amber-700 ring-amber-600/20'
+        : 'bg-rose-50 text-rose-700 ring-rose-600/20'
+
+  const renderLeaderboardColumn = (
+    stores: Array<typeof storesWithRank[number]>
+  ) => (
+    <div className="divide-y divide-slate-100">
+      {stores.map((store) => (
+        <div
+          key={`${store.storeName}-${store.storeCode || 'na'}-${store.rank}`}
+          className="flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="w-7 text-center">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold bg-slate-900 text-white">
+              {store.rank}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-slate-800">{store.storeName}</p>
+            {store.storeCode ? (
+              <p className="text-[10px] font-medium text-slate-400">{store.storeCode}</p>
+            ) : null}
+          </div>
+          <div className="text-right">
+            <span
+              className={`inline-flex rounded px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset ${getScoreBadgeClass(
+                store.latestAuditScore
+              )}`}
+            >
+              {typeof store.latestAuditScore === 'number'
+                ? `${store.latestAuditScore.toFixed(1)}%`
+                : 'N/A'}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-        <div>
-          <h4 className="text-lg font-extrabold tracking-tight text-slate-900">{report.areaLabel}</h4>
-          <p className="text-sm text-slate-500">
-            {report.storeCount} stores | Newsletter period data with audit + H&S insights
-          </p>
+    <article
+      id={getNewsletterCardElementId(report.areaCode)}
+      className="rounded-3xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm"
+    >
+      <div className="mb-6 border-b border-slate-200 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 text-indigo-600">
+              <Shield className="h-5 w-5" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em]">
+                Safety & Compliance
+              </span>
+            </div>
+            <div>
+              <h4 className="text-3xl font-black tracking-tight text-slate-900">Monthly Update</h4>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                  {report.areaLabel}
+                </span>
+                <span className="h-1 w-1 rounded-full bg-slate-300" />
+                <span className="inline-flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                  {periodLabel}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 lg:items-end">
+            <Button
+              data-pdf-exclude="true"
+              variant="outline"
+              onClick={() => onDownloadPdf(report)}
+              disabled={pdfLoadingAreaCode === report.areaCode}
+              className="min-h-[42px] rounded-full px-5"
+            >
+              {pdfLoadingAreaCode === report.areaCode ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Preparing PDF...
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Download {report.areaCode} PDF
+                </>
+              )}
+            </Button>
+            <p className="text-[11px] font-medium text-slate-500">
+              Report generated: {format(new Date(), 'MMMM d, yyyy')}
+            </p>
+            <p className="text-[11px] text-slate-400">{report.storeCount} stores reporting</p>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => onDownloadPdf(report)}
-          disabled={pdfLoadingAreaCode === report.areaCode}
-          className="min-h-[40px]"
-        >
-          {pdfLoadingAreaCode === report.areaCode ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Preparing PDF...
-            </>
-          ) : (
-            <>
-              <FileDown className="h-4 w-4 mr-2" />
-              Download {report.areaCode} PDF
-            </>
-          )}
-        </Button>
+
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3 mb-4">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Average Audit Score</p>
-          <p className="text-2xl font-black" style={{ color: getScoreColor(report.auditMetrics.averageLatestScore) }}>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+          <div className="mb-3 inline-flex rounded-lg bg-emerald-50 p-2">
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
+          </div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Avg Score</p>
+          <p className={`text-2xl font-black tracking-tight ${getScoreTextClass(report.auditMetrics.averageLatestScore)}`}>
             {toPercentLabel(report.auditMetrics.averageLatestScore)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Audits Completed</p>
-          <p className="text-2xl font-black text-slate-900">{report.auditMetrics.auditsCompletedThisMonth}</p>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+          <div className="mb-3 inline-flex rounded-lg bg-slate-100 p-2">
+            <CheckCircle2 className="h-4 w-4 text-slate-700" />
+          </div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Completed</p>
+          <p className="text-2xl font-black tracking-tight text-slate-900">
+            {report.auditMetrics.auditsCompletedThisMonth}
+          </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Stores Below 85%</p>
-          <p className="text-2xl font-black text-amber-700">{report.auditMetrics.belowThresholdCount}</p>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+          <div className="mb-3 inline-flex rounded-lg bg-amber-50 p-2">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+          </div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Below 85%</p>
+          <p className="text-2xl font-black tracking-tight text-amber-600">
+            {report.auditMetrics.belowThresholdCount}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Compliance Status
+          </p>
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${complianceStatusClass}`}>
+            {complianceStatus}
+          </span>
+          <p className="mt-2 text-[11px] font-medium text-slate-500">
+            Open {activeCount} | High {highPriorityCount} | Overdue {overdueCount}
+          </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 mb-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-indigo-700 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> KSS NW Consultant Briefing
-          </h5>
+      <div className="mb-6 grid gap-4 xl:grid-cols-12">
+        <div className="space-y-4 xl:col-span-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h5 className="mb-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Performance Trend
+            </h5>
+            {trendStores.length > 0 ? (
+              <div className="space-y-3">
+                {trendStores.map((store) => (
+                  <div key={`trend-${store.storeName}-${store.storeCode || 'na'}`}>
+                    <div className="mb-1.5 flex items-end justify-between gap-2">
+                      <span className="truncate text-[11px] font-medium text-slate-700">{store.storeName}</span>
+                      <span className={`text-[11px] font-bold ${getScoreTextClass(store.latestAuditScore)}`}>
+                        {store.latestAuditScore.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full rounded-full ${getScoreBarClass(store.latestAuditScore)}`}
+                        style={{ width: `${Math.max(0, Math.min(100, store.latestAuditScore))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No scored audits available for charting.</p>
+            )}
+          </div>
+
+          <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+            <div className="pointer-events-none absolute -top-8 -right-6 h-24 w-24 rounded-full bg-amber-100 blur-2xl" />
+            <h5 className="relative mb-3 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+              <AlertCircle className="h-3.5 w-3.5" />
+              H&S Priorities
+            </h5>
+            {report.storeActionMetrics.focusItems.length > 0 ? (
+              <ul className="relative space-y-3">
+                {report.storeActionMetrics.focusItems.map((item, idx) => (
+                  <li key={`${item.topic}-${idx}`} className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{item.topic}</p>
+                      <p className="text-[11px] font-medium text-slate-500">
+                        {item.actionCount} actions | {item.storeCount} stores
+                      </p>
+                      <p className="text-[11px] text-slate-600">{item.managerPrompt}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="relative text-sm text-slate-600">No active H&S task themes available.</p>
+            )}
+          </div>
         </div>
 
+        <div className="xl:col-span-7">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+              <h5 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <Shield className="h-3.5 w-3.5" />
+                Store Leaderboard
+              </h5>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                By audit score
+              </span>
+            </div>
+            <div className={`grid ${leaderboardSecondColumn.length > 0 ? 'md:grid-cols-2' : ''}`}>
+              <div className={leaderboardSecondColumn.length > 0 ? 'border-r border-slate-200' : ''}>
+                {renderLeaderboardColumn(leaderboardFirstColumn)}
+              </div>
+              {leaderboardSecondColumn.length > 0 ? (
+                <div>{renderLeaderboardColumn(leaderboardSecondColumn)}</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
+        <h5 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
+          <Sparkles className="h-3.5 w-3.5" /> KSS NW Consultant Briefing
+        </h5>
         {aiPromptPack ? (
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border border-indigo-100 bg-white/80 p-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700 mb-1">
+              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
                   Regional Summary
                 </p>
                 <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.generateBriefing}</p>
               </div>
-              <div className="rounded-lg border border-indigo-100 bg-white/80 p-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700 mb-1">
+              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
                   Risk Pattern
                 </p>
                 <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.analyzeRegionalRisk}</p>
               </div>
             </div>
-            <div className="rounded-lg border border-indigo-100 bg-white/80 p-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700 mb-1">
+            <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
                 Newsletter Email Draft
               </p>
-              <pre className="max-h-56 overflow-auto text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+              <pre className="max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-700">
                 {aiPromptPack.composeNewsletter}
               </pre>
             </div>
@@ -195,141 +477,9 @@ function AreaNewsletterDashboardCard({
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 p-3 mb-4">
-        <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-          Audit Score Distribution
-        </h5>
-        {chartData.length > 0 ? (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 45 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="name"
-                  interval={0}
-                  angle={-30}
-                  textAnchor="end"
-                  height={65}
-                  tick={{ fill: '#64748b', fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '10px',
-                    borderColor: '#cbd5e1',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Score']}
-                />
-                <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, idx) => (
-                    <Cell key={`score-cell-${idx}`} fill={getScoreColor(entry.score)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">No scored audits available for charting in {newsletterMonth}.</p>
-        )}
-      </div>
-
-      <div className="rounded-xl border border-slate-200 p-3 overflow-hidden mb-4">
-        <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-          Store Leaderboard
-        </h5>
-        <div className={`grid gap-3 ${leaderboardSecondColumn.length > 0 ? 'md:grid-cols-2' : ''}`}>
-          <div className="rounded-lg border border-slate-100 overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50">
-                <tr className="text-[10px] uppercase tracking-wide text-slate-500">
-                  <th className="px-2 py-2 font-semibold w-10">#</th>
-                  <th className="px-2 py-2 font-semibold">Store</th>
-                  <th className="px-2 py-2 font-semibold text-right">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboardFirstColumn.map((store, idx) => (
-                  <tr key={`${store.storeName}-left-${idx}`} className="border-t border-slate-100 text-sm">
-                    <td className="px-2 py-2 text-[11px] font-semibold text-slate-500">{idx + 1}</td>
-                    <td className="px-2 py-2">
-                      <div className="font-semibold text-slate-800">{store.storeName}</div>
-                      {store.storeCode && <div className="text-[11px] text-slate-500">{store.storeCode}</div>}
-                    </td>
-                    <td className="px-2 py-2 text-right font-bold" style={{ color: getScoreColor(store.latestAuditScore) }}>
-                      {typeof store.latestAuditScore === 'number'
-                        ? `${store.latestAuditScore.toFixed(1)}%`
-                        : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {leaderboardSecondColumn.length > 0 ? (
-            <div className="rounded-lg border border-slate-100 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50">
-                  <tr className="text-[10px] uppercase tracking-wide text-slate-500">
-                    <th className="px-2 py-2 font-semibold w-10">#</th>
-                    <th className="px-2 py-2 font-semibold">Store</th>
-                    <th className="px-2 py-2 font-semibold text-right">Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboardSecondColumn.map((store, idx) => (
-                    <tr key={`${store.storeName}-right-${idx}`} className="border-t border-slate-100 text-sm">
-                      <td className="px-2 py-2 text-[11px] font-semibold text-slate-500">
-                        {leaderboardSplitIndex + idx + 1}
-                      </td>
-                      <td className="px-2 py-2">
-                        <div className="font-semibold text-slate-800">{store.storeName}</div>
-                        {store.storeCode && <div className="text-[11px] text-slate-500">{store.storeCode}</div>}
-                      </td>
-                      <td className="px-2 py-2 text-right font-bold" style={{ color: getScoreColor(store.latestAuditScore) }}>
-                        {typeof store.latestAuditScore === 'number'
-                          ? `${store.latestAuditScore.toFixed(1)}%`
-                          : 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3 mb-4">
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-2 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Area Focus From H&S Tasks
-          </h5>
-          <div className="mb-2 text-xs text-slate-600">
-            Active: <span className="font-semibold">{report.storeActionMetrics.activeCount}</span>
-            {' | '}
-            High/Urgent: <span className="font-semibold">{report.storeActionMetrics.highPriorityCount}</span>
-            {' | '}
-            Overdue: <span className="font-semibold">{report.storeActionMetrics.overdueCount}</span>
-          </div>
-          {report.storeActionMetrics.focusItems.length > 0 ? (
-            <ul className="space-y-1.5 text-sm text-slate-700">
-              {report.storeActionMetrics.focusItems.map((item, idx) => (
-                <li key={`${item.topic.slice(0, 20)}-${idx}`}>
-                  <span className="font-semibold">{item.topic}</span> - {item.actionCount} actions across{' '}
-                  {item.storeCount} stores. {item.managerPrompt}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-600">No active H&S task themes available for this area.</p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2 flex items-center gap-1.5">
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+          <h5 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
             <BarChart3 className="h-3.5 w-3.5" /> H&S Highlights
           </h5>
           <div className="mb-2 text-xs text-slate-600">
@@ -348,17 +498,17 @@ function AreaNewsletterDashboardCard({
           )}
         </div>
 
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-2 flex items-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Reminders & Updates
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+          <h5 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Reminders &amp; Updates
           </h5>
-          <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Reminders</p>
-          <ul className="space-y-1 text-sm text-slate-700 mb-3">
+          <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">Reminders</p>
+          <ul className="mb-3 space-y-1 text-sm text-slate-700">
             {report.reminders.map((line, idx) => (
               <li key={`r-${idx}`}>{line}</li>
             ))}
           </ul>
-          <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Legislation / Policy</p>
+          <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">Legislation / Policy</p>
           <ul className="space-y-1 text-sm text-slate-700">
             {report.legislationUpdates.map((line, idx) => (
               <li key={`l-${idx}`}>{line}</li>
@@ -379,10 +529,9 @@ function AreaNewsletterDashboardCard({
           {report.newsletterMarkdown}
         </pre>
       </details>
-    </div>
+    </article>
   )
 }
-
 export default function ReportsPage() {
   // useEffect(() => { requireAuth(); }, []); // Simulate auth check
   const [newsletterMonth, setNewsletterMonth] = useState<string>(format(new Date(), 'yyyy-MM'))
@@ -526,28 +675,37 @@ export default function ReportsPage() {
     setNewsletterError(null)
 
     try {
-      const response = await fetch('/api/reports/monthly-newsletter/pdf', {
+      const cardElement = document.getElementById(
+        getNewsletterCardElementId(report.areaCode)
+      ) as HTMLElement | null
+
+      if (!cardElement) {
+        throw new Error('Could not find the rendered newsletter card to export.')
+      }
+
+      const html = buildExactPdfHtmlFromCardElement(cardElement)
+      const preferredName = `monthly-newsletter-${newsletterMonth}-${report.areaCode.toLowerCase()}-exact.pdf`
+
+      const response = await fetch('/api/reports/monthly-newsletter/pdf-exact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...buildNewsletterPayload(),
-          areaCode: report.areaCode,
-          aiPromptPack: newsletterAiByArea[report.areaCode] || undefined,
+          html,
+          filename: preferredName,
         }),
       })
 
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { error?: string }
-        throw new Error(data.error || 'Failed to download newsletter PDF')
+        throw new Error(data.error || 'Failed to export exact on-screen PDF')
       }
 
       const blob = await response.blob()
       const disposition = response.headers.get('content-disposition') || ''
       const filenameMatch = disposition.match(/filename=\"?([^\";]+)\"?/)
-      const fallbackName = `monthly-newsletter-${newsletterMonth}-${report.areaCode.toLowerCase()}.pdf`
-      const filename = filenameMatch?.[1] || fallbackName
+      const filename = filenameMatch?.[1] || preferredName
 
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
