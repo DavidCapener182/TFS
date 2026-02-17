@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { UserRole } from '@/lib/auth'
 import { getAuditPDFDownloadUrl, deleteAuditPDF } from '@/app/actions/audit-pdfs'
@@ -1108,7 +1108,7 @@ export function AuditTable({
                             </button>
                             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
                               <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono">
-                                {row.store_code || '—'}
+                                {getDisplayStoreCode(row.store_code) || '—'}
                               </span>
                               <span>{row.region || 'Unassigned'}</span>
                             </div>
@@ -1435,7 +1435,7 @@ export function AuditTable({
                             {row.region || '—'}
                           </TableCell>
                           <TableCell className="font-mono text-xs font-medium border-b bg-white group-hover:bg-slate-50">
-                            {row.store_code || '—'}
+                            {getDisplayStoreCode(row.store_code) || '—'}
                           </TableCell>
                           <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
                             <div className="flex flex-col items-start gap-1">

@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Returns null for FAHS-imported store codes so they are not displayed in store lists. */
+export function getDisplayStoreCode(storeCode: string | null | undefined): string | null {
+  if (!storeCode || typeof storeCode !== 'string') return null
+  if (storeCode.toUpperCase().startsWith('FAHS-')) return null
+  return storeCode
+}
+
 export function truncateToDecimals(value: number, decimals = 2) {
   const factor = 10 ** decimals
   return Math.trunc(value * factor) / factor

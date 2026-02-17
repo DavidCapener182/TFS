@@ -6,22 +6,55 @@ import { StatusBadge } from '@/components/shared/status-badge'
 
 async function getIncident(id: string) {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const { data: openIncident } = await supabase
     .from('fa_incidents')
-    .select(`
-      *,
-      fa_stores(*),
-      reporter:fa_profiles!fa_incidents_reported_by_user_id_fkey(*),
-      investigator:fa_profiles!fa_incidents_assigned_investigator_user_id_fkey(*)
-    `)
+    .select('*')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
-  if (error || !data) {
+  const { data: closedIncident } = openIncident
+    ? ({ data: null } as any)
+    : await supabase
+        .from('fa_closed_incidents')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
+
+  const incident = openIncident || closedIncident
+  if (!incident) {
     return null
   }
 
-  return data
+  const [storeResult, reporterResult, investigatorResult] = await Promise.all([
+    incident.store_id
+      ? supabase
+          .from('fa_stores')
+          .select('*')
+          .eq('id', incident.store_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null } as any),
+    incident.reported_by_user_id
+      ? supabase
+          .from('fa_profiles')
+          .select('*')
+          .eq('id', incident.reported_by_user_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null } as any),
+    incident.assigned_investigator_user_id
+      ? supabase
+          .from('fa_profiles')
+          .select('*')
+          .eq('id', incident.assigned_investigator_user_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null } as any),
+  ])
+
+  return {
+    ...incident,
+    fa_stores: storeResult.data || null,
+    reporter: reporterResult.data || null,
+    investigator: investigatorResult.data || null,
+  }
 }
 
 async function getInvestigation(incidentId: string) {
@@ -211,4 +244,3 @@ export default async function IncidentPrintPage({
     </div>
   )
 }
-

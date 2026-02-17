@@ -5,6 +5,17 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, TrendingUp, Clock, AlertCircle, Store, FileCheck, Sparkles, X, Loader2, Calendar, Flame, ShieldCheck, ArrowUpRight } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { ComplianceVisitsTracking } from '@/components/dashboard/compliance-visits-tracking'
 import { PlannedRounds } from '@/components/dashboard/planned-rounds'
 import { formatPercent } from '@/lib/utils'
@@ -69,9 +80,203 @@ function HeroStatPill({ label, value }: { label: string; value: string | number 
   )
 }
 
+function prettifyKey(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function toCountData(counts: Record<string, number> | undefined, limit = 6) {
+  return Object.entries(counts || {})
+    .map(([key, value]) => ({ name: prettifyKey(key), value: Number(value || 0) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit)
+}
+
+function toCombinedTrendData(snapshot: any) {
+  const incidentsTrend = Array.isArray(snapshot?.incidentsPage?.monthlyTrend) ? snapshot.incidentsPage.monthlyTrend : []
+  const actionsTrend = Array.isArray(snapshot?.actionsPage?.monthlyTrend) ? snapshot.actionsPage.monthlyTrend : []
+
+  const orderedKeys: string[] = []
+  const rowMap = new Map<string, { month: string; incidents: number; actions: number; overdueActions: number; riddor: number }>()
+
+  incidentsTrend.forEach((row: any) => {
+    const key = String(row?.monthKey || row?.month || `incidents-${orderedKeys.length}`)
+    if (!rowMap.has(key)) {
+      orderedKeys.push(key)
+      rowMap.set(key, {
+        month: String(row?.month || key),
+        incidents: 0,
+        actions: 0,
+        overdueActions: 0,
+        riddor: 0,
+      })
+    }
+
+    const existing = rowMap.get(key)!
+    existing.incidents = Number(row?.incidents || 0)
+    existing.riddor = Number(row?.riddor || 0)
+  })
+
+  actionsTrend.forEach((row: any) => {
+    const key = String(row?.monthKey || row?.month || `actions-${orderedKeys.length}`)
+    if (!rowMap.has(key)) {
+      orderedKeys.push(key)
+      rowMap.set(key, {
+        month: String(row?.month || key),
+        incidents: 0,
+        actions: 0,
+        overdueActions: 0,
+        riddor: 0,
+      })
+    }
+
+    const existing = rowMap.get(key)!
+    existing.actions = Number(row?.total || 0)
+    existing.overdueActions = Number(row?.overdue || 0)
+  })
+
+  return orderedKeys.map((key) => rowMap.get(key)!).slice(-12)
+}
+
+function ReportAnalyticsPanel({ snapshot }: { snapshot: any }) {
+  const incidents = snapshot?.incidentsPage || {}
+  const actions = snapshot?.actionsPage || {}
+  const fra = snapshot?.fraTracking || {}
+  const risk = snapshot?.predictiveRisk || {}
+
+  const metrics = [
+    {
+      label: 'Open Incidents',
+      value: Number(incidents.openIncidents ?? snapshot?.incidentRisk?.openIncidents ?? 0),
+      classes: 'border-blue-200 bg-blue-50 text-blue-800',
+    },
+    {
+      label: 'Open Claims',
+      value: Number(incidents?.claims?.open ?? 0),
+      classes: 'border-violet-200 bg-violet-50 text-violet-800',
+    },
+    {
+      label: 'Active Actions',
+      value: Number(actions.activeActions ?? 0),
+      classes: 'border-cyan-200 bg-cyan-50 text-cyan-800',
+    },
+    {
+      label: 'Overdue Actions',
+      value: Number(actions.overdueActions ?? snapshot?.combinedActions?.totalOverdue ?? 0),
+      classes: 'border-amber-200 bg-amber-50 text-amber-800',
+    },
+    {
+      label: 'FRA Overdue',
+      value: Number(fra.overdue ?? 0),
+      classes: 'border-rose-200 bg-rose-50 text-rose-800',
+    },
+    {
+      label: 'High Risk Stores',
+      value: Number(risk.highRiskCount ?? 0),
+      classes: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+    },
+  ]
+
+  const trendData = toCombinedTrendData(snapshot)
+  const priorityData = toCountData(actions.byPriority, 5)
+  const severityData = toCountData(incidents.bySeverity, 5)
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-bold text-slate-900">Live Incidents + Actions Analytics</h4>
+        <p className="mt-1 text-xs text-slate-500">Sourced from the same datasets used by incidents and actions pages.</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {metrics.map((metric) => (
+          <div key={metric.label} className={`rounded-lg border p-2.5 ${metric.classes}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest">{metric.label}</p>
+            <p className="mt-1 text-lg font-bold">{metric.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Trend: Incidents vs Actions</p>
+        <div className="h-52">
+          {trendData.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs italic text-slate-400">No trend data available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="incidents" stroke="#2563eb" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="actions" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="overdueActions" stroke="#f97316" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Action Priority Mix</p>
+        <div className="h-44">
+          {priorityData.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs italic text-slate-400">No action priority data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={priorityData} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#7c3aed" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Incident Severity Profile</p>
+        <div className="h-44">
+          {severityData.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs italic text-slate-400">No incident severity data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={severityData} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#2563eb" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // --- Report Modal Component ---
-function ReportModal({ isOpen, onClose, content, isLoading }: { isOpen: boolean, onClose: () => void, content: string, isLoading: boolean }) {
-  if (!isOpen) return null;
+function ReportModal({
+  isOpen,
+  onClose,
+  content,
+  isLoading,
+  snapshot,
+  generatedAt,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  content: string
+  isLoading: boolean
+  snapshot: any
+  generatedAt: string | null
+}) {
+  if (!isOpen) return null
 
   return (
     <>
@@ -131,49 +336,66 @@ function ReportModal({ isOpen, onClose, content, isLoading }: { isOpen: boolean,
           font-weight: 600;
         }
       `}} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-in fade-in duration-200">
-        <div className="bg-white rounded-none md:rounded-2xl shadow-2xl w-full h-full md:h-auto md:w-full md:max-w-2xl md:max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="p-4 md:p-5 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 safe-top">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="bg-blue-600 p-1.5 rounded-lg flex-shrink-0">
-                <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-base md:text-lg text-slate-900 truncate">AI Intelligence Report</h3>
-                <p className="text-xs text-slate-500 hidden sm:block">Powered by OpenAI</p>
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="flex h-full w-full flex-col overflow-hidden bg-slate-100">
+          <div className="safe-top border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 md:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="rounded-lg bg-blue-600 p-1.5">
+                  <Sparkles className="h-4 w-4 text-white md:h-5 md:w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-bold text-slate-900 md:text-lg">Intelligence Report</h3>
+                  <p className="text-xs text-slate-500">
+                    Powered by OpenAI
+                    {generatedAt ? ` • Generated ${format(new Date(generatedAt), 'dd MMM yyyy HH:mm')}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="ml-2 flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0 ml-2">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        
-        <div className="p-4 md:p-8 overflow-y-auto flex-1">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-              <p className="text-slate-500 font-medium text-sm md:text-base">Analyzing dashboard metrics...</p>
-            </div>
-          ) : (
-            <div 
-              className="space-y-4 md:space-y-6 ai-report-content"
-              dangerouslySetInnerHTML={{ __html: content }} 
-            />
-          )}
-        </div>
 
-        <div className="p-4 border-t bg-slate-50 flex justify-end safe-bottom">
-          <button 
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors min-h-[44px] min-w-[120px] w-full md:w-auto"
-          >
-            Close Report
-          </button>
+          <div className="min-h-0 flex-1">
+            {isLoading ? (
+              <div className="flex h-full flex-col items-center justify-center space-y-4 bg-white px-6">
+                <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+                <p className="text-center text-sm font-medium text-slate-500 md:text-base">
+                  Analyzing incidents, actions, claims, and compliance metrics...
+                </p>
+              </div>
+            ) : (
+              <div className="grid h-full grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)]">
+                <aside className="overflow-y-auto border-b border-slate-200 bg-slate-50 p-4 md:p-5 xl:border-b-0 xl:border-r">
+                  <ReportAnalyticsPanel snapshot={snapshot} />
+                </aside>
+                <main className="overflow-y-auto bg-white p-4 md:p-8">
+                  <div
+                    className="ai-report-content mx-auto w-full max-w-4xl space-y-4 md:space-y-6"
+                    dangerouslySetInnerHTML={{ __html: content }}
+                  />
+                </main>
+              </div>
+            )}
+          </div>
+
+          <div className="safe-bottom flex justify-end border-t border-slate-200 bg-slate-50 p-4">
+            <button
+              onClick={onClose}
+              className="w-full min-h-[44px] min-w-[140px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 md:w-auto"
+            >
+              Close Report
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     </>
-  );
+  )
 }
 
 // --- Main Client Component ---
@@ -189,10 +411,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isReportOpen, setIsReportOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportContent, setReportContent] = useState("")
+  const [reportSnapshot, setReportSnapshot] = useState<any>(null)
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null)
 
   const handleGenerateReport = async () => {
     setIsReportOpen(true)
-    if (!reportContent) { // Only generate if not already generated this session
+    if (!reportContent || !reportSnapshot) { // Only generate if not already generated this session
       setReportLoading(true)
       try {
         const response = await fetch('/api/ai/compliance-report', {
@@ -209,9 +433,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
         const result = await response.json()
         setReportContent(result.content || '<p>Error generating report. Please check your API configuration.</p>')
+        setReportSnapshot(result.snapshot || null)
+        setReportGeneratedAt(result.generatedAt || null)
       } catch (error) {
         console.error('Error generating report:', error)
         setReportContent('<p>Error generating report. Please check your API configuration.</p>')
+        setReportSnapshot(null)
+        setReportGeneratedAt(null)
       } finally {
         setReportLoading(false)
       }
@@ -235,6 +463,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         onClose={() => setIsReportOpen(false)} 
         content={reportContent} 
         isLoading={reportLoading} 
+        snapshot={reportSnapshot}
+        generatedAt={reportGeneratedAt}
       />
 
       {/* Hero */}
@@ -259,8 +489,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-slate-900 shadow-sm font-medium transition-all hover:bg-slate-100 active:scale-[0.98] min-h-[44px]"
             >
               <Sparkles className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline">Generate AI Report</span>
-              <span className="sm:hidden">AI Report</span>
+              <span className="hidden sm:inline">Generate report</span>
+              <span className="sm:hidden">Generate report</span>
               <ArrowUpRight className="h-3.5 w-3.5 text-slate-500" />
             </button>
             <div className="rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-center text-xs font-medium text-slate-200 min-h-[44px] flex items-center justify-center">

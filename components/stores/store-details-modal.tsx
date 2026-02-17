@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { MapPin, Building2, Award, AlertTriangle, CheckCircle2, Clock, CalendarDays, Navigation } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { formatPercent } from '@/lib/utils'
+import { formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 interface StoreDetailsModalProps {
   store: any
@@ -88,7 +88,7 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
               <DialogTitle className="text-xl md:text-2xl font-bold text-slate-900 text-center md:text-left break-words">{store.store_name}</DialogTitle>
               <DialogDescription className="mt-1 flex items-center justify-center md:justify-start gap-2 flex-wrap">
                 <Badge variant="outline" className="font-mono text-xs bg-slate-50">
-                  {store.store_code || 'NO CODE'}
+                  {getDisplayStoreCode(store.store_code) || '—'}
                 </Badge>
                 {store.region && (
                   <span className="text-xs md:text-sm text-slate-500 flex items-center gap-1">

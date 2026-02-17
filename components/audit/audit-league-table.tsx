@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { AuditRow, pctBadge, formatDate, getLatestPct } from './audit-table-helpers'
 import { StoreActionsModal } from './store-actions-modal'
 import { Eye, EyeOff } from 'lucide-react'
@@ -270,7 +270,7 @@ export function AuditLeagueTable({
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs font-medium border-b bg-white group-hover:bg-slate-50">
-                        {row.store_code || '—'}
+                        {getDisplayStoreCode(row.store_code) || '—'}
                       </TableCell>
                       <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
                         <button

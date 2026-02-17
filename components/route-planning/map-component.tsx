@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useMemo } from 'react'
+import { getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -250,8 +251,8 @@ export default function MapComponent({ stores, managerHome, selectedStores, onSt
           >
             <Popup>
               <div className="font-semibold">{store.store_name}</div>
-              {store.store_code && (
-                <div className="text-sm text-slate-600">Code: {store.store_code}</div>
+              {getDisplayStoreCode(store.store_code) && (
+                <div className="text-sm text-slate-600">Code: {getDisplayStoreCode(store.store_code)}</div>
               )}
               {store.region && (
                 <div className="text-sm text-slate-500">Area: {getAreaDisplayName(store.region)}</div>

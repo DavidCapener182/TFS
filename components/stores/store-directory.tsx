@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { StoreModalWrapper } from '@/components/stores/store-modal-wrapper'
 import { StoreMobileCard } from '@/components/stores/store-mobile-card'
 import { Search, Store, MapPin, CheckCircle2, XCircle, Layers3 } from 'lucide-react'
+import { getDisplayStoreCode } from '@/lib/utils'
 
 interface StoreDirectoryProps {
   stores: any[]
@@ -190,9 +191,9 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
                           </TableCell>
 
                           <TableCell>
-                            {store.store_code ? (
+                            {getDisplayStoreCode(store.store_code) ? (
                               <span className="inline-flex rounded-md border border-slate-200 bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-600">
-                                {store.store_code}
+                                {getDisplayStoreCode(store.store_code)}
                               </span>
                             ) : (
                               <span className="text-sm text-slate-400">—</span>

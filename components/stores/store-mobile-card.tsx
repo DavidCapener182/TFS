@@ -3,6 +3,7 @@
 import { StoreModalWrapper } from '@/components/stores/store-modal-wrapper'
 import { Card } from '@/components/ui/card'
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, ClipboardList } from 'lucide-react'
+import { getDisplayStoreCode } from '@/lib/utils'
 
 interface StoreMobileCardProps {
   store: any
@@ -50,9 +51,9 @@ export function StoreMobileCard({ store }: StoreMobileCardProps) {
             </StoreModalWrapper>
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            {store.store_code && (
+            {getDisplayStoreCode(store.store_code) && (
               <span className="inline-flex rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-xs font-medium text-slate-600">
-                {store.store_code}
+                {getDisplayStoreCode(store.store_code)}
               </span>
             )}
             {store.is_active ? (

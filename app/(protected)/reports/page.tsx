@@ -118,6 +118,122 @@ function collectRootCssVariableMarkup(): string {
     .join('')
 }
 
+function stripWrappingQuotes(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, '')
+}
+
+function isFontAssetPath(value: string): boolean {
+  return /\.(woff2?|ttf|otf|eot)(\?|#|$)/i.test(value)
+}
+
+function guessMimeTypeFromFontAsset(assetUrl: string): string {
+  const lower = assetUrl.toLowerCase()
+  if (lower.includes('.woff2')) return 'font/woff2'
+  if (lower.includes('.woff')) return 'font/woff'
+  if (lower.includes('.ttf')) return 'font/ttf'
+  if (lower.includes('.otf')) return 'font/otf'
+  if (lower.includes('.eot')) return 'application/vnd.ms-fontobject'
+  return 'application/octet-stream'
+}
+
+async function toDataUriFromAssetUrl(assetUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(assetUrl, { credentials: 'include' })
+    if (!response.ok) return null
+
+    const blob = await response.blob()
+    const mimeType = blob.type || guessMimeTypeFromFontAsset(assetUrl)
+    const dataBuffer = await blob.arrayBuffer()
+    const bytes = new Uint8Array(dataBuffer)
+    let binary = ''
+    const chunkSize = 0x8000
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize)
+      let chunkBinary = ''
+      for (let idx = 0; idx < chunk.length; idx += 1) {
+        chunkBinary += String.fromCharCode(chunk[idx])
+      }
+      binary += chunkBinary
+    }
+
+    return `data:${mimeType};base64,${btoa(binary)}`
+  } catch {
+    return null
+  }
+}
+
+async function inlineFontAssetUrlsInCss(cssText: string): Promise<string> {
+  const matches = Array.from(cssText.matchAll(/url\(([^)]+)\)/gi))
+  if (matches.length === 0) return cssText
+
+  const urlReplacements = new Map<string, string>()
+  const urlCache = new Map<string, string | null>()
+
+  for (const match of matches) {
+    const rawToken = match[1] || ''
+    const cleanToken = stripWrappingQuotes(rawToken)
+    if (!cleanToken || cleanToken.startsWith('data:') || !isFontAssetPath(cleanToken)) {
+      continue
+    }
+
+    const absoluteUrl = new URL(cleanToken, window.location.origin).toString()
+    if (!urlCache.has(absoluteUrl)) {
+      urlCache.set(absoluteUrl, await toDataUriFromAssetUrl(absoluteUrl))
+    }
+
+    const replacement = urlCache.get(absoluteUrl)
+    if (!replacement) continue
+    urlReplacements.set(cleanToken, replacement)
+    urlReplacements.set(absoluteUrl, replacement)
+  }
+
+  if (urlReplacements.size === 0) return cssText
+
+  let output = cssText
+  urlReplacements.forEach((replacement, original) => {
+    output = output.split(original).join(replacement)
+  })
+
+  return output
+}
+
+async function collectEmbeddedFontFaceCss(): Promise<string> {
+  const cssBlocks: string[] = []
+
+  const styleBlocks = Array.from(document.head.querySelectorAll('style'))
+    .map((node) => node.textContent || '')
+    .filter((text) => text.includes('@font-face'))
+  cssBlocks.push(...styleBlocks)
+
+  const stylesheetLinks = Array.from(
+    document.head.querySelectorAll('link[rel="stylesheet"][href]')
+  ) as HTMLLinkElement[]
+
+  const linkedCssBlocks = await Promise.all(
+    stylesheetLinks.map(async (linkNode) => {
+      try {
+        const response = await fetch(linkNode.href, { credentials: 'include' })
+        if (!response.ok) return ''
+        const cssText = await response.text()
+        return cssText.includes('@font-face') ? cssText : ''
+      } catch {
+        return ''
+      }
+    })
+  )
+
+  cssBlocks.push(...linkedCssBlocks.filter(Boolean))
+
+  if (cssBlocks.length === 0) return ''
+
+  const inlinedBlocks = await Promise.all(
+    cssBlocks.map((cssText) => inlineFontAssetUrlsInCss(cssText))
+  )
+
+  return inlinedBlocks.filter(Boolean).join('\n')
+}
+
 function copyComputedStylesRecursive(source: Element, target: Element): void {
   const computedStyle = window.getComputedStyle(source)
   const declarations = Array.from(computedStyle)
@@ -136,12 +252,13 @@ function copyComputedStylesRecursive(source: Element, target: Element): void {
   })
 }
 
-function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): string {
+async function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): Promise<string> {
   const clone = cardElement.cloneNode(true) as HTMLElement
   clone.querySelectorAll('[data-pdf-exclude="true"]').forEach((node) => node.remove())
 
   copyComputedStylesRecursive(cardElement, clone)
 
+  const embeddedFontFaceCss = await collectEmbeddedFontFaceCss()
   const width = Math.max(1, Math.ceil(cardElement.getBoundingClientRect().width))
   const headMarkup = collectPdfHeadMarkup()
   const rootCssVariables = collectRootCssVariableMarkup()
@@ -158,10 +275,12 @@ function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="${baseHref}" />
     ${headMarkup}
+    ${embeddedFontFaceCss ? `<style id="pdf-embedded-fonts">${embeddedFontFaceCss}</style>` : ''}
     <style>
       html, body { margin: 0; padding: 0; background: #f8fafc; }
       body { width: ${width}px; margin: 0 auto; }
       #pdf-root { width: ${width}px; margin: 0 auto; box-sizing: border-box; }
+      body, #pdf-root { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style>
   </head>
@@ -683,8 +802,8 @@ export default function ReportsPage() {
         throw new Error('Could not find the rendered newsletter card to export.')
       }
 
-      const html = buildExactPdfHtmlFromCardElement(cardElement)
-      const preferredName = `monthly-newsletter-${newsletterMonth}-${report.areaCode.toLowerCase()}-exact.pdf`
+      const html = await buildExactPdfHtmlFromCardElement(cardElement)
+      const preferredName = `monthly-newsletter-${newsletterMonth}-${report.areaCode.toLowerCase()}-exact-v2.pdf`
 
       const response = await fetch('/api/reports/monthly-newsletter/pdf-exact', {
         method: 'POST',

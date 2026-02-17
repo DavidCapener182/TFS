@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,15 +15,25 @@ interface IncidentAttachmentsProps {
 }
 
 export function IncidentAttachments({ incidentId, attachments }: IncidentAttachmentsProps) {
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const [isUploading, setIsUploading] = useState(false)
+  const router = useRouter()
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setIsUploading(true)
     try {
-      await uploadAttachment('incident', incidentId, file)
-      window.location.reload()
+      for (const file of Array.from(files)) {
+        await uploadAttachment('incident', incidentId, file)
+      }
+      router.refresh()
     } catch (error) {
       console.error('Failed to upload attachment:', error)
+      alert('Failed to upload one or more files. Please try again.')
+    } finally {
+      setIsUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -36,12 +48,13 @@ export function IncidentAttachments({ incidentId, attachments }: IncidentAttachm
                 type="file"
                 id="file-upload"
                 className="hidden"
+                multiple
                 onChange={handleFileUpload}
               />
-              <Button asChild>
+              <Button asChild disabled={isUploading}>
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload File
+                  {isUploading ? 'Uploading...' : 'Upload Evidence'}
                 </label>
               </Button>
             </div>
@@ -89,5 +102,4 @@ export function IncidentAttachments({ incidentId, attachments }: IncidentAttachm
     </div>
   )
 }
-
 

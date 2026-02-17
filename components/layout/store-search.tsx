@@ -10,7 +10,7 @@ import { ExternalLink, MapPin, Search, ShieldAlert, ShieldCheck } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
-import { cn, formatPercent } from '@/lib/utils'
+import { cn, formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 type StoreSearchResult = {
   id: string
@@ -437,7 +437,7 @@ function StoreDropdownItem({ store, onSelect }: { store: StoreSearchResult; onSe
           <div className="min-w-0 flex-1">
             <div className="text-base font-semibold text-white truncate">{store.store_name}</div>
             <div className="text-xs text-white/60 mt-0.5">
-              {store.store_code ? store.store_code : '—'}{store.region ? ` • ${store.region}` : ''}
+              {getDisplayStoreCode(store.store_code) || '—'}{store.region ? ` • ${store.region}` : ''}
             </div>
           </div>
           <div
@@ -599,7 +599,7 @@ function ManagerDropdownItem({ manager }: { manager: ManagerResult }) {
                     {g.items.map((s) => (
                       <li key={s.id} className="text-xs text-white/80 flex items-center justify-between gap-2">
                         <span className="truncate">
-                          {s.store_name} {s.store_code && <span className="text-white/50">({s.store_code})</span>}
+                          {s.store_name} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
                         </span>
                       </li>
                     ))}
@@ -623,7 +623,7 @@ function ManagerDropdownItem({ manager }: { manager: ManagerResult }) {
                     {g.items.map((s) => (
                       <li key={s.id} className="text-xs text-white/80 flex items-center justify-between gap-2">
                         <span className="truncate">
-                          {s.store_name} {s.store_code && <span className="text-white/50">({s.store_code})</span>}
+                          {s.store_name} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
                         </span>
                       </li>
                     ))}
@@ -663,7 +663,7 @@ function StoreSummary({ store }: { store: StoreSearchResult }) {
               {store.store_name}
             </div>
             <div className="text-sm text-slate-500">
-              {store.store_code ? store.store_code : '—'}{store.region ? ` • ${store.region}` : ''}
+              {getDisplayStoreCode(store.store_code) || '—'}{store.region ? ` • ${store.region}` : ''}
             </div>
           </div>
           <div

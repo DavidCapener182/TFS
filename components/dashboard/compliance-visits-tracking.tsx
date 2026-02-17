@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertCircle, CalendarDays, CheckCircle2, CircleDashed, UserRound } from 'lucide-react'
+import { getDisplayStoreCode } from '@/lib/utils'
 
 interface Store {
   id: string
@@ -105,7 +106,7 @@ export function ComplianceVisitsTracking({ stores }: ComplianceVisitsTrackingPro
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{store.store_name}</p>
-                    {store.store_code && <p className="text-xs text-slate-500">#{store.store_code}</p>}
+                    {getDisplayStoreCode(store.store_code) && <p className="text-xs text-slate-500">#{getDisplayStoreCode(store.store_code)}</p>}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${hasPlan ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-rose-200 bg-rose-50 text-rose-700'}`}>
                     {hasPlan ? 'Planned' : 'Not Planned'}
@@ -145,7 +146,7 @@ export function ComplianceVisitsTracking({ stores }: ComplianceVisitsTrackingPro
                     <TableRow key={store.id} className="hover:bg-slate-50/70">
                       <TableCell className="font-medium text-slate-900">
                         {store.store_name}
-                        {store.store_code && <span className="text-slate-500 text-xs ml-2">#{store.store_code}</span>}
+                        {getDisplayStoreCode(store.store_code) && <span className="text-slate-500 text-xs ml-2">#{getDisplayStoreCode(store.store_code)}</span>}
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${hasPlan ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-rose-200 bg-rose-50 text-rose-700'}`}>

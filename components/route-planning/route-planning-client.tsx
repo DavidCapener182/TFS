@@ -13,6 +13,7 @@ import { updateRoutePlannedDate, updateManagerHomeAddress, getRouteOperationalIt
 import { format } from 'date-fns'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RouteDirectionsModal } from './route-directions-modal'
+import { getDisplayStoreCode } from '@/lib/utils'
 
 // Dynamically import the map component to avoid SSR issues
 const MapComponent = dynamic(() => import('./map-component'), { ssr: false })
@@ -1089,10 +1090,10 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                             </span>
                           )}
                         </div>
-                        {store.store_code && (
+                        {(getDisplayStoreCode(store.store_code) || store.region) && (
                           <div className="text-xs text-slate-500">
-                            {store.store_code}
-                            {store.region ? ` • ${getAreaDisplayName(store.region)}` : ''}
+                            {getDisplayStoreCode(store.store_code) || ''}
+                            {store.region ? `${getDisplayStoreCode(store.store_code) ? ' • ' : ''}${getAreaDisplayName(store.region)}` : ''}
                           </div>
                         )}
                         {!hasCoords && (
@@ -1319,8 +1320,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                                     )}
                                     <span>
                                       {store.store_name}
-                                      {store.store_code && (
-                                        <span className="text-gray-500 text-xs ml-2">({store.store_code})</span>
+                                      {getDisplayStoreCode(store.store_code) && (
+                                        <span className="text-gray-500 text-xs ml-2">({getDisplayStoreCode(store.store_code)})</span>
                                       )}
                                     </span>
                                   </div>

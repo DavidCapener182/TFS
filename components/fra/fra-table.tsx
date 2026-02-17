@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { UserRole } from '@/lib/auth'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
 import { updateFRA } from '@/app/actions/stores'
@@ -646,7 +646,7 @@ export function FRATable({
                           <div className="text-sm font-semibold text-slate-900 truncate leading-tight">{row.store_name}</div>
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
                             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono">
-                              {row.store_code || '—'}
+                              {getDisplayStoreCode(row.store_code) || '—'}
                             </span>
                             <span>{row.region || 'Unassigned'}</span>
                           </div>
@@ -873,7 +873,7 @@ export function FRATable({
                               {row.region || '—'}
                             </TableCell>
                             <TableCell className="font-mono text-xs font-medium border-b bg-white group-hover:bg-slate-50">
-                              {row.store_code || '—'}
+                              {getDisplayStoreCode(row.store_code) || '—'}
                             </TableCell>
                             <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
                               {row.store_name}

@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   Clock3,
   PlusCircle,
+  CheckCircle2,
   PencilLine,
   Trash2,
   Sparkles,
@@ -14,20 +15,119 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 
+function hasClosedEvent(activity: any): boolean {
+  if (activity?.action === 'CLOSED') return true
+  if (activity?.action !== 'UPDATED') return false
+  const newStatus = activity?.details?.new?.status
+  const oldStatus = activity?.details?.old?.status
+  return newStatus === 'closed' || (oldStatus !== 'closed' && newStatus === 'closed')
+}
+
+function normalizeIncidentCreatedAt(incident: any): string | null {
+  return incident?.reported_at || incident?.created_at || incident?.occurred_at || null
+}
+
+function normalizeIncidentClosedAt(incident: any): string | null {
+  return incident?.closed_at || incident?.updated_at || normalizeIncidentCreatedAt(incident)
+}
+
 async function getRecentActivity() {
   const supabase = createClient()
-  const { data: recentActivity, error } = await supabase
-    .from('fa_activity_log')
-    .select(`*, performed_by:fa_profiles!fa_activity_log_performed_by_user_id_fkey(full_name)`)
-    .order('created_at', { ascending: false })
-    .limit(100)
+  const [
+    { data: recentActivity, error: activityError },
+    { data: openIncidents, error: openIncidentError },
+    { data: closedIncidents, error: closedIncidentError },
+  ] = await Promise.all([
+    supabase
+      .from('fa_activity_log')
+      .select(`*, performed_by:fa_profiles!fa_activity_log_performed_by_user_id_fkey(full_name)`)
+      .order('created_at', { ascending: false })
+      .limit(180),
+    supabase
+      .from('fa_incidents')
+      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id')
+      .order('created_at', { ascending: false })
+      .limit(180),
+    supabase
+      .from('fa_closed_incidents')
+      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id')
+      .order('closed_at', { ascending: false })
+      .limit(180),
+  ])
 
-  if (error) {
-    console.error('Error fetching recent activity:', error)
+  if (activityError) {
+    console.error('Error fetching recent activity:', activityError)
     return []
   }
+  if (openIncidentError) {
+    console.error('Error fetching open incidents for activity baseline:', openIncidentError)
+  }
+  if (closedIncidentError) {
+    console.error('Error fetching closed incidents for activity baseline:', closedIncidentError)
+  }
 
-  return recentActivity || []
+  const activityRows = recentActivity || []
+  const incidentEventState = new Map<string, { created: boolean; closed: boolean }>()
+
+  activityRows.forEach((activity: any) => {
+    if (activity.entity_type !== 'incident' || !activity.entity_id) return
+    const current = incidentEventState.get(activity.entity_id) || { created: false, closed: false }
+    if (activity.action === 'CREATED') current.created = true
+    if (hasClosedEvent(activity)) current.closed = true
+    incidentEventState.set(activity.entity_id, current)
+  })
+
+  const syntheticEvents: any[] = []
+  const syntheticEventIds = new Set<string>()
+
+  const appendSyntheticEvents = (incident: any, forceClosed = false) => {
+    if (!incident?.id) return
+    const state = incidentEventState.get(incident.id) || { created: false, closed: false }
+    const createdAt = normalizeIncidentCreatedAt(incident)
+    const closedAt = normalizeIncidentClosedAt(incident)
+    const isClosed = forceClosed || incident?.status === 'closed' || Boolean(incident?.closed_at)
+
+    if (!state.created && createdAt) {
+      const eventId = `synthetic-incident-created-${incident.id}`
+      if (!syntheticEventIds.has(eventId)) {
+        syntheticEvents.push({
+          id: eventId,
+          entity_type: 'incident',
+          entity_id: incident.id,
+          action: 'CREATED',
+          created_at: createdAt,
+          performed_by_user_id: incident.reported_by_user_id || null,
+          performed_by: null,
+          details: { synthetic: true, source: 'incident-baseline' },
+        })
+        syntheticEventIds.add(eventId)
+      }
+    }
+
+    if (!state.closed && isClosed && closedAt) {
+      const eventId = `synthetic-incident-closed-${incident.id}`
+      if (!syntheticEventIds.has(eventId)) {
+        syntheticEvents.push({
+          id: eventId,
+          entity_type: 'incident',
+          entity_id: incident.id,
+          action: 'CLOSED',
+          created_at: closedAt,
+          performed_by_user_id: incident.assigned_investigator_user_id || incident.reported_by_user_id || null,
+          performed_by: null,
+          details: { synthetic: true, source: 'incident-baseline' },
+        })
+        syntheticEventIds.add(eventId)
+      }
+    }
+  }
+
+  ;(openIncidents || []).forEach((incident: any) => appendSyntheticEvents(incident, false))
+  ;(closedIncidents || []).forEach((incident: any) => appendSyntheticEvents(incident, true))
+
+  return [...activityRows, ...syntheticEvents]
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 100)
 }
 
 // Helper to format field names to be more readable
@@ -128,9 +228,12 @@ async function getUserNamesFromActivities(activities: any[]): Promise<Map<string
   const supabase = createClient()
   const userMap = new Map<string, string | null>()
   
-  // Collect user IDs only from fields that end with _user_id
+  // Collect user IDs from actor fields and any changed *_user_id fields
   const userIds = new Set<string>()
   activities.forEach(activity => {
+    if (isUUID(activity.performed_by_user_id)) {
+      userIds.add(activity.performed_by_user_id)
+    }
     if (activity.details?.old) {
       Object.entries(activity.details.old as Record<string, any>).forEach(([key, val]) => {
         if (key.includes('_user_id') && isUUID(val)) {
@@ -245,6 +348,7 @@ function formatEntityType(entityType: string): string {
 function getActionBadgeStyles(action: string): string {
   if (action === 'CREATED') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
   if (action === 'UPDATED') return 'border-blue-200 bg-blue-50 text-blue-700'
+  if (action === 'CLOSED') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (action === 'DELETED') return 'border-rose-200 bg-rose-50 text-rose-700'
   return 'border-slate-200 bg-slate-100 text-slate-700'
 }
@@ -252,6 +356,7 @@ function getActionBadgeStyles(action: string): string {
 function getActionCardAccent(action: string): string {
   if (action === 'CREATED') return 'border-l-emerald-400'
   if (action === 'UPDATED') return 'border-l-blue-400'
+  if (action === 'CLOSED') return 'border-l-amber-400'
   if (action === 'DELETED') return 'border-l-rose-400'
   return 'border-l-slate-300'
 }
@@ -259,6 +364,7 @@ function getActionCardAccent(action: string): string {
 function getActionIcon(action: string) {
   if (action === 'CREATED') return <PlusCircle className="h-3.5 w-3.5" />
   if (action === 'UPDATED') return <PencilLine className="h-3.5 w-3.5" />
+  if (action === 'CLOSED') return <CheckCircle2 className="h-3.5 w-3.5" />
   if (action === 'DELETED') return <Trash2 className="h-3.5 w-3.5" />
   return <Activity className="h-3.5 w-3.5" />
 }
@@ -324,11 +430,12 @@ export default async function ActivityPage() {
     (acc, activity: any) => {
       if (activity.action === 'CREATED') acc.created += 1
       else if (activity.action === 'UPDATED') acc.updated += 1
+      else if (activity.action === 'CLOSED') acc.closed += 1
       else if (activity.action === 'DELETED') acc.deleted += 1
       else acc.other += 1
       return acc
     },
-    { created: 0, updated: 0, deleted: 0, other: 0 }
+    { created: 0, updated: 0, closed: 0, deleted: 0, other: 0 }
   )
 
   const entityCounts = activitiesWithNames.reduce((acc: Record<string, number>, activity: any) => {
@@ -339,7 +446,10 @@ export default async function ActivityPage() {
   const sortedEntityCounts = Object.entries(entityCounts).sort((a, b) => b[1] - a[1])
 
   const userCounts = activitiesWithNames.reduce((acc: Record<string, number>, activity: any) => {
-    const name = activity.performed_by?.full_name || 'System'
+    const name =
+      activity.performed_by?.full_name ||
+      (activity.performed_by_user_id ? userMap.get(activity.performed_by_user_id) : null) ||
+      'System'
     acc[name] = (acc[name] || 0) + 1
     return acc
   }, {})
@@ -499,6 +609,15 @@ export default async function ActivityPage() {
                               </p>
                             )}
 
+                            {activity.action === 'CLOSED' && (
+                              <p className="mt-3 text-xs text-slate-600">
+                                {formatEntityType(activity.entity_type)} closed
+                                {entityDisplayName ? (
+                                  <span className="ml-1 font-semibold text-amber-700">{entityDisplayName}</span>
+                                ) : null}
+                              </p>
+                            )}
+
                             {activity.action === 'DELETED' && entityDisplayName && (
                               <p className="mt-3 text-xs font-medium text-rose-600">
                                 Deleted {formatEntityType(activity.entity_type).toLowerCase()}: {entityDisplayName}
@@ -506,12 +625,20 @@ export default async function ActivityPage() {
                             )}
 
                             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
-                              <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-600">
-                                  {(activity.performed_by?.full_name || 'S')[0]}
-                                </span>
-                                {activity.performed_by?.full_name || 'System'}
-                              </p>
+                              {(() => {
+                                const actorName =
+                                  activity.performed_by?.full_name ||
+                                  (activity.performed_by_user_id ? userMap.get(activity.performed_by_user_id) : null) ||
+                                  'System'
+                                return (
+                                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-600">
+                                      {actorName[0]}
+                                    </span>
+                                    {actorName}
+                                  </p>
+                                )
+                              })()}
                               <p className="text-[11px] text-slate-400">
                                 {format(new Date(activity.created_at), 'dd MMM yyyy')}
                               </p>
@@ -539,6 +666,7 @@ export default async function ActivityPage() {
               {[
                 { label: 'Created', value: actionCounts.created, color: 'bg-emerald-500' },
                 { label: 'Updated', value: actionCounts.updated, color: 'bg-blue-500' },
+                { label: 'Closed', value: actionCounts.closed, color: 'bg-amber-500' },
                 { label: 'Deleted', value: actionCounts.deleted, color: 'bg-rose-500' },
                 { label: 'Other', value: actionCounts.other, color: 'bg-slate-500' },
               ].map((item) => {

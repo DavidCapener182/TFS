@@ -6,7 +6,7 @@ import puppeteer, { type Browser, type LaunchOptions, type Page } from 'puppetee
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const EXACT_TEMPLATE_VERSION = 'exact-v2'
+const EXACT_TEMPLATE_VERSION = 'exact-v3'
 
 interface ExactPdfRequestBody {
   html?: string

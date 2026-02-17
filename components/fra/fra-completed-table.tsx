@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
 import { File, Trash2 } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
+import { getDisplayStoreCode } from '@/lib/utils'
 import { 
   FRARow, 
   formatDate,
@@ -308,7 +309,7 @@ export function FRACompletedTable({
                                 {row.region || '—'}
                               </TableCell>
                               <TableCell className="font-mono text-xs font-medium border-b bg-white group-hover:bg-slate-50">
-                                {row.store_code || '—'}
+                                {getDisplayStoreCode(row.store_code) || '—'}
                               </TableCell>
                               <TableCell className="font-semibold text-sm border-b bg-white group-hover:bg-slate-50">
                                 {row.store_name}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -285,8 +286,8 @@ export default function RouteMapComponent({ stores, managerHome }: RouteMapCompo
           >
             <Popup>
               <div className="font-semibold">{store.store_name}</div>
-              {store.store_code && (
-                <div className="text-sm text-slate-600">Code: {store.store_code}</div>
+              {getDisplayStoreCode(store.store_code) && (
+                <div className="text-sm text-slate-600">Code: {getDisplayStoreCode(store.store_code)}</div>
               )}
               <div className="text-xs text-blue-600 mt-1">Stop {index + 1}</div>
             </Popup>
