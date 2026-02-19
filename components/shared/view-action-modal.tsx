@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
+import { getStoreActionListTitle } from '@/lib/store-action-titles'
 
 interface ViewActionModalProps {
   action: any
@@ -19,6 +20,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
   if (!action) return null
 
   const isStoreAction = action.source_type === 'store' || !action.incident_id
+  const displayTitle = isStoreAction ? getStoreActionListTitle(action) : action.title
   const isOverdue = new Date(action.due_date) < new Date() && 
     !['complete', 'cancelled'].includes(action.status)
   const assigneeName = action.assigned_to?.full_name?.trim() || ''
@@ -38,7 +40,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 break-words">{action.title}</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 break-words">{displayTitle}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 md:space-y-6 py-2 md:py-4">

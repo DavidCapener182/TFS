@@ -8,6 +8,12 @@ import { ActionsTableRow } from '@/components/shared/actions-table-row'
 import { ActionMobileCard } from '@/components/shared/action-mobile-card'
 import { Search, CheckSquare2, FileText, Clock, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import {
+  formatStoreActionQuestionForDisplay,
+  getStoreActionListTitle,
+  getStoreActionQuestion,
+  normalizeStoreActionQuestion,
+} from '@/lib/store-action-titles'
 
 const AREA_LABELS: Record<string, string> = {
   A1: 'Scotland & North East',
@@ -25,6 +31,7 @@ type ActionFilters = {
   status?: string
   overdue?: boolean
   priority?: string
+  store_question?: string
   q?: string
   date_from?: string
   date_to?: string
@@ -41,6 +48,7 @@ type UnifiedAction = {
   incident: { reference_no: string } | null
   assigned_to: { id: string; full_name: string | null } | null
   source_type: 'incident' | 'store'
+  store_question?: string | null
   store?: {
     id: string
     store_name: string
@@ -50,7 +58,7 @@ type UnifiedAction = {
   } | null
 }
 
-async function getActions(filters?: ActionFilters) {
+async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAction[]; storeQuestionOptions: string[] }> {
   const supabase = createClient()
   let incidentQuery = supabase
     .from('fa_actions')
@@ -103,7 +111,7 @@ async function getActions(filters?: ActionFilters) {
     console.error('Error fetching store actions:', storeError)
   }
   if (incidentError && storeError) {
-    return []
+    return { actions: [], storeQuestionOptions: [] }
   }
 
   const incidentActions: UnifiedAction[] = (incidentData || []).map((action: any) => ({
@@ -116,6 +124,7 @@ async function getActions(filters?: ActionFilters) {
     ...action,
     source_type: 'store',
     incident_id: null,
+    store_question: getStoreActionQuestion(action),
     incident: action.store
       ? {
           reference_no: action.store.store_code
@@ -148,7 +157,11 @@ async function getActions(filters?: ActionFilters) {
     const q = filters.q.trim().toLowerCase()
     if (q.length > 0) {
       actions = actions.filter((action) => {
-        const title = String(action.title || '').toLowerCase()
+        const title =
+          action.source_type === 'store'
+            ? getStoreActionListTitle(action).toLowerCase()
+            : String(action.title || '').toLowerCase()
+        const storeQuestion = String(action.store_question || '').toLowerCase()
         const incidentRef = String(action.incident?.reference_no || '').toLowerCase()
         const assignee = String(action.assigned_to?.full_name || '').toLowerCase()
         const description = String(action.description || '').toLowerCase()
@@ -156,6 +169,7 @@ async function getActions(filters?: ActionFilters) {
 
         return (
           title.includes(q) ||
+          storeQuestion.includes(q) ||
           incidentRef.includes(q) ||
           assignee.includes(q) ||
           description.includes(q) ||
@@ -165,7 +179,26 @@ async function getActions(filters?: ActionFilters) {
     }
   }
 
-  return actions
+  const storeQuestionOptions = Array.from(
+    new Set(
+      actions
+        .filter((action) => action.source_type === 'store')
+        .map((action) => action.store_question || getStoreActionQuestion(action))
+        .filter((question): question is string => Boolean(question))
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+
+  if (filters?.store_question) {
+    const selectedQuestion = normalizeStoreActionQuestion(filters.store_question) || filters.store_question
+    actions = actions.filter((action) => {
+      if (action.source_type !== 'store') return false
+      const normalizedQuestion =
+        normalizeStoreActionQuestion(action.store_question || getStoreActionQuestion(action) || '') || ''
+      return normalizedQuestion === selectedQuestion
+    })
+  }
+
+  return { actions, storeQuestionOptions }
 }
 
 export default async function ActionsPage({
@@ -176,6 +209,7 @@ export default async function ActionsPage({
     status?: string
     overdue?: string
     priority?: string
+    store_question?: string
     q?: string
     date_from?: string
     date_to?: string
@@ -187,11 +221,15 @@ export default async function ActionsPage({
     status: searchParams.status && searchParams.status !== 'all' ? searchParams.status : undefined,
     overdue: searchParams.overdue === 'true',
     priority: searchParams.priority && searchParams.priority !== 'all' ? searchParams.priority : undefined,
+    store_question:
+      searchParams.store_question && searchParams.store_question !== 'all'
+        ? searchParams.store_question
+        : undefined,
     q: searchParams.q?.trim() || undefined,
     date_from: searchParams.date_from || undefined,
     date_to: searchParams.date_to || undefined,
   }
-  const actions = await getActions(filters)
+  const { actions, storeQuestionOptions } = await getActions(filters)
 
   // Calculate stats
   const totalActions = actions.length
@@ -203,7 +241,15 @@ export default async function ActionsPage({
   const activeActions = actions.filter(action => 
     !['complete', 'cancelled'].includes(action.status)
   ).length
-  const hasActiveFilters = Boolean(filters.q || filters.status || filters.priority || filters.overdue || filters.date_from || filters.date_to)
+  const hasActiveFilters = Boolean(
+    filters.q ||
+      filters.status ||
+      filters.priority ||
+      filters.store_question ||
+      filters.overdue ||
+      filters.date_from ||
+      filters.date_to
+  )
 
   const groupedActions = Array.from(
     actions.reduce((groups, action) => {
@@ -299,16 +345,29 @@ export default async function ActionsPage({
               Grouped by store/reference. Click a group to open tasks for that store.
             </p>
 
-            <form method="get" className="grid grid-cols-1 md:grid-cols-6 gap-2">
+            <form method="get" className="grid grid-cols-1 md:grid-cols-8 gap-2">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 <Input
                   name="q"
                   defaultValue={searchParams.q || ''}
-                  placeholder="Search title, incident/store ref, assignee..."
+                  placeholder="Search title/question, store, assignee..."
                   className="pl-9 bg-white"
                 />
               </div>
+
+              <select
+                name="store_question"
+                defaultValue={searchParams.store_question || 'all'}
+                className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm md:col-span-2"
+              >
+                <option value="all">All store questions</option>
+                {storeQuestionOptions.map((question) => (
+                  <option key={question} value={question}>
+                    {formatStoreActionQuestionForDisplay(question)}
+                  </option>
+                ))}
+              </select>
 
               <select
                 name="status"

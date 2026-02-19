@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { FaActionPriority } from '@/types/db'
+import {
+  matchCanonicalStoreActionQuestion,
+  normalizeStoreActionQuestion,
+  resolveStoreActionPriorityTheme,
+} from '@/lib/store-action-titles'
 
 const WRITABLE_ROLES = new Set(['admin', 'ops'])
 
@@ -13,6 +18,7 @@ export interface CreateStoreActionInput {
   priority?: FaActionPriority
   dueDate?: string
   aiGenerated?: boolean
+  nonCanonicalConfirmed?: boolean
 }
 
 function isValidPriority(value: unknown): value is FaActionPriority {
@@ -69,14 +75,31 @@ export async function createStoreActions(
 
   const rowsToInsert = actions
     .map((action) => {
-      const title = String(action.title || '').trim()
+      const rawTitle = String(action.title || '').trim()
+      const sourceFlaggedItem = String(action.sourceFlaggedItem || '').trim()
+      const context = `${rawTitle} ${sourceFlaggedItem}`
+      const canonicalTitle = matchCanonicalStoreActionQuestion(rawTitle, context)
+      const title = canonicalTitle || normalizeStoreActionQuestion(rawTitle, context) || rawTitle
       if (!title) return null
+
+      if (!canonicalTitle && action.nonCanonicalConfirmed !== true) {
+        throw new Error(
+          `Action question "${title}" is not in the approved question list. Confirm it before creating actions.`
+        )
+      }
+
+      const priorityTheme = resolveStoreActionPriorityTheme({
+        title,
+        sourceFlaggedItem,
+        description: action.description?.trim() || null,
+      })
 
       return {
         store_id: storeId,
         title,
         description: action.description?.trim() || null,
-        source_flagged_item: action.sourceFlaggedItem?.trim() || null,
+        source_flagged_item: sourceFlaggedItem || null,
+        priority_summary: priorityTheme.summary,
         priority: isValidPriority(action.priority) ? action.priority : 'medium',
         due_date: toDateOnly(action.dueDate, fallbackDueDate),
         status: 'open',
@@ -90,10 +113,22 @@ export async function createStoreActions(
     throw new Error('No valid actions to create')
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('fa_store_actions')
     .insert(rowsToInsert)
     .select('id')
+
+  // Backward compatibility if DB migration for priority_summary has not been applied yet.
+  if (error && /priority_summary/i.test(error.message || '')) {
+    const rowsWithoutSummary = rowsToInsert.map((row) => {
+      const { priority_summary: _prioritySummary, ...rest } = row
+      return rest
+    })
+
+    const retry = await supabase.from('fa_store_actions').insert(rowsWithoutSummary).select('id')
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     throw new Error(`Failed to create store actions: ${error.message}`)

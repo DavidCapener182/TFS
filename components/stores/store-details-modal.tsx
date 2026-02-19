@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { MapPin, Building2, Award, AlertTriangle, CheckCircle2, Clock, CalendarDays, Navigation } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { getStoreActionListTitle } from '@/components/shared/store-action-title'
 import { formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 interface StoreDetailsModalProps {
@@ -26,6 +27,11 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
   // Separate actions by status
   const ongoingActions = actions?.filter((a: any) => !['complete', 'cancelled'].includes(a.status)) || []
   const completedActions = actions?.filter((a: any) => a.status === 'complete') || []
+
+  const isStoreTaskAction = (action: any) => action?.source_type === 'store'
+  const getActionTitle = (action: any) => (isStoreTaskAction(action) ? getStoreActionListTitle(action) : action.title)
+  const getActionDueLabel = (action: any) =>
+    action?.due_date ? format(new Date(action.due_date), 'MMM d, yyyy') : '—'
   
   // Calculate average compliance score
   const complianceScores = [
@@ -334,29 +340,46 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
                 </h4>
                 {ongoingActions.length > 0 ? (
                   <div className="grid gap-3">
-                    {ongoingActions.map((action: any) => (
-                      <Link key={action.id} href={`/incidents/${action.incident_id}`} className="block group">
+                    {ongoingActions.map((action: any) => {
+                      const isStoreTask = isStoreTaskAction(action)
+                      const card = (
                         <div className="bg-white border border-slate-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-sm transition-all">
                           <div className="flex justify-between items-start mb-1">
                             <p className="text-sm font-medium text-slate-900 group-hover:text-blue-700 transition-colors">
-                              {action.title}
+                              {getActionTitle(action)}
                             </p>
                             <Badge variant="outline" className="capitalize bg-blue-50 text-blue-700 border-blue-200 whitespace-nowrap ml-2">
-                              {action.status.replace('_', ' ')}
+                              {String(action.status || 'open').replace('_', ' ')}
                             </Badge>
                           </div>
                           <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              Due: {format(new Date(action.due_date), 'MMM d, yyyy')}
+                              Due: {getActionDueLabel(action)}
                             </span>
-                            {action.incident?.reference_no && (
+                            {isStoreTask ? (
+                              <span className="text-slate-400">Store task</span>
+                            ) : action.incident?.reference_no ? (
                               <span className="text-slate-400">Ref: {action.incident.reference_no}</span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
-                      </Link>
-                    ))}
+                      )
+
+                      if (isStoreTask || !action.incident_id) {
+                        return (
+                          <div key={action.id} className="block group">
+                            {card}
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <Link key={action.id} href={`/incidents/${action.incident_id}`} className="block group">
+                          {card}
+                        </Link>
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-sm text-slate-500 italic bg-slate-50 p-4 rounded-lg border border-dashed border-slate-200 text-center">
@@ -373,14 +396,15 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
                     Completed
                   </h4>
                   <div className="grid gap-2">
-                    {completedActions.map((action: any) => (
-                      <Link key={action.id} href={`/incidents/${action.incident_id}`} className="block group">
+                    {completedActions.map((action: any) => {
+                      const isStoreTask = isStoreTaskAction(action)
+                      const card = (
                         <div className="bg-slate-50/50 border border-slate-200 rounded-lg p-3 hover:bg-white hover:border-slate-300 transition-all opacity-75 hover:opacity-100">
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
                               <CheckCircle2 className="h-4 w-4 text-slate-400 group-hover:text-green-600 transition-colors" />
                               <p className="text-sm font-medium text-slate-600 group-hover:text-slate-900 decoration-slate-400 group-hover:decoration-transparent transition-all">
-                                {action.title}
+                                {getActionTitle(action)}
                               </p>
                             </div>
                             <span className="text-xs text-slate-400">
@@ -388,8 +412,22 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
                             </span>
                           </div>
                         </div>
-                      </Link>
-                    ))}
+                      )
+
+                      if (isStoreTask || !action.incident_id) {
+                        return (
+                          <div key={action.id} className="block group">
+                            {card}
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <Link key={action.id} href={`/incidents/${action.incident_id}`} className="block group">
+                          {card}
+                        </Link>
+                      )
+                    })}
                   </div>
                 </div>
               )}

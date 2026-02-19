@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { endOfMonth, format, isValid, parse, startOfMonth } from 'date-fns'
 import { getFRAStatusFromDate, type FRAStatus } from '@/lib/compliance-forecast'
+import { resolveStoreActionPriorityTheme } from '@/lib/store-action-titles'
 import type {
   AreaNewsletterReport,
   MonthlyNewsletterRequestBody,
@@ -61,17 +62,11 @@ interface StoreActionRow {
   title: string | null
   description: string | null
   source_flagged_item: string | null
+  priority_summary?: string | null
   priority: string | null
   due_date: string | null
   status: string | null
   created_at: string | null
-}
-
-interface StoreActionThemeRule {
-  key: string
-  topic: string
-  managerPrompt: string
-  matcher: RegExp
 }
 
 interface StoreActionThemeAggregate {
@@ -103,51 +98,6 @@ const DEFAULT_LEGISLATION_UPDATES = [
 
 const STORE_ACTION_ACTIVE_STATUSES = new Set(['open', 'in_progress', 'blocked'])
 const STORE_ACTION_HIGH_PRIORITIES = new Set(['high', 'urgent'])
-
-const STORE_ACTION_THEME_RULES: StoreActionThemeRule[] = [
-  {
-    key: 'contractor-management',
-    topic: 'Contractor and visitor controls',
-    managerPrompt:
-      'Ask store teams to enforce sign-in/out, permits-to-work, and active supervision for every contractor visit.',
-    matcher: /(contractor|visitor|permit[\s-]*to[\s-]*work|sign[\s-]*in|sign[\s-]*out)/i,
-  },
-  {
-    key: 'training-completion',
-    topic: 'Training and refresher completion',
-    managerPrompt:
-      'Target 100% completion for required inductions and refreshers, then verify records are current and auditable.',
-    matcher: /(training|induction|onboarding|toolbox|refresher|competenc)/i,
-  },
-  {
-    key: 'housekeeping-and-access',
-    topic: 'Housekeeping and safe access',
-    managerPrompt:
-      'Reinforce daily housekeeping checks so walkways, stock areas, and exits stay clear throughout the trading day.',
-    matcher: /(housekeeping|stock\s*room|stockroom|walkway|trip|slip|obstruction|clutter|access route)/i,
-  },
-  {
-    key: 'fire-door-and-escape',
-    topic: 'Fire door and escape route controls',
-    managerPrompt:
-      'Prioritize checks on fire doors and escape routes to ensure compartmentation and emergency egress are maintained.',
-    matcher: /(fire\s*door|escape route|emergency exit|fire exit|intumescent|evac)/i,
-  },
-  {
-    key: 'coshh-and-chemicals',
-    topic: 'COSHH and hazardous substances',
-    managerPrompt:
-      'Confirm COSHH controls are in place, data sheets are available on site, and teams know the safe handling process.',
-    matcher: /(coshh|hazardous substance|chemical|data sheet|sds)/i,
-  },
-  {
-    key: 'work-at-height-equipment',
-    topic: 'Work-at-height equipment checks',
-    managerPrompt:
-      'Check ladder and step equipment is uniquely identified, inspected, and used under the correct controls.',
-    matcher: /(ladder|step stool|stepladder|working at height|equipment register)/i,
-  },
-]
 
 function roundToOneDecimal(value: number): number {
   return Math.round(value * 10) / 10
@@ -305,43 +255,16 @@ function isDueDateOverdue(dueDate: string | null | undefined, referenceDate: Dat
   return due.getTime() < reference.getTime()
 }
 
-function toThemeKey(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim() || 'general'
-  )
-}
-
-function normalizeTopicLabel(value: string): string {
-  const compact = value.replace(/\s+/g, ' ').trim().replace(/[.?!,:;]+$/g, '')
-  if (!compact) return 'General H&S control gaps'
-  return compact.length > 90 ? `${compact.slice(0, 87).trimEnd()}...` : compact
-}
-
 function resolveStoreActionTheme(action: StoreActionRow): {
   key: string
   topic: string
   managerPrompt: string
 } {
-  const sourceText = `${action.title || ''} ${action.source_flagged_item || ''} ${action.description || ''}`
-
-  const matched = STORE_ACTION_THEME_RULES.find((rule) => rule.matcher.test(sourceText))
-  if (matched) {
-    return {
-      key: matched.key,
-      topic: matched.topic,
-      managerPrompt: matched.managerPrompt,
-    }
-  }
-
-  const fallbackTopic = normalizeTopicLabel(action.title || action.source_flagged_item || '')
+  const resolved = resolveStoreActionPriorityTheme(action)
   return {
-    key: `question:${toThemeKey(fallbackTopic)}`,
-    topic: fallbackTopic,
-    managerPrompt:
-      'Ask area managers to verify this failed check is corrected consistently and evidenced in local follow-up.',
+    key: resolved.key,
+    topic: resolved.summary,
+    managerPrompt: resolved.managerPrompt,
   }
 }
 
@@ -588,23 +511,58 @@ export async function buildMonthlyNewsletterData(
   let storeActions: StoreActionRow[] = []
 
   if (storeIds.length > 0) {
-    const { data: storeActionsRaw, error: storeActionsError } = await supabase
-      .from('fa_store_actions')
-      .select(`
-        id,
-        store_id,
-        title,
-        description,
-        source_flagged_item,
-        priority,
-        due_date,
-        status,
-        created_at
-      `)
-      .in('store_id', storeIds)
-      .not('status', 'in', '(complete,cancelled)')
-      .order('due_date', { ascending: true })
-      .limit(5000)
+    const selectWithSummary = `
+      id,
+      store_id,
+      title,
+      description,
+      source_flagged_item,
+      priority_summary,
+      priority,
+      due_date,
+      status,
+      created_at
+    `
+    const selectWithoutSummary = `
+      id,
+      store_id,
+      title,
+      description,
+      source_flagged_item,
+      priority,
+      due_date,
+      status,
+      created_at
+    `
+
+    let storeActionsRaw: any[] | null = null
+    let storeActionsError: { message?: string } | null = null
+
+    {
+      const result = await supabase
+        .from('fa_store_actions')
+        .select(selectWithSummary)
+        .in('store_id', storeIds)
+        .not('status', 'in', '(complete,cancelled)')
+        .order('due_date', { ascending: true })
+        .limit(5000)
+
+      storeActionsRaw = (result.data as any[] | null) || null
+      storeActionsError = result.error
+    }
+
+    if (storeActionsError && /priority_summary/i.test(storeActionsError.message || '')) {
+      const retry = await supabase
+        .from('fa_store_actions')
+        .select(selectWithoutSummary)
+        .in('store_id', storeIds)
+        .not('status', 'in', '(complete,cancelled)')
+        .order('due_date', { ascending: true })
+        .limit(5000)
+
+      storeActionsRaw = (retry.data as any[] | null) || null
+      storeActionsError = retry.error
+    }
 
     if (storeActionsError) {
       throw new Error(`Failed to load store actions: ${storeActionsError.message}`)

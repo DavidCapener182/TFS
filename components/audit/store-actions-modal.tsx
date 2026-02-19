@@ -19,7 +19,11 @@ import {
   getFRAStatus,
   statusBadge,
 } from '@/components/fra/fra-table-helpers'
-import { getStoreActionListTitle } from '@/components/shared/store-action-title'
+import {
+  getCanonicalStoreActionQuestions,
+  getStoreActionListTitle,
+  matchCanonicalStoreActionQuestion,
+} from '@/lib/store-action-titles'
 
 type StoreActionPriority = 'low' | 'medium' | 'high' | 'urgent'
 
@@ -28,6 +32,8 @@ interface GeneratedActionDraft {
   include: boolean
   flaggedItem: string
   title: string
+  canonicalTitle: string | null
+  nonCanonicalConfirmed: boolean
   description: string
   priority: StoreActionPriority
   dueDate: string
@@ -36,6 +42,7 @@ interface GeneratedActionDraft {
 interface ExistingStoreAction {
   id: string
   title: string
+  source_flagged_item: string | null
   description: string | null
   priority: StoreActionPriority
   status: string
@@ -162,7 +169,7 @@ export function StoreActionsModal({
         const supabase = createClient()
         const { data, error } = await supabase
           .from('fa_store_actions')
-          .select('id, title, description, priority, status, due_date')
+          .select('id, title, source_flagged_item, description, priority, status, due_date')
           .eq('store_id', row.id)
           .order('due_date', { ascending: true })
           .order('created_at', { ascending: true })
@@ -202,7 +209,9 @@ export function StoreActionsModal({
 
   const updateActionDraft = (
     id: string,
-    updates: Partial<Pick<GeneratedActionDraft, 'include' | 'title' | 'description' | 'priority' | 'dueDate'>>
+    updates: Partial<
+      Pick<GeneratedActionDraft, 'include' | 'title' | 'description' | 'priority' | 'dueDate' | 'nonCanonicalConfirmed'>
+    >
   ) => {
     setGeneratedActions((prev) =>
       prev.map((action) => (action.id === id ? { ...action, ...updates } : action))
@@ -241,15 +250,23 @@ export function StoreActionsModal({
       }
 
       const mapped: GeneratedActionDraft[] = (Array.isArray(result?.actions) ? result.actions : []).map(
-        (action: any, index: number) => ({
-          id: `${Date.now()}-${index}`,
-          include: true,
-          flaggedItem: String(action?.flaggedItem || '').trim(),
-          title: String(action?.title || '').trim(),
-          description: String(action?.description || '').trim(),
-          priority: normalizePriority(action?.priority),
-          dueDate: String(action?.dueDate || ''),
-        })
+        (action: any, index: number) => {
+          const flaggedItem = String(action?.flaggedItem || '').trim()
+          const rawTitle = String(action?.title || '').trim()
+          const canonicalTitle = matchCanonicalStoreActionQuestion(rawTitle, `${rawTitle} ${flaggedItem}`)
+
+          return {
+            id: `${Date.now()}-${index}`,
+            include: true,
+            flaggedItem,
+            title: canonicalTitle || rawTitle,
+            canonicalTitle,
+            nonCanonicalConfirmed: Boolean(canonicalTitle),
+            description: String(action?.description || '').trim(),
+            priority: normalizePriority(action?.priority),
+            dueDate: String(action?.dueDate || ''),
+          }
+        }
       )
 
       if (mapped.length === 0) {
@@ -269,8 +286,27 @@ export function StoreActionsModal({
 
   const handleCreateActions = async () => {
     if (!row) return
-    const selected = generatedActions
-      .filter((action) => action.include && action.title.trim().length > 0)
+    const selectedDrafts = generatedActions.filter((action) => action.include && action.title.trim().length > 0)
+
+    if (selectedDrafts.length === 0) {
+      setSaveError('Select at least one valid action to create.')
+      return
+    }
+
+    const pendingNonCanonicalConfirmations = selectedDrafts.filter(
+      (action) => !action.canonicalTitle && !action.nonCanonicalConfirmed
+    )
+
+    if (pendingNonCanonicalConfirmations.length > 0) {
+      setSaveError(
+        `Confirm ${pendingNonCanonicalConfirmations.length} non-standard question${
+          pendingNonCanonicalConfirmations.length === 1 ? '' : 's'
+        } before creating actions.`
+      )
+      return
+    }
+
+    const selected = selectedDrafts
       .map((action) => ({
         title: action.title.trim(),
         description: action.description.trim(),
@@ -278,12 +314,8 @@ export function StoreActionsModal({
         priority: action.priority,
         dueDate: action.dueDate,
         aiGenerated: true,
+        nonCanonicalConfirmed: action.nonCanonicalConfirmed,
       }))
-
-    if (selected.length === 0) {
-      setSaveError('Select at least one valid action to create.')
-      return
-    }
 
     setIsSaving(true)
     setSaveError(null)
@@ -308,7 +340,12 @@ export function StoreActionsModal({
     }
   }
 
+  const canonicalQuestions = useMemo(() => getCanonicalStoreActionQuestions(), [])
+  const canonicalQuestionCount = canonicalQuestions.length
   const selectedCount = generatedActions.filter((action) => action.include && action.title.trim()).length
+  const pendingNonCanonicalConfirmCount = generatedActions.filter(
+    (action) => action.include && action.title.trim() && !action.canonicalTitle && !action.nonCanonicalConfirmed
+  ).length
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -408,7 +445,7 @@ export function StoreActionsModal({
                 />
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
-                    Failed question text is used directly as the action title so reporting can track exact failed checks.
+                    Titles are mapped to approved audit questions. New questions need confirmation before save.
                   </p>
                   <Button
                     type="button"
@@ -436,12 +473,41 @@ export function StoreActionsModal({
               </div>
             ) : null}
 
+            {!hasExistingActions ? (
+              <details className="rounded-md border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Approved Questions (Source of Truth)</span>
+                  <span className="text-slate-500">{canonicalQuestionCount}</span>
+                </summary>
+                <div className="border-t border-slate-200 px-3 py-2 max-h-56 overflow-auto">
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Actions are matched to this list. If no match is found, confirmation is required before saving.
+                  </p>
+                  <ol className="space-y-1">
+                    {canonicalQuestions.map((question, index) => (
+                      <li key={question} className="text-[11px] text-slate-700 leading-5">
+                        <span className="text-slate-400 mr-1">{index + 1}.</span>
+                        {question}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </details>
+            ) : null}
+
             {!hasExistingActions && generatedActions.length > 0 ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-800">Confirm Actions</p>
                   <span className="text-xs text-slate-500">{selectedCount} selected</span>
                 </div>
+                {pendingNonCanonicalConfirmCount > 0 ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {pendingNonCanonicalConfirmCount} selected question
+                    {pendingNonCanonicalConfirmCount === 1 ? '' : 's'} not found in the approved list. Tick
+                    confirmation on each one before creating actions.
+                  </div>
+                ) : null}
                 <div className="space-y-3">
                   {generatedActions.map((action, index) => (
                     <div key={action.id} className="rounded-lg border border-slate-200 p-3 space-y-3">
@@ -468,6 +534,31 @@ export function StoreActionsModal({
                           className="bg-slate-50"
                         />
                       </div>
+
+                      {action.canonicalTitle ? (
+                        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+                          Matched approved question list.
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 space-y-2">
+                          <p className="text-[11px] text-amber-900">
+                            Question not found in approved list ({canonicalQuestionCount} questions).
+                          </p>
+                          <label className="flex items-center gap-2 text-[11px] text-amber-900">
+                            <input
+                              type="checkbox"
+                              checked={action.nonCanonicalConfirmed}
+                              onChange={(event) =>
+                                updateActionDraft(action.id, {
+                                  nonCanonicalConfirmed: event.target.checked,
+                                })
+                              }
+                              disabled={isSaving}
+                            />
+                            Confirm and add this new question anyway.
+                          </label>
+                        </div>
+                      )}
 
                       <div className="space-y-1">
                         <p className="text-[11px] font-medium text-slate-500">What To Do To Complete</p>
@@ -548,7 +639,7 @@ export function StoreActionsModal({
             <Button
               type="button"
               onClick={handleCreateActions}
-              disabled={!canCreate || isSaving || selectedCount === 0}
+              disabled={!canCreate || isSaving || selectedCount === 0 || pendingNonCanonicalConfirmCount > 0}
             >
               {isSaving ? 'Creating...' : 'Confirm & Create Actions'}
             </Button>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeStoreActionQuestion } from '@/lib/store-action-titles'
 
 type ActionPriority = 'low' | 'medium' | 'high' | 'urgent'
 
@@ -244,12 +245,14 @@ function buildCompletionInstructions(item: ParsedFlaggedItem): string {
 function questionActions(items: ParsedFlaggedItem[], reviewDate: string): GeneratedStoreAction[] {
   return items.map((item) => {
     const sourceText = formatParsedFlaggedItem(item)
+    const normalizedQuestion =
+      normalizeStoreActionQuestion(item.question, sourceText) || collapseWhitespace(item.question)
     const description = buildCompletionInstructions(item)
 
     return {
       flaggedItem: sourceText,
-      // Keep title equal to the failed question for consistent downstream analytics.
-      title: item.question,
+      // Keep title equal to a normalized failed question for consistent analytics/search.
+      title: normalizedQuestion,
       description,
       priority: normalizePriority(inferPriority(item)),
       dueDate: reviewDate,

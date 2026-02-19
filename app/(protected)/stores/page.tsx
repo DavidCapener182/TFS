@@ -39,39 +39,71 @@ async function getStoreIncidents(storeId: string) {
 async function getStoreActions(storeId: string) {
   const supabase = createClient()
 
-  // First get all incidents for this store
-  const { data: incidents } = await supabase
+  // First get all incidents for this store (for incident-linked actions)
+  const { data: incidents, error: incidentsError } = await supabase
     .from('fa_incidents')
     .select('id')
     .eq('store_id', storeId)
 
-  if (!incidents || incidents.length === 0) {
-    return []
+  if (incidentsError) {
+    console.error('Error fetching store incidents for actions:', incidentsError)
   }
 
-  const incidentIds = incidents.map((inc: any) => inc.id)
+  const incidentIds = (incidents || []).map((inc: any) => inc.id)
 
-  // Then get all actions for those incidents
-  const { data, error } = await supabase
-    .from('fa_actions')
-    .select(`
-      id,
-      title,
-      status,
-      due_date,
-      completed_at,
-      incident_id,
-      incident:fa_incidents!fa_actions_incident_id_fkey(reference_no)
-    `)
-    .in('incident_id', incidentIds)
+  // Fetch store actions directly from H&S audits
+  const { data: storeActions, error: storeActionsError } = await supabase
+    .from('fa_store_actions')
+    .select('id, title, source_flagged_item, description, priority, status, due_date, created_at')
+    .eq('store_id', storeId)
     .order('due_date', { ascending: false })
+    .order('created_at', { ascending: false })
 
-  if (error) {
-    console.error('Error fetching store actions:', error)
-    return []
+  if (storeActionsError) {
+    console.error('Error fetching direct store actions:', storeActionsError)
   }
 
-  return data || []
+  let incidentActions: any[] = []
+  if (incidentIds.length > 0) {
+    const { data, error } = await supabase
+      .from('fa_actions')
+      .select(`
+        id,
+        title,
+        status,
+        due_date,
+        completed_at,
+        incident_id,
+        incident:fa_incidents!fa_actions_incident_id_fkey(reference_no)
+      `)
+      .in('incident_id', incidentIds)
+      .order('due_date', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching incident-linked store actions:', error)
+    } else {
+      incidentActions = data || []
+    }
+  }
+
+  const mappedIncidentActions = incidentActions.map((action: any) => ({
+    ...action,
+    source_type: 'incident' as const,
+  }))
+
+  const mappedStoreActions = (storeActions || []).map((action: any) => ({
+    ...action,
+    incident_id: null,
+    incident: null,
+    completed_at: null,
+    source_type: 'store' as const,
+  }))
+
+  return [...mappedIncidentActions, ...mappedStoreActions].sort((a, b) => {
+    const aTime = a?.due_date ? new Date(a.due_date).getTime() : 0
+    const bTime = b?.due_date ? new Date(b.due_date).getTime() : 0
+    return bTime - aTime
+  })
 }
 
 export default async function StoresPage() {
