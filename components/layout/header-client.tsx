@@ -1,14 +1,19 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { LogOut, Menu } from 'lucide-react'
 import { useSidebar } from './sidebar-provider'
 import { cn } from '@/lib/utils'
 import { StoreSearch } from '@/components/layout/store-search'
+import { createClient } from '@/lib/supabase/client'
 
 interface HeaderClientProps {
   signOut: () => void
-  activeUserNames: string[]
+  currentUser: {
+    id: string
+    name: string
+  }
 }
 
 function getInitials(name: string): string {
@@ -21,14 +26,77 @@ function getInitials(name: string): string {
   return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase()
 }
 
-export function HeaderClient({ signOut, activeUserNames }: HeaderClientProps) {
+export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   const { isOpen, setIsOpen } = useSidebar()
+  const [onlineUsers, setOnlineUsers] = useState<Array<{ id: string; name: string }>>([
+    { id: currentUser.id, name: currentUser.name },
+  ])
+  const presenceKey = useMemo(() => {
+    if (currentUser.id && currentUser.id !== 'unknown-user') return currentUser.id
+    return `fallback-${currentUser.name.trim().toLowerCase().replace(/\s+/g, '-') || 'user'}`
+  }, [currentUser.id, currentUser.name])
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsOpen(!isOpen)
   }
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase.channel('fa-online-users', {
+      config: {
+        presence: { key: presenceKey },
+      },
+    })
+
+    const syncUsers = () => {
+      const state = channel.presenceState<Record<string, Array<{ name?: string; userName?: string }>>>()
+      const userMap = new Map<string, string>()
+
+      Object.entries(state).forEach(([key, metas]) => {
+        const meta = (metas?.[0] ?? {}) as { name?: string; userName?: string }
+        const explicitName = typeof meta.name === 'string' ? meta.name.trim() : ''
+        const fallbackMetaName = typeof meta.userName === 'string' ? meta.userName.trim() : ''
+        const userName = explicitName || fallbackMetaName || (key === presenceKey ? currentUser.name : 'User')
+        userMap.set(key, userName)
+      })
+
+      if (!userMap.has(presenceKey)) {
+        userMap.set(presenceKey, currentUser.name)
+      }
+
+      const users = Array.from(userMap.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => {
+          if (a.id === presenceKey) return -1
+          if (b.id === presenceKey) return 1
+          return a.name.localeCompare(b.name)
+        })
+
+      setOnlineUsers(users)
+    }
+
+    channel
+      .on('presence', { event: 'sync' }, syncUsers)
+      .on('presence', { event: 'join' }, syncUsers)
+      .on('presence', { event: 'leave' }, syncUsers)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            name: currentUser.name,
+          })
+        }
+      })
+
+    return () => {
+      void channel.untrack()
+      void supabase.removeChannel(channel)
+    }
+  }, [currentUser.name, presenceKey])
+
+  const visibleUsers = onlineUsers.slice(0, 5)
+  const overflowCount = Math.max(onlineUsers.length - visibleUsers.length, 0)
 
   return (
     <header className="no-print relative z-30 flex h-[calc(4rem+env(safe-area-inset-top))] min-h-16 items-center justify-between bg-[#0e1925] px-4 pt-[env(safe-area-inset-top)] md:h-16 md:px-6 md:pt-0 lg:px-8">
@@ -51,16 +119,24 @@ export function HeaderClient({ signOut, activeUserNames }: HeaderClientProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
-        <div className="flex items-center gap-2" aria-label="Logged in users">
-          {activeUserNames.map((name, index) => (
+        <div className="flex items-center gap-2" aria-label="Currently online users">
+          {visibleUsers.map((user) => (
             <div
-              key={`${name}-${index}`}
-              title={name}
+              key={user.id}
+              title={user.name}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs"
             >
-              {getInitials(name)}
+              {getInitials(user.name)}
             </div>
           ))}
+          {overflowCount > 0 ? (
+            <div
+              title={`${overflowCount} more online`}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs"
+            >
+              +{overflowCount}
+            </div>
+          ) : null}
         </div>
         <form action={signOut}>
           <Button 

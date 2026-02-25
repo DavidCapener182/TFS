@@ -213,6 +213,7 @@ export default async function StoreCrmPage({
       store={store}
       incidents={incidents}
       actions={actions}
+      userRole={profile.role}
       crmData={crmData}
       canEdit={canEdit}
     />

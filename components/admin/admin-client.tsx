@@ -176,6 +176,19 @@ export function AdminClient() {
     }
   }
 
+  const formatLastLoggedIn = (value: string | null) => {
+    if (!value) return 'Never'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return 'Unknown'
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   if (loading) {
     return (
       <Card>
@@ -492,6 +505,9 @@ export function AdminClient() {
                     <div className="space-y-1">
                       <p className="text-sm font-medium break-all">{user.email}</p>
                       <p className="text-sm text-muted-foreground">{user.full_name || 'No name provided'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Last logged in: {formatLastLoggedIn(user.last_sign_in_at)}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className={getRoleBadgeColor(user.role)}>
@@ -577,6 +593,7 @@ export function AdminClient() {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Full Name</TableHead>
+                  <TableHead>Last Logged In</TableHead>
                   <TableHead>Current Role</TableHead>
                   <TableHead>Change Role</TableHead>
                   <TableHead>Actions</TableHead>
@@ -585,7 +602,7 @@ export function AdminClient() {
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -599,6 +616,7 @@ export function AdminClient() {
                       <TableRow key={user.id}>
                         <TableCell className="font-medium break-all">{user.email}</TableCell>
                         <TableCell>{user.full_name || '—'}</TableCell>
+                        <TableCell>{formatLastLoggedIn(user.last_sign_in_at)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={getRoleBadgeColor(user.role)}>
                             {user.role}

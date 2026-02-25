@@ -10,6 +10,38 @@ export interface UserWithProfile {
   full_name: string | null
   role: UserRole
   created_at: string
+  last_sign_in_at: string | null
+}
+
+type AuthLookupRecord = {
+  email: string
+  last_sign_in_at: string | null
+}
+
+async function getAuthLookupById(): Promise<Map<string, AuthLookupRecord>> {
+  const adminClient = createAdminSupabaseClient()
+  const lookup = new Map<string, AuthLookupRecord>()
+  const perPage = 200
+
+  for (let page = 1; page < 100; page += 1) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.warn('Unable to list auth users for admin table enrichment:', error.message)
+      break
+    }
+
+    const users = data?.users || []
+    for (const authUser of users) {
+      lookup.set(authUser.id, {
+        email: authUser.email || 'Email not available',
+        last_sign_in_at: authUser.last_sign_in_at || null,
+      })
+    }
+
+    if (users.length < perPage) break
+  }
+
+  return lookup
 }
 
 /**
@@ -35,13 +67,15 @@ export async function getAllUsers(): Promise<UserWithProfile[]> {
     throw new Error('Unauthorized - Admin access required')
   }
 
+  const authLookupById = await getAuthLookupById()
+
   // Use SQL to join fa_profiles with auth.users to get emails
   // This requires a function that can access auth.users
   const { data, error } = await supabase.rpc('get_users_with_profiles')
 
   if (error) {
     // If the function doesn't exist, fall back to just profiles
-    // and try to get emails individually
+    // and enrich rows from auth users
     const { data: profiles, error: profilesError } = await supabase
       .from('fa_profiles')
       .select('id, full_name, role, created_at')
@@ -51,41 +85,27 @@ export async function getAllUsers(): Promise<UserWithProfile[]> {
       throw new Error(`Failed to fetch profiles: ${profilesError.message}`)
     }
 
-    // Try to get emails using admin API
-    const adminClient = createAdminSupabaseClient()
-    const usersWithProfiles: UserWithProfile[] = []
-    for (const profile of profiles || []) {
-      try {
-        // Try to get user via admin API
-        const { data: { user }, error: userError } = await adminClient.auth.admin.getUserById(profile.id)
-        usersWithProfiles.push({
-          id: profile.id,
-          email: user?.email || 'Email not available',
-          full_name: profile.full_name,
-          role: profile.role,
-          created_at: profile.created_at
-        })
-      } catch {
-        // Fallback if admin API not available
-        usersWithProfiles.push({
-          id: profile.id,
-          email: 'Email not available',
-          full_name: profile.full_name,
-          role: profile.role,
-          created_at: profile.created_at
-        })
+    return (profiles || []).map((profile: any) => {
+      const authUser = authLookupById.get(profile.id)
+      return {
+        id: profile.id,
+        email: authUser?.email || 'Email not available',
+        full_name: profile.full_name,
+        role: profile.role,
+        created_at: profile.created_at,
+        last_sign_in_at: authUser?.last_sign_in_at || null,
       }
-    }
-    return usersWithProfiles
+    })
   }
 
   // If function exists and works, use its results
   return (data || []).map((row: any) => ({
     id: row.id,
-    email: row.email || 'Email not available',
+    email: row.email || authLookupById.get(row.id)?.email || 'Email not available',
     full_name: row.full_name,
     role: row.role,
-    created_at: row.created_at
+    created_at: row.created_at,
+    last_sign_in_at: row.last_sign_in_at || authLookupById.get(row.id)?.last_sign_in_at || null,
   }))
 }
 

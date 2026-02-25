@@ -1,9 +1,16 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { StoreCrmPanel, StoreCrmContact, StoreCrmNote, StoreCrmTrackerEntry } from '@/components/stores/store-crm-panel'
+import { StoreActionsModal } from '@/components/audit/store-actions-modal'
+import { AuditRow } from '@/components/audit/audit-table-helpers'
+import { UserRole } from '@/lib/auth'
+import { getStoreActionListTitle } from '@/lib/store-action-titles'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   AlertCircle,
   Calendar,
@@ -19,6 +26,7 @@ interface StoreDetailWorkspaceProps {
   store: any
   incidents: any[]
   actions: any[]
+  userRole: UserRole
   crmData: {
     contacts: StoreCrmContact[]
     notes: StoreCrmNote[]
@@ -48,8 +56,33 @@ function getSeverityIndexLabel(openIncidents: any[]) {
   return { label: 'Low', className: 'text-green-500' }
 }
 
-export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEdit }: StoreDetailWorkspaceProps) {
+function formatActionDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return format(parsed, 'dd MMM yyyy')
+}
+
+function getActionStatusTone(status: string | null | undefined): string {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'complete') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (normalized === 'cancelled') return 'border-slate-200 bg-slate-100 text-slate-600'
+  return 'border-blue-200 bg-blue-50 text-blue-700'
+}
+
+function getActionPriorityTone(priority: string | null | undefined): string {
+  const normalized = String(priority || '').toLowerCase()
+  if (normalized === 'urgent') return 'border-rose-200 bg-rose-50 text-rose-700'
+  if (normalized === 'high') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (normalized === 'low') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'border-slate-200 bg-slate-100 text-slate-700'
+}
+
+export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmData, canEdit }: StoreDetailWorkspaceProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState('store crm')
+  const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
+  const [actionsMessage, setActionsMessage] = useState<string | null>(null)
 
   const ongoingIncidents = useMemo(
     () => incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').toLowerCase())),
@@ -68,6 +101,14 @@ export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEd
 
   const completedActions = useMemo(
     () => actions.filter((action) => String(action.status || '').toLowerCase() === 'complete'),
+    [actions]
+  )
+  const directStoreActions = useMemo(
+    () => actions.filter((action) => action.source_type === 'store'),
+    [actions]
+  )
+  const incidentLinkedActions = useMemo(
+    () => actions.filter((action) => action.source_type !== 'store'),
     [actions]
   )
 
@@ -119,6 +160,44 @@ export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEd
 
   const actionResolutionPct = actions.length > 0 ? Math.round((completedActions.length / actions.length) * 100) : 0
   const severityIndex = getSeverityIndexLabel(ongoingIncidents)
+  const canCreateStoreActions = userRole === 'admin' || userRole === 'ops'
+
+  const storeActionsModalRow = useMemo<AuditRow>(
+    () => ({
+      id: store.id,
+      region: store.region || null,
+      store_code: store.store_code || null,
+      store_name: store.store_name,
+      is_active: Boolean(store.is_active),
+      compliance_audit_1_date: store.compliance_audit_1_date || null,
+      compliance_audit_1_overall_pct: store.compliance_audit_1_overall_pct ?? null,
+      action_plan_1_sent: store.action_plan_1_sent ?? null,
+      compliance_audit_1_pdf_path: store.compliance_audit_1_pdf_path || null,
+      compliance_audit_2_date: store.compliance_audit_2_date || null,
+      compliance_audit_2_overall_pct: store.compliance_audit_2_overall_pct ?? null,
+      action_plan_2_sent: store.action_plan_2_sent ?? null,
+      compliance_audit_2_pdf_path: store.compliance_audit_2_pdf_path || null,
+      compliance_audit_3_date: store.compliance_audit_3_date || null,
+      compliance_audit_3_overall_pct: store.compliance_audit_3_overall_pct ?? null,
+      action_plan_3_sent: store.action_plan_3_sent ?? null,
+      area_average_pct: store.area_average_pct ?? null,
+      total_audits_to_date: store.total_audits_to_date ?? null,
+      fire_risk_assessment_date: store.fire_risk_assessment_date || null,
+      fire_risk_assessment_pdf_path: store.fire_risk_assessment_pdf_path || null,
+      fire_risk_assessment_notes: store.fire_risk_assessment_notes || null,
+      fire_risk_assessment_pct: store.fire_risk_assessment_pct ?? null,
+    }),
+    [store]
+  )
+
+  const handleStoreActionsCreated = (count: number, storeName: string) => {
+    setActionsMessage(
+      count === 1
+        ? `1 action created for ${storeName}.`
+        : `${count} actions created for ${storeName}.`
+    )
+    router.refresh()
+  }
 
   return (
     <div className="space-y-6">
@@ -174,7 +253,7 @@ export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEd
       </div>
 
       <div className="no-scrollbar flex gap-8 overflow-x-auto border-b border-slate-200">
-        {['Store CRM', 'Operational Data', 'Incidents & Safety', 'Audit History'].map((tab) => {
+        {['Store CRM', 'Store Actions', 'Operational Data', 'Incidents & Safety', 'Audit History'].map((tab) => {
           const value = tab.toLowerCase()
           const isActive = activeTab === value
 
@@ -204,6 +283,94 @@ export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEd
           safetyCompliancePct={latestAuditScore ?? 0}
           actionResolutionPct={actionResolutionPct}
         />
+      ) : null}
+
+      {activeTab === 'store actions' ? (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Store Actions</h3>
+                <p className="text-sm text-slate-500">
+                  Add direct store actions from flagged audit text or review existing open/completed tasks.
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {directStoreActions.length} direct store actions • {incidentLinkedActions.length} incident-linked actions
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => setStoreActionsModalOpen(true)}
+                disabled={!canCreateStoreActions}
+                className="w-full sm:w-auto"
+              >
+                Add Actions From Parser
+              </Button>
+            </div>
+            {!canCreateStoreActions ? (
+              <p className="mt-3 text-xs text-amber-700">
+                You have read-only access. Ask an admin or ops user to create store actions.
+              </p>
+            ) : null}
+            {actionsMessage ? (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {actionsMessage}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-50/50 px-6 py-4">
+              <h4 className="font-bold text-slate-900">Action List</h4>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {actions.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500">No actions logged for this store.</div>
+              ) : (
+                actions.map((action) => (
+                  <div key={action.id} className="space-y-3 p-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {action.source_type === 'store' ? getStoreActionListTitle(action) : action.title || 'Untitled action'}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={action.source_type === 'store'
+                            ? 'border-violet-200 bg-violet-50 text-violet-700'
+                            : 'border-sky-200 bg-sky-50 text-sky-700'}
+                        >
+                          {action.source_type === 'store' ? 'Store' : 'Incident'}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={getActionPriorityTone(action.priority)}
+                        >
+                          {String(action.priority || 'medium')}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={getActionStatusTone(action.status)}
+                        >
+                          {String(action.status || 'open').replace('_', ' ')}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {action.description ? (
+                      <p className="text-sm text-slate-600">{action.description}</p>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>Due: {formatActionDate(action.due_date)}</span>
+                      {action.completed_at ? <span>Completed: {formatActionDate(action.completed_at)}</span> : null}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {activeTab === 'operational data' ? (
@@ -406,6 +573,14 @@ export function StoreDetailWorkspace({ store, incidents, actions, crmData, canEd
           </div>
         </div>
       ) : null}
+
+      <StoreActionsModal
+        open={storeActionsModalOpen}
+        onOpenChange={setStoreActionsModalOpen}
+        row={storeActionsModalRow}
+        userRole={userRole}
+        onActionsCreated={handleStoreActionsCreated}
+      />
     </div>
   )
 }
