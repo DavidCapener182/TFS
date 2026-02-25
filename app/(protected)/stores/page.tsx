@@ -140,7 +140,7 @@ export default async function StoresPage() {
               <ShieldCheck className="h-3.5 w-3.5" />
               Store Network
             </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">Stores</h1>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">Stores / CRM</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
               Manage store locations, compliance activity, and incident records across your estate.
             </p>

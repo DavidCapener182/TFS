@@ -10,7 +10,7 @@ import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { UserRole } from '@/lib/auth'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
 import { updateFRA } from '@/app/actions/stores'
-import { Upload, Eye, EyeOff, File, Trash2, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
+import { Upload, File, Trash2, SlidersHorizontal, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { 
@@ -37,14 +37,6 @@ interface DeleteFRAPdfState {
   row: FRARow
 }
 
-type DesktopDensity = 'dense' | 'comfortable'
-
-const DESKTOP_DENSITY_STORAGE_KEY = 'fa_desktop_table_density'
-
-function isDesktopDensity(value: string): value is DesktopDensity {
-  return value === 'dense' || value === 'comfortable'
-}
-
 export function FRATable({ 
   rows, 
   userRole, 
@@ -60,7 +52,6 @@ export function FRATable({
   const [internalArea, setInternalArea] = useState<string>('all')
   const area = externalAreaFilter !== undefined ? externalAreaFilter : internalArea
   const setArea = onAreaFilterChange || setInternalArea
-  const [hideCompleted, setHideCompleted] = useState(false)
   const [editing, setEditing] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
   const [localRows, setLocalRows] = useState<FRARow[]>(rows)
@@ -69,7 +60,6 @@ export function FRATable({
   const [selectedPdfRow, setSelectedPdfRow] = useState<FRARow | null>(null)
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null)
   const [deletingPdf, setDeletingPdf] = useState<string | null>(null)
-  const [desktopDensity, setDesktopDensity] = useState<DesktopDensity>('dense')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [deletePdfDialog, setDeletePdfDialog] = useState<DeleteFRAPdfState | null>(null)
   const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -84,25 +74,6 @@ export function FRATable({
     const timer = window.setTimeout(() => setTableMessage(null), 4000)
     return () => window.clearTimeout(timer)
   }, [tableMessage])
-
-  useEffect(() => {
-    try {
-      const storedValue = window.localStorage.getItem(DESKTOP_DENSITY_STORAGE_KEY)
-      if (storedValue && isDesktopDensity(storedValue)) {
-        setDesktopDensity(storedValue)
-      }
-    } catch {
-      // Ignore storage read issues (e.g. privacy mode restrictions).
-    }
-  }, [])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(DESKTOP_DENSITY_STORAGE_KEY, desktopDensity)
-    } catch {
-      // Ignore storage write issues (e.g. privacy mode restrictions).
-    }
-  }, [desktopDensity])
 
   const areaOptions = useMemo(() => {
     const set = new Set<string>()
@@ -431,14 +402,13 @@ export function FRATable({
     )
   }
 
-  const hasActiveFilters = search.trim().length > 0 || area !== 'all' || hideCompleted
-  const activeFilterCount = Number(search.trim().length > 0) + Number(area !== 'all') + Number(hideCompleted)
-  const desktopTableDensityClass = desktopDensity === 'dense' ? 'desktop-table-compact' : 'desktop-table-comfortable'
+  const hasActiveFilters = search.trim().length > 0 || area !== 'all'
+  const activeFilterCount = Number(search.trim().length > 0) + Number(area !== 'all')
+  const desktopTableDensityClass = 'desktop-table-comfortable'
 
   const resetFilters = () => {
     setSearch('')
     setArea('all')
-    setHideCompleted(false)
   }
 
   return (
@@ -492,30 +462,10 @@ export function FRATable({
               </Select>
               <div className="flex gap-2">
                 <Button
-                  variant={hideCompleted ? 'default' : 'outline'}
-                  onClick={() => setHideCompleted(!hideCompleted)}
-                  className={cn(
-                    'flex-1 min-h-[var(--touch-target-min)]',
-                    hideCompleted ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white'
-                  )}
-                >
-                  {hideCompleted ? (
-                    <>
-                      <EyeOff className="h-4 w-4 mr-2" />
-                      Show Completed
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Hide Completed
-                    </>
-                  )}
-                </Button>
-                <Button
                   variant="ghost"
                   onClick={resetFilters}
                   disabled={!hasActiveFilters}
-                  className="min-h-[var(--touch-target-min)] text-slate-600"
+                  className="min-h-[var(--touch-target-min)] w-full text-slate-600"
                 >
                   Reset
                 </Button>
@@ -526,16 +476,19 @@ export function FRATable({
       </div>
 
       {/* Desktop Controls */}
-      <div className="hidden md:flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <Input
-            placeholder="Search store name or code"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 md:w-64 bg-white min-h-[var(--touch-target-min)]"
-          />
+      <div className="hidden md:flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search store name or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-h-[var(--touch-target-min)] bg-white pl-9"
+            />
+          </div>
           <Select value={area} onValueChange={setArea}>
-            <SelectTrigger className="w-full sm:w-40 bg-white min-h-[var(--touch-target-min)]">
+            <SelectTrigger className="w-full sm:w-44 bg-white min-h-[var(--touch-target-min)]">
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
@@ -546,61 +499,16 @@ export function FRATable({
             </SelectContent>
           </Select>
           <Button
-            variant={hideCompleted ? "default" : "outline"}
-            onClick={() => setHideCompleted(!hideCompleted)}
-            className="min-h-[var(--touch-target-min)]"
-          >
-            {hideCompleted ? (
-              <>
-                <EyeOff className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Show Completed</span>
-                <span className="sm:hidden">Show</span>
-              </>
-            ) : (
-              <>
-                <Eye className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Hide Completed</span>
-                <span className="sm:hidden">Hide</span>
-              </>
-            )}
-          </Button>
-          <Button
             variant="ghost"
             onClick={resetFilters}
             disabled={!hasActiveFilters}
-            className="min-h-[var(--touch-target-min)]"
+            className="min-h-[var(--touch-target-min)] text-slate-500 hover:text-slate-700"
           >
             Reset
           </Button>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setDesktopDensity('dense')}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                desktopDensity === 'dense'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              )}
-            >
-              Dense
-            </button>
-            <button
-              type="button"
-              onClick={() => setDesktopDensity('comfortable')}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                desktopDensity === 'comfortable'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              )}
-            >
-              Comfortable
-            </button>
-          </div>
-          <div className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 lg:border-l lg:border-slate-200 lg:pl-4">
+          <div className="text-sm text-slate-500">
             Showing {filtered.length} of {localRows.length} stores
           </div>
         </div>
@@ -790,7 +698,7 @@ export function FRATable({
       {/* Desktop Table Container */}
       <div className="hidden md:flex rounded-2xl border desktop-table-shell shadow-sm overflow-hidden flex-col">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <div className={cn(desktopDensity === 'dense' ? 'min-w-[880px]' : 'min-w-[940px]')}>
+          <div className="min-w-[940px]">
             <Table className={cn('w-full border-separate border-spacing-0', desktopTableDensityClass)} style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '32px' }} />
@@ -819,7 +727,7 @@ export function FRATable({
                 </TableRow>
               </TableHeader>
             </Table>
-            <div className={cn(desktopDensity === 'dense' ? 'h-[74vh]' : 'h-[70vh]', 'overflow-y-auto')}>
+            <div className="h-[70vh] overflow-y-auto">
               <Table className={cn('w-full border-separate border-spacing-0', desktopTableDensityClass)} style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '32px' }} />

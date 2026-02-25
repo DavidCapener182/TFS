@@ -9,7 +9,7 @@ import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { UserRole } from '@/lib/auth'
 import { getAuditPDFDownloadUrl, deleteAuditPDF } from '@/app/actions/audit-pdfs'
-import { Upload, Eye, EyeOff, File, Trash2, SlidersHorizontal, ChevronDown, ChevronUp, BellRing } from 'lucide-react'
+import { Upload, Eye, EyeOff, File, Trash2, SlidersHorizontal, ChevronDown, ChevronUp, BellRing, Search } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StoreActionsModal } from './store-actions-modal'
@@ -47,18 +47,11 @@ interface DeleteAuditPdfState {
   auditNumber: 1 | 2
 }
 
-type DesktopDensity = 'dense' | 'comfortable'
-
-const DESKTOP_DENSITY_STORAGE_KEY = 'fa_desktop_table_density'
 const HS_AUDIT_INTERVAL_MONTHS = 6
 const PREVISIT_ACTION_FLAG_DAYS = 14
 
 // Temporary debug preview to show how the pre-visit flag will look in advance.
 const ENABLE_PREVISIT_FLAG_DEBUG_PREVIEW = false
-
-function isDesktopDensity(value: string): value is DesktopDensity {
-  return value === 'dense' || value === 'comfortable'
-}
 
 type UpcomingActionFlag = {
   actionCount: number
@@ -136,7 +129,6 @@ export function AuditTable({
   const [updateScoreState, setUpdateScoreState] = useState<UpdateScoreState | null>(null)
   const [updatingScore, setUpdatingScore] = useState(false)
   const [updateScoreError, setUpdateScoreError] = useState<string | null>(null)
-  const [desktopDensity, setDesktopDensity] = useState<DesktopDensity>('dense')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [deletePdfDialog, setDeletePdfDialog] = useState<DeleteAuditPdfState | null>(null)
   const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -149,25 +141,6 @@ export function AuditTable({
     const timer = window.setTimeout(() => setTableMessage(null), 4000)
     return () => window.clearTimeout(timer)
   }, [tableMessage])
-
-  useEffect(() => {
-    try {
-      const storedValue = window.localStorage.getItem(DESKTOP_DENSITY_STORAGE_KEY)
-      if (storedValue && isDesktopDensity(storedValue)) {
-        setDesktopDensity(storedValue)
-      }
-    } catch {
-      // Ignore storage read issues (e.g. privacy mode restrictions).
-    }
-  }, [])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(DESKTOP_DENSITY_STORAGE_KEY, desktopDensity)
-    } catch {
-      // Ignore storage write issues (e.g. privacy mode restrictions).
-    }
-  }, [desktopDensity])
 
   const areaOptions = useMemo(() => {
     const set = new Set<string>()
@@ -349,7 +322,7 @@ export function AuditTable({
 
   const hasActiveFilters = search.trim().length > 0 || area !== 'all' || hideCompleted
   const activeFilterCount = Number(search.trim().length > 0) + Number(area !== 'all') + Number(hideCompleted)
-  const desktopTableDensityClass = desktopDensity === 'dense' ? 'desktop-table-compact' : 'desktop-table-comfortable'
+  const desktopTableDensityClass = 'desktop-table-comfortable'
 
   const resetFilters = () => {
     setSearch('')
@@ -967,16 +940,19 @@ export function AuditTable({
       </div>
 
       {/* Desktop Controls */}
-      <div className="hidden md:flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <Input
-            placeholder="Search store name or code"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 md:w-64 bg-white min-h-[var(--touch-target-min)]"
-          />
+      <div className="hidden md:flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search store name or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-h-[var(--touch-target-min)] bg-white pl-9"
+            />
+          </div>
           <Select value={area} onValueChange={setArea}>
-            <SelectTrigger className="w-full sm:w-40 bg-white min-h-[var(--touch-target-min)]">
+            <SelectTrigger className="w-full sm:w-44 bg-white min-h-[var(--touch-target-min)]">
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
@@ -989,7 +965,10 @@ export function AuditTable({
           <Button
             variant={hideCompleted ? "default" : "outline"}
             onClick={() => setHideCompleted(!hideCompleted)}
-            className="min-h-[var(--touch-target-min)]"
+            className={cn(
+              'min-h-[var(--touch-target-min)]',
+              hideCompleted ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+            )}
           >
             {hideCompleted ? (
               <>
@@ -1009,39 +988,13 @@ export function AuditTable({
             variant="ghost"
             onClick={resetFilters}
             disabled={!hasActiveFilters}
-            className="min-h-[var(--touch-target-min)]"
+            className="min-h-[var(--touch-target-min)] text-slate-500 hover:text-slate-700"
           >
             Reset
           </Button>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setDesktopDensity('dense')}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                desktopDensity === 'dense'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              )}
-            >
-              Dense
-            </button>
-            <button
-              type="button"
-              onClick={() => setDesktopDensity('comfortable')}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                desktopDensity === 'comfortable'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              )}
-            >
-              Comfortable
-            </button>
-          </div>
-          <div className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 lg:border-l lg:border-slate-200 lg:pl-4">
+          <div className="text-sm text-slate-500">
             Showing {filtered.length} of {localRows.length} stores
           </div>
         </div>
@@ -1322,7 +1275,7 @@ export function AuditTable({
       {/* Desktop Table Container */}
       <div className="hidden md:flex rounded-2xl border desktop-table-shell shadow-sm overflow-hidden flex-col">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <div className={cn(desktopDensity === 'dense' ? 'min-w-[940px]' : 'min-w-[1000px]')}>
+          <div className="min-w-[1000px]">
             <Table className={cn('w-full border-separate border-spacing-0', desktopTableDensityClass)} style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '32px' }} />
@@ -1359,7 +1312,7 @@ export function AuditTable({
                 </TableRow>
               </TableHeader>
             </Table>
-            <div className={cn(desktopDensity === 'dense' ? 'h-[74vh]' : 'h-[70vh]', 'overflow-y-auto')}>
+            <div className="h-[70vh] overflow-y-auto">
               <Table className={cn('w-full border-separate border-spacing-0', desktopTableDensityClass)} style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '32px' }} />

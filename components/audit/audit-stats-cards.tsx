@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { ClipboardCheck, Store, TrendingUp } from 'lucide-react'
 import { formatPercent } from '@/lib/utils'
 import { AuditRow, getLatestPct } from './audit-table-helpers'
@@ -70,47 +69,47 @@ export function AuditStatsCards({ stores, selectedArea }: AuditStatsCardsProps) 
 
   return (
     <>
-      <Card className="hidden md:block shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               {areaLabel} Average
             </p>
-            <p className="text-3xl font-bold text-slate-900">{formatPercent(stats.avgScore)}</p>
+            <p className="mt-1 text-4xl font-black text-white">{formatPercent(stats.avgScore)}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
-            <TrendingUp className="h-6 w-6 text-emerald-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+            <TrendingUp className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       
-      <Card className="hidden md:block shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Active Stores
             </p>
-            <p className="text-3xl font-bold text-slate-900">{stats.activeStores}</p>
+            <p className="mt-1 text-4xl font-black text-white">{stats.activeStores}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
-            <Store className="h-6 w-6 text-blue-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 text-blue-400">
+            <Store className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Audits Completed
             </p>
-            <p className="text-3xl font-bold text-slate-900">{stats.auditsCompleted}</p>
+            <p className="mt-1 text-4xl font-black text-white">{stats.auditsCompleted}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center">
-            <ClipboardCheck className="h-6 w-6 text-purple-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20 text-purple-400">
+            <ClipboardCheck className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </>
   )
 }

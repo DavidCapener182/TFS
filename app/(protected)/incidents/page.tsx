@@ -20,6 +20,7 @@ type IncidentFilters = {
   store_id?: string
   status?: string
   severity?: string
+  year?: string
   q?: string
   date_from?: string
   date_to?: string
@@ -91,6 +92,23 @@ function getInvestigationRootCause(incidentId: string, investigationMap: Map<str
   return rootCause
 }
 
+function getInjuryRootCause(incident: any) {
+  const injury = incident?.injury_details && typeof incident.injury_details === 'object'
+    ? incident.injury_details
+    : {}
+  const meta = getIncidentMetaObject(incident) as Record<string, any>
+  const rootCause = (injury as Record<string, any>).root_cause
+    ?? (injury as Record<string, any>).rootCause
+    ?? meta.root_cause
+    ?? meta.rootCause
+
+  return typeof rootCause === 'string' && rootCause.trim().length > 0 ? rootCause : null
+}
+
+function getIncidentRootCause(incident: any, investigationMap: Map<string, InvestigationSummary>) {
+  return getInvestigationRootCause(incident.id, investigationMap) || getInjuryRootCause(incident)
+}
+
 function getInvestigationRecommendations(incidentId: string, investigationMap: Map<string, InvestigationSummary>) {
   const recommendations = investigationMap.get(incidentId)?.recommendations
   if (!recommendations || recommendations.trim().length === 0) return null
@@ -119,6 +137,13 @@ function safeFormat(value: string | null | undefined, pattern: string) {
   return format(date, pattern)
 }
 
+function parseFilterYear(value?: string) {
+  if (!value) return null
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2100) return null
+  return parsed
+}
+
 async function getIncidents(filters?: IncidentFilters) {
   const supabase = createClient()
   let query = supabase
@@ -138,6 +163,12 @@ async function getIncidents(filters?: IncidentFilters) {
   }
   if (filters?.status) {
     query = query.eq('status', filters.status)
+  }
+  const year = parseFilterYear(filters?.year)
+  if (year) {
+    query = query
+      .gte('occurred_at', `${year}-01-01T00:00:00.000Z`)
+      .lte('occurred_at', `${year}-12-31T23:59:59.999Z`)
   }
   if (filters?.date_from) {
     const fromDate = new Date(filters.date_from)
@@ -173,6 +204,12 @@ async function getClosedIncidents(filters?: IncidentFilters) {
     if (filters?.store_id) {
       filtered = filtered.eq('store_id', filters.store_id)
     }
+    const year = parseFilterYear(filters?.year)
+    if (year) {
+      filtered = filtered
+        .gte('occurred_at', `${year}-01-01T00:00:00.000Z`)
+        .lte('occurred_at', `${year}-12-31T23:59:59.999Z`)
+    }
     if (filters?.date_from) {
       const fromDate = new Date(filters.date_from)
       fromDate.setHours(0, 0, 0, 0)
@@ -191,16 +228,14 @@ async function getClosedIncidents(filters?: IncidentFilters) {
       supabase
         .from('fa_closed_incidents')
         .select('*')
-        .order('closed_at', { ascending: false })
-        .limit(200)
+        .order('occurred_at', { ascending: false })
     ),
     applyDateFilters(
       supabase
         .from('fa_incidents')
         .select('*')
         .eq('status', 'closed')
-        .order('closed_at', { ascending: false })
-        .limit(200)
+        .order('occurred_at', { ascending: false })
     ),
   ])
 
@@ -268,13 +303,38 @@ async function getClosedIncidents(filters?: IncidentFilters) {
         : null,
     }))
     .sort((a: any, b: any) => {
-      const aDate = new Date(a.closed_at || a.occurred_at || 0).getTime()
-      const bDate = new Date(b.closed_at || b.occurred_at || 0).getTime()
+      const aDate = new Date(a.occurred_at || a.closed_at || 0).getTime()
+      const bDate = new Date(b.occurred_at || b.closed_at || 0).getTime()
       return bDate - aDate
     })
-    .slice(0, 100)
 
   return enriched
+}
+
+async function getAvailableIncidentYears() {
+  const supabase = createClient()
+  const [openResult, closedResult] = await Promise.all([
+    supabase.from('fa_incidents').select('occurred_at'),
+    supabase.from('fa_closed_incidents').select('occurred_at'),
+  ])
+
+  if (openResult.error) {
+    console.error('Error fetching incident years from fa_incidents:', openResult.error)
+  }
+  if (closedResult.error) {
+    console.error('Error fetching incident years from fa_closed_incidents:', closedResult.error)
+  }
+
+  const yearSet = new Set<number>()
+  for (const row of [...(openResult.data || []), ...(closedResult.data || [])]) {
+    if (!row?.occurred_at) continue
+    const year = new Date(row.occurred_at).getUTCFullYear()
+    if (Number.isFinite(year) && !Number.isNaN(year)) {
+      yearSet.add(year)
+    }
+  }
+
+  return Array.from(yearSet).sort((a, b) => b - a)
 }
 
 async function getInvestigationSummaries(incidentIds: string[]) {
@@ -320,6 +380,12 @@ async function getClaims(filters?: IncidentFilters) {
 
   if (filters?.store_id) {
     query = query.eq('store_id', filters.store_id)
+  }
+  const year = parseFilterYear(filters?.year)
+  if (year) {
+    query = query
+      .gte('received_date', `${year}-01-01`)
+      .lte('received_date', `${year}-12-31`)
   }
   if (filters?.date_from) {
     query = query.gte('received_date', filters.date_from)
@@ -409,6 +475,7 @@ export default async function IncidentsPage({
     store_id?: string
     status?: string
     severity?: string
+    year?: string
     q?: string
     date_from?: string
     date_to?: string
@@ -419,14 +486,16 @@ export default async function IncidentsPage({
     store_id: searchParams.store_id || undefined,
     status: searchParams.status && searchParams.status !== 'all' ? searchParams.status : undefined,
     severity: searchParams.severity && searchParams.severity !== 'all' ? searchParams.severity : undefined,
+    year: searchParams.year && searchParams.year !== 'all' ? searchParams.year : undefined,
     q: searchParams.q?.trim() || undefined,
     date_from: searchParams.date_from || undefined,
     date_to: searchParams.date_to || undefined,
   }
-  const [openIncidentsRaw, closedIncidentsRaw, claims] = await Promise.all([
+  const [openIncidentsRaw, closedIncidentsRaw, claims, availableYears] = await Promise.all([
     getIncidents(filters),
     getClosedIncidents(filters),
     getClaims(filters),
+    getAvailableIncidentYears(),
   ])
   const investigationMap = await getInvestigationSummaries([
     ...openIncidentsRaw.map((incident: any) => incident.id),
@@ -447,7 +516,7 @@ export default async function IncidentsPage({
         incident.fa_stores?.store_code,
         incident.investigator?.full_name,
         getIncidentPersonType(incident),
-        getInvestigationRootCause(incident.id, investigationMap),
+        getIncidentRootCause(incident, investigationMap),
         getInvestigationRecommendations(incident.id, investigationMap),
         getIncidentAccidentType(incident),
       ]
@@ -456,7 +525,9 @@ export default async function IncidentsPage({
   }
 
   const incidents = applyIncidentSearch(openIncidentsRaw)
-  const closedIncidents = applyIncidentSearch(closedIncidentsRaw)
+  const closedIncidents = applyIncidentSearch(closedIncidentsRaw).sort(
+    (a: any, b: any) => new Date(b.occurred_at || 0).getTime() - new Date(a.occurred_at || 0).getTime()
+  )
   const allIncidents = [...incidents, ...closedIncidents]
   const riddorIncidents = [...incidents, ...closedIncidents]
     .filter((incident: any) => incident.riddor_reportable)
@@ -466,7 +537,7 @@ export default async function IncidentsPage({
   const totalIncidents = allIncidents.length
   const openIncidents = allIncidents.filter((i: any) => i.status === 'open' || i.status === 'under_investigation').length
   const criticalIncidents = allIncidents.filter((i: any) => i.severity === 'critical' || i.severity === 'high').length
-  const hasActiveFilters = Boolean(filters.q || filters.status || filters.severity || filters.date_from || filters.date_to)
+  const hasActiveFilters = Boolean(filters.q || filters.status || filters.severity || filters.year || filters.date_from || filters.date_to)
 
   const getValidDate = (value: string | null | undefined) => {
     if (!value) return null
@@ -480,7 +551,41 @@ export default async function IncidentsPage({
     if (!year || !month) return key
     return format(new Date(year, month - 1, 1), 'MMM yy')
   }
+  const toMonthHeading = (key: string) => {
+    const [year, month] = key.split('-').map(Number)
+    if (!year || !month) return key
+    return format(new Date(year, month - 1, 1), 'MMMM yyyy')
+  }
   const toDisplayText = (value: string) => value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+
+  const closedIncidentGroups = (() => {
+    const grouped = new Map<string, { label: string; incidents: any[] }>()
+    const unknownGroup = { key: 'unknown', label: 'Unknown Date', incidents: [] as any[] }
+
+    for (const incident of closedIncidents) {
+      const date = getValidDate(incident.occurred_at) || getValidDate(incident.closed_at)
+      if (!date) {
+        unknownGroup.incidents.push(incident)
+        continue
+      }
+
+      const key = toMonthKey(date)
+      if (!grouped.has(key)) {
+        grouped.set(key, { label: toMonthHeading(key), incidents: [] })
+      }
+      grouped.get(key)!.incidents.push(incident)
+    }
+
+    const sortedGroups = Array.from(grouped.entries())
+      .sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
+      .map(([key, value]) => ({ key, label: value.label, incidents: value.incidents }))
+
+    if (unknownGroup.incidents.length > 0) {
+      sortedGroups.push(unknownGroup)
+    }
+
+    return sortedGroups
+  })()
 
   const now = new Date()
   const currentMonthKey = toMonthKey(now)
@@ -561,11 +666,10 @@ export default async function IncidentsPage({
   const monthlyTrendData = Array.from(monthlyTrendMap.entries())
     .sort(([monthKeyA], [monthKeyB]) => monthKeyA.localeCompare(monthKeyB))
     .map(([, value]) => value)
-    .slice(-12)
 
   const rootCauseCounter = new Map<string, number>()
   for (const incident of allIncidents) {
-    const rootCause = getInvestigationRootCause(incident.id, investigationMap)
+    const rootCause = getIncidentRootCause(incident, investigationMap)
     if (!rootCause) continue
     rootCauseCounter.set(rootCause, (rootCauseCounter.get(rootCause) || 0) + 1)
   }
@@ -599,7 +703,6 @@ export default async function IncidentsPage({
   const claimsMonthlyData = Array.from(claimsMonthlyMap.entries())
     .sort(([monthKeyA], [monthKeyB]) => monthKeyA.localeCompare(monthKeyB))
     .map(([, value]) => value)
-    .slice(-12)
 
   const monthKeysWithIncidents = new Set(incidentRows.map((entry) => toMonthKey(entry.date)))
   const monthlyAverage = monthKeysWithIncidents.size > 0 ? Number((totalIncidents / monthKeysWithIncidents.size).toFixed(1)) : 0
@@ -634,7 +737,7 @@ export default async function IncidentsPage({
 
       <Card className="shadow-sm border-slate-200 bg-white">
         <CardContent className="p-4 md:p-5">
-          <form method="get" className="grid grid-cols-1 md:grid-cols-7 gap-2">
+          <form method="get" className="grid grid-cols-1 md:grid-cols-8 gap-2">
             <div className="relative md:col-span-2">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <Input
@@ -666,6 +769,19 @@ export default async function IncidentsPage({
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
+            </select>
+
+            <select
+              name="year"
+              defaultValue={searchParams.year || 'all'}
+              className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+            >
+              <option value="all">All years</option>
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
             </select>
 
             <Input
@@ -944,7 +1060,7 @@ export default async function IncidentsPage({
                       </TableCell>
                       <TableCell className="text-slate-600 text-sm max-w-[220px]">
                         <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          <span className="truncate block">{getInvestigationRootCause(incident.id, investigationMap) || '—'}</span>
+                          <span className="truncate block">{getIncidentRootCause(incident, investigationMap) || '—'}</span>
                         </Link>
                       </TableCell>
                       <TableCell>
@@ -1021,9 +1137,8 @@ export default async function IncidentsPage({
           <CardTitle className="text-base font-semibold text-slate-800">Closed Incidents Log</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mobile Card View */}
-          <div className="md:hidden p-4 space-y-5">
-            {closedIncidents.length === 0 ? (
+          {closedIncidents.length === 0 ? (
+            <div className="p-6">
               <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                 <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
                   <FileText className="h-5 w-5 text-slate-400" />
@@ -1031,157 +1146,162 @@ export default async function IncidentsPage({
                 <p className="font-medium text-slate-900">No closed incidents found</p>
                 <p className="text-sm mt-1 text-center">Closed incidents will appear here.</p>
               </div>
-            ) : (
-              closedIncidents.map((incident: any) => (
-                <ClosedIncidentMobileCard key={incident.id} incident={incident} />
-              ))
-            )}
-          </div>
-
-          {/* Desktop Table View */}
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="w-[120px] font-semibold text-slate-500">Reference</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Store</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Person</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Category</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Root Cause</TableHead>
-                  <TableHead className="w-[100px] font-semibold text-slate-500">Severity</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Flags</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Occurred</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Closed</TableHead>
-                  <TableHead className="font-semibold text-slate-500">Investigator</TableHead>
-                  <TableHead className="w-[100px] text-right font-semibold text-slate-500">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {closedIncidents.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="h-40 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-500">
-                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                          <FileText className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <p className="font-medium text-slate-900">No closed incidents found</p>
-                        <p className="text-sm mt-1">Closed incidents will appear here.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {closedIncidentGroups.map((group, index) => (
+                <details key={group.key} open={index === 0} className="group">
+                  <summary className="list-none cursor-pointer bg-slate-50/40 hover:bg-slate-50 px-6 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-800">{group.label}</h3>
+                        <p className="text-xs text-slate-500">
+                          {group.incidents.length} {group.incidents.length === 1 ? 'incident' : 'incidents'}
+                        </p>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  closedIncidents.map((incident: any) => (
-                    <TableRow key={incident.id} className="hover:bg-slate-50/50 transition-colors bg-slate-50/30 cursor-pointer">
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="hover:text-indigo-600 transition-colors">
-                          <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                            {incident.reference_no}
-                          </span>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-slate-900">{incident.fa_stores?.store_name || 'Unknown'}</span>
-                            {incident.fa_stores?.store_code && (
-                              <span className="text-xs text-slate-500">{incident.fa_stores.store_code}</span>
-                            )}
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="inline-block">
-                          <Badge variant="outline" className="text-xs">
-                            {getIncidentPersonType(incident)}
-                          </Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          <div className="flex flex-col gap-1">
-                            <span>
-                              {incident.incident_category.split('_').map((w: string) =>
-                                w.charAt(0).toUpperCase() + w.slice(1)
-                              ).join(' ')}
-                            </span>
-                            {getIncidentAccidentType(incident) && (
-                              <span className="text-xs text-slate-500 truncate max-w-[180px]">
-                                {getIncidentAccidentType(incident)}
-                              </span>
-                            )}
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-sm max-w-[220px]">
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          <span className="truncate block">{getInvestigationRootCause(incident.id, investigationMap) || '—'}</span>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="inline-block">
-                          <StatusBadge status={incident.severity} type="severity" />
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="block">
-                          <div className="flex flex-wrap gap-1.5">
-                            {incident.riddor_reportable && (
-                              <Badge variant="destructive" className="text-[10px] px-2 py-0.5">
-                                RIDDOR
-                              </Badge>
-                            )}
-                            {getIncidentChildInvolved(incident) && (
-                              <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-amber-300 text-amber-700">
-                                Child
-                              </Badge>
-                            )}
-                            {!incident.riddor_reportable && !getIncidentChildInvolved(incident) && (
-                              <span className="text-xs text-slate-400">—</span>
-                            )}
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-sm">
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          {safeFormat(incident.occurred_at, 'dd MMM yyyy HH:mm')}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-sm">
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          {safeFormat(incident.closed_at, 'dd MMM yyyy HH:mm')}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
-                          {incident.investigator?.full_name ? (
-                            <div className="flex items-center gap-2">
-                              <div className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">
-                                {incident.investigator.full_name[0]}
+                      <span className="text-slate-400 text-xs transition-transform group-open:rotate-180">▼</span>
+                    </div>
+                  </summary>
+
+                  <div className="md:hidden p-4 space-y-5">
+                    {group.incidents.map((incident: any) => (
+                      <ClosedIncidentMobileCard key={incident.id} incident={incident} />
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="w-[120px] font-semibold text-slate-500">Reference</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Store</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Person</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Category</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Root Cause</TableHead>
+                          <TableHead className="w-[100px] font-semibold text-slate-500">Severity</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Flags</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Occurred</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Closed</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Investigator</TableHead>
+                          <TableHead className="w-[100px] text-right font-semibold text-slate-500">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.incidents.map((incident: any) => (
+                          <TableRow key={incident.id} className="hover:bg-slate-50/50 transition-colors bg-slate-50/30 cursor-pointer">
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="hover:text-indigo-600 transition-colors">
+                                <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                  {incident.reference_no}
+                                </span>
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-slate-900">{incident.fa_stores?.store_name || 'Unknown'}</span>
+                                  {incident.fa_stores?.store_code && (
+                                    <span className="text-xs text-slate-500">{incident.fa_stores.store_code}</span>
+                                  )}
+                                </div>
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="inline-block">
+                                <Badge variant="outline" className="text-xs">
+                                  {getIncidentPersonType(incident)}
+                                </Badge>
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-slate-600">
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                <div className="flex flex-col gap-1">
+                                  <span>
+                                    {incident.incident_category.split('_').map((w: string) =>
+                                      w.charAt(0).toUpperCase() + w.slice(1)
+                                    ).join(' ')}
+                                  </span>
+                                  {getIncidentAccidentType(incident) && (
+                                    <span className="text-xs text-slate-500 truncate max-w-[180px]">
+                                      {getIncidentAccidentType(incident)}
+                                    </span>
+                                  )}
+                                </div>
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-slate-600 text-sm max-w-[220px]">
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                <span className="truncate block">{getIncidentRootCause(incident, investigationMap) || '—'}</span>
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="inline-block">
+                                <StatusBadge status={incident.severity} type="severity" />
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="block">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {incident.riddor_reportable && (
+                                    <Badge variant="destructive" className="text-[10px] px-2 py-0.5">
+                                      RIDDOR
+                                    </Badge>
+                                  )}
+                                  {getIncidentChildInvolved(incident) && (
+                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-amber-300 text-amber-700">
+                                      Child
+                                    </Badge>
+                                  )}
+                                  {!incident.riddor_reportable && !getIncidentChildInvolved(incident) && (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </div>
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-slate-600 text-sm">
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                {safeFormat(incident.occurred_at, 'dd MMM yyyy HH:mm')}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-slate-600 text-sm">
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                {safeFormat(incident.closed_at, 'dd MMM yyyy HH:mm')}
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
+                                {incident.investigator?.full_name ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">
+                                      {incident.investigator.full_name[0]}
+                                    </div>
+                                    <span className="text-sm text-slate-600">{incident.investigator.full_name}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 text-xs italic">Unassigned</span>
+                                )}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Link href={`/incidents/${incident.id}`}>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                    <Eye className="h-4 w-4" />
+                                    <span className="sr-only">View</span>
+                                  </Button>
+                                </Link>
+                                <DeleteIncidentButton incidentId={incident.id} referenceNo={incident.reference_no} />
                               </div>
-                              <span className="text-sm text-slate-600">{incident.investigator.full_name}</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs italic">Unassigned</span>
-                          )}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Link href={`/incidents/${incident.id}`}>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
-                              <Eye className="h-4 w-4" />
-                              <span className="sr-only">View</span>
-                            </Button>
-                          </Link>
-                          <DeleteIncidentButton incidentId={incident.id} referenceNo={incident.reference_no} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

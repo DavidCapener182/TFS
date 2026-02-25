@@ -18,6 +18,16 @@ export type FaInvestigationStatus = 'not_started' | 'in_progress' | 'awaiting_ac
 export type FaActionPriority = 'low' | 'medium' | 'high' | 'urgent'
 export type FaActionStatus = 'open' | 'in_progress' | 'blocked' | 'complete' | 'cancelled'
 export type FaEntityType = 'incident' | 'investigation' | 'action' | 'store'
+export type FaStoreContactPreferredMethod = 'phone' | 'email' | 'either'
+export type FaStoreNoteType = 'general' | 'contact' | 'audit' | 'fra' | 'other'
+export type FaStoreInteractionType =
+  | 'phone_call'
+  | 'email'
+  | 'meeting'
+  | 'visit'
+  | 'audit_update'
+  | 'fra_update'
+  | 'other'
 
 export interface Database {
   public: {
@@ -342,7 +352,126 @@ export interface Database {
           created_at?: string
         }
       }
+      fa_store_contacts: {
+        Row: {
+          id: string
+          store_id: string
+          contact_name: string
+          job_title: string | null
+          email: string | null
+          phone: string | null
+          preferred_method: FaStoreContactPreferredMethod | null
+          is_primary: boolean
+          notes: string | null
+          created_by_user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          contact_name: string
+          job_title?: string | null
+          email?: string | null
+          phone?: string | null
+          preferred_method?: FaStoreContactPreferredMethod | null
+          is_primary?: boolean
+          notes?: string | null
+          created_by_user_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          contact_name?: string
+          job_title?: string | null
+          email?: string | null
+          phone?: string | null
+          preferred_method?: FaStoreContactPreferredMethod | null
+          is_primary?: boolean
+          notes?: string | null
+          created_by_user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      fa_store_notes: {
+        Row: {
+          id: string
+          store_id: string
+          note_type: FaStoreNoteType
+          title: string | null
+          body: string
+          created_by_user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          note_type?: FaStoreNoteType
+          title?: string | null
+          body: string
+          created_by_user_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          note_type?: FaStoreNoteType
+          title?: string | null
+          body?: string
+          created_by_user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      fa_store_contact_tracker: {
+        Row: {
+          id: string
+          store_id: string
+          contact_id: string | null
+          interaction_type: FaStoreInteractionType
+          subject: string
+          details: string | null
+          outcome: string | null
+          interaction_at: string
+          follow_up_date: string | null
+          created_by_user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          contact_id?: string | null
+          interaction_type: FaStoreInteractionType
+          subject: string
+          details?: string | null
+          outcome?: string | null
+          interaction_at?: string
+          follow_up_date?: string | null
+          created_by_user_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          contact_id?: string | null
+          interaction_type?: FaStoreInteractionType
+          subject?: string
+          details?: string | null
+          outcome?: string | null
+          interaction_at?: string
+          follow_up_date?: string | null
+          created_by_user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
-

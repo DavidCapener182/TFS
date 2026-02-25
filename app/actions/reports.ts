@@ -3,6 +3,34 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
+function normalizeJsonObject(value: any): Record<string, any> | null {
+  if (!value) return null
+  if (Array.isArray(value)) {
+    const firstObject = value.find((item) => item && typeof item === 'object')
+    return (firstObject as Record<string, any>) || null
+  }
+  if (typeof value === 'object') {
+    return value as Record<string, any>
+  }
+  return null
+}
+
+function pickString(source: Record<string, any> | null, keys: string[]) {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return null
+}
+
+function getReportedByDisplay(incident: any) {
+  const persons = normalizeJsonObject(incident.persons_involved)
+  return pickString(persons, ['reported_by_label', 'reportedByLabel']) || incident.reporter?.full_name || ''
+}
+
 export async function exportIncidentsCSV() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -51,7 +79,7 @@ export async function exportIncidentsCSV() {
     incident.summary.replace(/"/g, '""'), // Escape quotes
     incident.occurred_at,
     incident.reported_at,
-    incident.reporter?.full_name || '',
+    getReportedByDisplay(incident),
     incident.investigator?.full_name || '',
     incident.riddor_reportable ? 'Yes' : 'No',
   ]) || []
@@ -127,5 +155,4 @@ export async function exportActionsCSV() {
     },
   })
 }
-
 

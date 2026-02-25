@@ -93,9 +93,37 @@ function formatEntityType(entityType: string): string {
 interface IncidentActivityProps {
   activityLog: any[]
   userMap: Map<string, string | null>
+  incidentActorOverrideName?: string | null
 }
 
-export function IncidentActivity({ activityLog, userMap }: IncidentActivityProps) {
+function isStoreManagerLabel(value: string | null | undefined): boolean {
+  if (typeof value !== 'string') return false
+  return /\s-\smanager$/i.test(value.trim())
+}
+
+function resolveActorName(
+  activity: any,
+  userMap: Map<string, string | null>,
+  incidentActorOverrideName?: string | null
+): string {
+  if (activity?.entity_type === 'incident' && isStoreManagerLabel(incidentActorOverrideName)) {
+    return incidentActorOverrideName!.trim()
+  }
+
+  const profileName = activity?.performed_by?.full_name
+  if (typeof profileName === 'string' && profileName.trim()) {
+    return profileName.trim()
+  }
+
+  if (isUUID(activity?.performed_by_user_id)) {
+    const userName = userMap.get(activity.performed_by_user_id)
+    if (userName) return userName
+  }
+
+  return 'System'
+}
+
+export function IncidentActivity({ activityLog, userMap, incidentActorOverrideName }: IncidentActivityProps) {
 
   return (
     <div className="space-y-4">
@@ -111,6 +139,7 @@ export function IncidentActivity({ activityLog, userMap }: IncidentActivityProps
               {activityLog.map((activity) => {
                 const changedFields = getChangedFields(activity.details)
                 const entityTypeLabel = formatEntityType(activity.entity_type)
+                const actorName = resolveActorName(activity, userMap, incidentActorOverrideName)
                 
                 return (
                   <div key={activity.id} className="relative pl-6 border-l-2 border-slate-200">
@@ -178,9 +207,9 @@ export function IncidentActivity({ activityLog, userMap }: IncidentActivityProps
                       
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <div className="h-5 w-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200">
-                          {(activity.performed_by?.full_name || 'S')[0]}
+                          {(actorName || 'S')[0]}
                         </div>
-                        <span>{activity.performed_by?.full_name || 'System'}</span>
+                        <span>{actorName}</span>
                       </div>
                     </div>
                   </div>

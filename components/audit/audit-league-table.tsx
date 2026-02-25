@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { AuditRow, pctBadge, formatDate, getLatestPct } from './audit-table-helpers'
 import { StoreActionsModal } from './store-actions-modal'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Search } from 'lucide-react'
 import { UserRole } from '@/lib/auth'
 
 // Helper: Get the most recent audit date
@@ -107,19 +107,29 @@ export function AuditLeagueTable({
     })
   }
 
+  const hasActiveFilters = search.trim().length > 0 || area !== 'all' || hideCompleted
+  const resetFilters = () => {
+    setSearch('')
+    setArea('all')
+    setHideCompleted(false)
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <Input
-            placeholder="Search store name or code"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 md:w-64 bg-white min-h-[44px]"
-          />
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search store name or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-h-[44px] bg-white pl-9"
+            />
+          </div>
           <Select value={area} onValueChange={setArea}>
-            <SelectTrigger className="w-full sm:w-40 bg-white min-h-[44px]">
+            <SelectTrigger className="w-full sm:w-44 bg-white min-h-[44px]">
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
@@ -132,7 +142,10 @@ export function AuditLeagueTable({
           <Button
             variant={hideCompleted ? "default" : "outline"}
             onClick={() => setHideCompleted(!hideCompleted)}
-            className="min-h-[44px]"
+            className={cn(
+              'min-h-[44px]',
+              hideCompleted ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+            )}
           >
             {hideCompleted ? (
               <>
@@ -148,8 +161,16 @@ export function AuditLeagueTable({
               </>
             )}
           </Button>
+          <Button
+            variant="ghost"
+            onClick={resetFilters}
+            disabled={!hasActiveFilters}
+            className="min-h-[44px] text-slate-500 hover:text-slate-700"
+          >
+            Reset
+          </Button>
         </div>
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-slate-500">
           Showing {rankedStores.length} of {rows.length} stores
         </div>
       </div>

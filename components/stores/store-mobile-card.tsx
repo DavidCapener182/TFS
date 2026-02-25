@@ -1,9 +1,9 @@
 'use client'
 
-import { StoreModalWrapper } from '@/components/stores/store-modal-wrapper'
 import { Card } from '@/components/ui/card'
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, ClipboardList } from 'lucide-react'
 import { getDisplayStoreCode } from '@/lib/utils'
+import Link from 'next/link'
 
 interface StoreMobileCardProps {
   store: any
@@ -44,11 +44,11 @@ export function StoreMobileCard({ store }: StoreMobileCardProps) {
         {/* Header Row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <StoreModalWrapper store={store} incidents={store.incidents} actions={store.actions}>
-              <h3 className="cursor-pointer text-lg font-semibold leading-tight text-indigo-600 transition-colors hover:text-indigo-800">
+            <Link href={`/stores/${store.id}`}>
+              <h3 className="cursor-pointer text-lg font-semibold leading-tight text-indigo-600 transition-colors hover:text-indigo-800 hover:underline">
                 {store.store_name}
               </h3>
-            </StoreModalWrapper>
+            </Link>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             {getDisplayStoreCode(store.store_code) && (

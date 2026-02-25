@@ -2,7 +2,6 @@ import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { FRARow } from '@/components/fra/fra-table'
 import { FRATrackerClient } from '@/components/fra/fra-tracker-client'
-import { Flame } from 'lucide-react'
 
 async function getStoreFRAs() {
   const supabase = createClient()
@@ -105,25 +104,5 @@ export default async function FireRiskAssessmentPage() {
   
   console.log('FireRiskAssessmentPage: Fetched', stores.length, 'stores')
 
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1 flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-slate-900">
-            <div className="p-2 bg-orange-600 rounded-lg shadow-sm flex-shrink-0">
-              <Flame className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Fire Risk Assessment</h1>
-          </div>
-          <p className="text-sm sm:text-base text-slate-500 max-w-2xl ml-9 sm:ml-11">
-            Track Fire Risk Assessments for stores that have completed audits. FRAs must be renewed every 12 months.
-          </p>
-        </div>
-      </div>
-
-      {/* Client component handles stats cards and table with shared area filter */}
-      <FRATrackerClient stores={stores as FRARow[]} userRole={profile.role} />
-    </div>
-  )
+  return <FRATrackerClient stores={stores as FRARow[]} userRole={profile.role} />
 }

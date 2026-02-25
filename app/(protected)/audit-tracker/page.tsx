@@ -2,7 +2,6 @@ import { requireRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { AuditRow } from '@/components/audit/audit-table'
 import { AuditTrackerClient } from '@/components/audit/audit-tracker-client'
-import { ClipboardCheck } from 'lucide-react'
 
 async function getStoreAudits() {
   const supabase = createClient()
@@ -27,24 +26,6 @@ export default async function AuditTrackerPage() {
   const stores = await getStoreAudits()
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1 flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-slate-900">
-            <div className="p-2 bg-blue-600 rounded-lg shadow-sm flex-shrink-0">
-              <ClipboardCheck className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Audit Tracker</h1>
-          </div>
-          <p className="text-sm sm:text-base text-slate-500 max-w-2xl ml-9 sm:ml-11">
-            Track compliance scores, view audit history, and monitor network performance across all regions.
-          </p>
-        </div>
-      </div>
-
-      {/* Client component handles stats cards and table with shared area filter */}
-      <AuditTrackerClient stores={stores as AuditRow[]} userRole={profile.role} />
-    </div>
+    <AuditTrackerClient stores={stores as AuditRow[]} userRole={profile.role} />
   )
 }

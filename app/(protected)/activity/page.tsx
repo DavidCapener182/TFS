@@ -31,6 +31,37 @@ function normalizeIncidentClosedAt(incident: any): string | null {
   return incident?.closed_at || incident?.updated_at || normalizeIncidentCreatedAt(incident)
 }
 
+function normalizeJsonObject(value: any): Record<string, any> | null {
+  if (!value) return null
+  if (Array.isArray(value)) {
+    const firstObject = value.find((item) => item && typeof item === 'object')
+    return (firstObject as Record<string, any>) || null
+  }
+  if (typeof value === 'object') {
+    return value as Record<string, any>
+  }
+  return null
+}
+
+function pickString(source: Record<string, any> | null, keys: string[]) {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return null
+}
+
+function toHistoricalIncidentActorLabel(incident: any): string | null {
+  const personsObject = normalizeJsonObject(incident?.persons_involved)
+  const reportedByLabel = pickString(personsObject, ['reported_by_label', 'reportedByLabel'])
+  if (!reportedByLabel) return null
+  if (!/\s-\smanager$/i.test(reportedByLabel)) return null
+  return reportedByLabel
+}
+
 async function getRecentActivity() {
   const supabase = createClient()
   const [
@@ -45,12 +76,12 @@ async function getRecentActivity() {
       .limit(180),
     supabase
       .from('fa_incidents')
-      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id')
+      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id, persons_involved')
       .order('created_at', { ascending: false })
       .limit(180),
     supabase
       .from('fa_closed_incidents')
-      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id')
+      .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id, persons_involved')
       .order('closed_at', { ascending: false })
       .limit(180),
   ])
@@ -125,9 +156,40 @@ async function getRecentActivity() {
   ;(openIncidents || []).forEach((incident: any) => appendSyntheticEvents(incident, false))
   ;(closedIncidents || []).forEach((incident: any) => appendSyntheticEvents(incident, true))
 
-  return [...activityRows, ...syntheticEvents]
+  const latestActivity = [...activityRows, ...syntheticEvents]
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 100)
+
+  const incidentIds = Array.from(
+    new Set(
+      latestActivity
+        .filter((activity: any) => activity?.entity_type === 'incident' && typeof activity?.entity_id === 'string')
+        .map((activity: any) => activity.entity_id)
+    )
+  )
+
+  const incidentActorOverrides = new Map<string, string>()
+  if (incidentIds.length > 0) {
+    const [{ data: openIncidentActors }, { data: closedIncidentActors }] = await Promise.all([
+      supabase.from('fa_incidents').select('id, persons_involved').in('id', incidentIds),
+      supabase.from('fa_closed_incidents').select('id, persons_involved').in('id', incidentIds),
+    ])
+
+    ;[...(openIncidentActors || []), ...(closedIncidentActors || [])].forEach((incident: any) => {
+      const actorLabel = toHistoricalIncidentActorLabel(incident)
+      if (incident?.id && actorLabel) {
+        incidentActorOverrides.set(incident.id, actorLabel)
+      }
+    })
+  }
+
+  return latestActivity.map((activity: any) => ({
+    ...activity,
+    actor_override_name:
+      activity?.entity_type === 'incident' && typeof activity?.entity_id === 'string'
+        ? incidentActorOverrides.get(activity.entity_id) || null
+        : null,
+  }))
 }
 
 // Helper to format field names to be more readable
@@ -172,6 +234,23 @@ function formatFieldName(field: string): string {
 function isUUID(str: any): boolean {
   if (typeof str !== 'string') return false
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+}
+
+function resolveActivityActorName(activity: any, userMap: Map<string, string | null>): string {
+  const actorOverride = typeof activity?.actor_override_name === 'string' ? activity.actor_override_name.trim() : ''
+  if (actorOverride) return actorOverride
+
+  const profileName = activity?.performed_by?.full_name
+  if (typeof profileName === 'string' && profileName.trim()) {
+    return profileName.trim()
+  }
+
+  if (isUUID(activity?.performed_by_user_id)) {
+    const userName = userMap.get(activity.performed_by_user_id)
+    if (userName) return userName
+  }
+
+  return 'System'
 }
 
 // Helper to format field values (with user name mapping)
@@ -446,10 +525,7 @@ export default async function ActivityPage() {
   const sortedEntityCounts = Object.entries(entityCounts).sort((a, b) => b[1] - a[1])
 
   const userCounts = activitiesWithNames.reduce((acc: Record<string, number>, activity: any) => {
-    const name =
-      activity.performed_by?.full_name ||
-      (activity.performed_by_user_id ? userMap.get(activity.performed_by_user_id) : null) ||
-      'System'
+    const name = resolveActivityActorName(activity, userMap)
     acc[name] = (acc[name] || 0) + 1
     return acc
   }, {})
@@ -626,10 +702,7 @@ export default async function ActivityPage() {
 
                             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
                               {(() => {
-                                const actorName =
-                                  activity.performed_by?.full_name ||
-                                  (activity.performed_by_user_id ? userMap.get(activity.performed_by_user_id) : null) ||
-                                  'System'
+                                const actorName = resolveActivityActorName(activity, userMap)
                                 return (
                                   <p className="flex items-center gap-1.5 text-xs text-slate-500">
                                     <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-600">

@@ -3,7 +3,24 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, TrendingUp, Clock, AlertCircle, Store, FileCheck, Sparkles, X, Loader2, Calendar, Flame, ShieldCheck, ArrowUpRight } from 'lucide-react'
+import {
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Download,
+  Flame,
+  Loader2,
+  Map as MapIcon,
+  ShieldAlert,
+  Sparkles,
+  TrendingUp,
+  X,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import {
   Bar,
@@ -16,37 +33,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ComplianceVisitsTracking } from '@/components/dashboard/compliance-visits-tracking'
-import { PlannedRounds } from '@/components/dashboard/planned-rounds'
-import { formatPercent } from '@/lib/utils'
+import { formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 // --- Helper Components ---
-
-function MetricCard({ title, value, icon: Icon, colorClass, bgClass, href, accentClass }: any) {
-  const cardContent = (
-    <Card className={`relative overflow-hidden flex flex-row items-center justify-between p-4 md:p-5 bg-white/95 shadow-sm border-slate-200 transition-all hover:shadow-md hover:-translate-y-0.5 ${href ? 'cursor-pointer' : ''}`}>
-      <div className={`absolute inset-x-0 top-0 h-1 ${accentClass || 'bg-slate-200'}`} />
-      <div className="flex flex-col gap-1 min-w-0 flex-1">
-        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">{title}</span>
-        <span className="text-2xl md:text-[1.75rem] leading-tight font-bold text-slate-900">{value}</span>
-      </div>
-      <div className={`h-10 w-10 md:h-11 md:w-11 rounded-xl ${bgClass} flex items-center justify-center transition-colors flex-shrink-0 ml-2`}>
-        <Icon className={`h-5 w-5 md:h-6 md:w-6 ${colorClass}`} />
-      </div>
-    </Card>
-  )
-
-  if (href) {
-    return (
-      <Link href={href} className="block">
-        {cardContent}
-      </Link>
-    )
-  }
-
-  return cardContent
-}
-
 function ProgressBar({ value, colorClass = "bg-blue-600", heightClass = "h-2" }: { value: number, colorClass?: string, heightClass?: string }) {
   return (
     <div className={`w-full overflow-hidden rounded-full bg-slate-100 ${heightClass}`}>
@@ -54,28 +43,6 @@ function ProgressBar({ value, colorClass = "bg-blue-600", heightClass = "h-2" }:
         className={`h-full ${colorClass} transition-all duration-700 ease-out`}
         style={{ width: `${value}%` }}
       />
-    </div>
-  )
-}
-
-function LabeledProgressBar({ label, value, total, colorClass }: { label: string, value: number, total: number, colorClass: string }) {
-  const percentage = total > 0 ? (value / total) * 100 : 0
-  return (
-    <div className="group">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 capitalize">{label.replace(/_/g, ' ')}</span>
-        <span className="text-xs font-bold text-slate-500">{value}</span>
-      </div>
-      <ProgressBar value={percentage} colorClass={colorClass} heightClass="h-1.5" />
-    </div>
-  )
-}
-
-function HeroStatPill({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
-      <p className="text-[10px] uppercase tracking-widest text-slate-300">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
     </div>
   )
 }
@@ -406,17 +373,16 @@ interface DashboardClientProps {
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const [data] = useState(initialData)
-  
-  // AI State
+
   const [isReportOpen, setIsReportOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
-  const [reportContent, setReportContent] = useState("")
+  const [reportContent, setReportContent] = useState('')
   const [reportSnapshot, setReportSnapshot] = useState<any>(null)
   const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null)
 
   const handleGenerateReport = async () => {
     setIsReportOpen(true)
-    if (!reportContent || !reportSnapshot) { // Only generate if not already generated this session
+    if (!reportContent || !reportSnapshot) {
       setReportLoading(true)
       try {
         const response = await fetch('/api/ai/compliance-report', {
@@ -446,379 +412,459 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     }
   }
 
-  const plannedStoreCount = data.plannedRoutes?.reduce(
+  const plannedRoutes = Array.isArray(data.plannedRoutes) ? data.plannedRoutes : []
+  const storesNeedingSecondVisit = Array.isArray(data.storesNeedingSecondVisit) ? data.storesNeedingSecondVisit : []
+  const plannedStoreCount = plannedRoutes.reduce(
     (total: number, route: any) => total + (route.stores?.length || route.storeCount || 0),
     0
-  ) || 0
-  const plannedRouteCount = data.plannedRoutes?.length || 0
-  const healthScore = Math.round(((data.auditStats?.totalAuditPercentage || 0) * 0.65) + ((100 - Math.min(data.overdueActions * 3, 100)) * 0.35))
-  const priorityAlerts = (data.overdueActions || 0) + (data.highCritical || 0)
-  const topForecastStores = data.complianceForecast?.stores?.slice(0, 5) || []
+  )
+  const plannedRouteCount = plannedRoutes.length
+  const totalOverdueActions = Number(data.combinedActionStats?.totalOverdue ?? data.overdueActions ?? 0)
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        ((Number(data.auditStats?.totalAuditPercentage || 0)) * 0.65) +
+        ((100 - Math.min(totalOverdueActions * 3, 100)) * 0.35)
+      )
+    )
+  )
+
+  const firstAuditRate = Number(data.auditStats?.firstAuditPercentage || 0)
+  const secondAuditRate = Number(data.auditStats?.secondAuditPercentage || 0)
+  const fullyCompliantRate = Number(data.auditStats?.totalAuditPercentage || 0)
+  const totalStores = Number(data.auditStats?.totalStores || 0)
+  const firstAuditCount = Number(data.auditStats?.firstAuditsComplete || 0)
+  const secondAuditCount = Number(data.auditStats?.secondAuditsComplete || 0)
+  const fullyCompliantCount = Number(data.auditStats?.totalAuditsComplete || 0)
+
+  const severityCounts = data.severityCounts || {}
+  const lowSeverityCount = Number(severityCounts.low || 0)
+  const mediumSeverityCount = Number(severityCounts.medium || 0)
+  const highSeverityCount = Number(severityCounts.high || 0) + Number(severityCounts.critical || 0)
+  const incidentBreakdownTotal = Number(data.totalIncidents || (lowSeverityCount + mediumSeverityCount + highSeverityCount))
+
+  const highRiskStoresCount = Number(data.complianceForecast?.highRiskCount || 0)
+  const fraRequiredCount = Number(data.storesRequiringFRA || 0)
+  const fraOverdueCount = Number(data.fraStats?.overdue || 0)
+  const updatedTime = format(new Date(), 'HH:mm')
+
+  const daysUntilYearEnd = (() => {
+    const now = new Date()
+    const endOfYear = new Date(now.getFullYear(), 11, 31)
+    return Math.max(0, Math.ceil((endOfYear.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  })()
+
+  const dueVisits = storesNeedingSecondVisit.map((store: any) => ({
+    id: store.id,
+    name: store.store_name || 'Unknown Store',
+    code: getDisplayStoreCode(store.store_code) || '—',
+    status: store.compliance_audit_2_planned_date ? 'Planned' : 'Not Planned',
+  }))
+
+  const parseDateOnly = (value: string | null | undefined): Date | null => {
+    if (!value) return null
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return null
+    parsed.setHours(0, 0, 0, 0)
+    return parsed
+  }
+
+  const todayDateOnly = new Date()
+  todayDateOnly.setHours(0, 0, 0, 0)
+
+  const dueRoutesCount = plannedRoutes.filter((route: any) => {
+    const plannedDate = parseDateOnly(route?.plannedDate)
+    return plannedDate ? plannedDate.getTime() <= todayDateOnly.getTime() : false
+  }).length
+  const upcomingRoutesCount = Math.max(0, plannedRouteCount - dueRoutesCount)
+
+  const nextRoutes = [...plannedRoutes]
+    .sort((a: any, b: any) => {
+      const aTime = parseDateOnly(a?.plannedDate)?.getTime() || Number.MAX_SAFE_INTEGER
+      const bTime = parseDateOnly(b?.plannedDate)?.getTime() || Number.MAX_SAFE_INTEGER
+      return aTime - bTime
+    })
+    .slice(0, 3)
+
+  const topForecastStores = Array.isArray(data.complianceForecast?.stores)
+    ? data.complianceForecast.stores.slice(0, 4)
+    : []
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      
-      <ReportModal 
-        isOpen={isReportOpen} 
-        onClose={() => setIsReportOpen(false)} 
-        content={reportContent} 
-        isLoading={reportLoading} 
+    <div className="space-y-6">
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        content={reportContent}
+        isLoading={reportLoading}
         snapshot={reportSnapshot}
         generatedAt={reportGeneratedAt}
       />
 
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 sm:p-6 md:p-7 shadow-lg">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 left-10 h-56 w-56 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-slate-200">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Compliance Overview
+      <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-6 text-white shadow-xl shadow-slate-200/50 md:p-8">
+        <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
+
+        <div className="relative z-10">
+          <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
+                <Activity size={14} />
+                Compliance Overview
+              </div>
+              <h1 className="mb-1 text-3xl font-bold tracking-tight">Dashboard</h1>
+              <p className="text-sm text-slate-400">
+                Real-time view of incidents, audits, and planned operations across your network.
+              </p>
             </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
-              Real-time view of incidents, audits, and planned operations across your store network.
-            </p>
+
+            <div className="flex items-center gap-3">
+              <span className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-xs text-slate-400">
+                Updated: {updatedTime}
+              </span>
+              <button
+                onClick={handleGenerateReport}
+                className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+              >
+                <Download size={16} />
+                Generate Report
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-shrink-0">
-            <button
-              onClick={handleGenerateReport}
-              className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-slate-900 shadow-sm font-medium transition-all hover:bg-slate-100 active:scale-[0.98] min-h-[44px]"
-            >
-              <Sparkles className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline">Generate report</span>
-              <span className="sm:hidden">Generate report</span>
-              <ArrowUpRight className="h-3.5 w-3.5 text-slate-500" />
-            </button>
-            <div className="rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-center text-xs font-medium text-slate-200 min-h-[44px] flex items-center justify-center">
-              Updated: {format(new Date(), 'HH:mm')}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+            <div className="col-span-2 flex items-center justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">Network Health</p>
+                <p className="text-4xl font-black text-emerald-400">{healthScore}%</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+                <BarChart3 size={24} />
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+              <div className="mb-2 flex items-center gap-2 text-slate-400">
+                <AlertTriangle size={14} className="text-blue-400" />
+                <span className="text-xs font-bold uppercase">Open Incidents</span>
+              </div>
+              <p className="text-2xl font-bold">{Number(data.openIncidents || 0)}</p>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+              <div className="mb-2 flex items-center gap-2 text-slate-400">
+                <Clock size={14} className="text-amber-400" />
+                <span className="text-xs font-bold uppercase">Overdue Actions</span>
+              </div>
+              <p className="text-2xl font-bold">{totalOverdueActions}</p>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+              <div className="mb-2 flex items-center gap-2 text-slate-400">
+                <ShieldAlert size={14} className="text-red-400" />
+                <span className="text-xs font-bold uppercase">High Risk Stores</span>
+              </div>
+              <p className="text-2xl font-bold text-red-400">{highRiskStoresCount}</p>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+              <div className="mb-2 flex items-center gap-2 text-slate-400">
+                <Flame size={14} className="text-orange-400" />
+                <span className="text-xs font-bold uppercase">FRA Required</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-400">{fraRequiredCount}</p>
             </div>
           </div>
         </div>
-
-        <div className="relative z-10 mt-5 grid grid-cols-2 gap-2.5 md:grid-cols-4">
-          <HeroStatPill label="Health Score" value={`${healthScore}%`} />
-          <HeroStatPill label="Priority Alerts" value={priorityAlerts} />
-          <HeroStatPill label="Planned Stores" value={plannedStoreCount} />
-          <HeroStatPill label="Routes Planned" value={plannedRouteCount} />
-        </div>
       </div>
 
-      {/* KPI Section */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Risk Snapshot</h2>
-        </div>
-      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-5">
-        <MetricCard 
-          title="Open Incidents" 
-          value={data.openIncidents} 
-          icon={AlertTriangle} 
-          colorClass="text-blue-600" 
-          bgClass="bg-blue-50" 
-          accentClass="bg-gradient-to-r from-blue-500 to-cyan-500"
-        />
-        <MetricCard 
-          title="Investigating" 
-          value={data.underInvestigation} 
-          icon={TrendingUp} 
-          colorClass="text-purple-600" 
-          bgClass="bg-purple-50" 
-          accentClass="bg-gradient-to-r from-indigo-500 to-violet-500"
-        />
-        <MetricCard 
-          title="Overdue Actions" 
-          value={data.overdueActions} 
-          icon={Clock} 
-          colorClass="text-orange-600" 
-          bgClass="bg-orange-50" 
-          accentClass="bg-gradient-to-r from-orange-500 to-amber-500"
-        />
-        <MetricCard 
-          title="High Risk (30d)" 
-          value={data.highCritical} 
-          icon={AlertCircle} 
-          colorClass="text-rose-600" 
-          bgClass="bg-rose-50" 
-          accentClass="bg-gradient-to-r from-rose-500 to-red-500"
-        />
-        <MetricCard 
-          title="Stores Requiring FRA" 
-          value={data.storesRequiringFRA || 0} 
-          icon={Flame} 
-          colorClass="text-orange-600" 
-          bgClass="bg-orange-50"
-          accentClass="bg-gradient-to-r from-amber-500 to-orange-500"
-          href="/fire-risk-assessment"
-        />
-      </div>
-      </div>
-
-      {data.complianceForecast && (
-        <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
-          <CardHeader className="border-b border-slate-200 bg-slate-50/60 px-4 py-4 md:px-6 md:py-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-bold text-slate-800 md:text-base">
-                <TrendingUp className="h-4 w-4 text-indigo-600" />
-                Compliance Forecast (Next 30 Days)
-              </CardTitle>
-              <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-                avg risk {data.complianceForecast.avgRiskScore}%
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <CheckCircle2 size={18} className="text-emerald-500" /> Audit Completion Rates
+              </h2>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                {totalStores} Stores Total
               </span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4 md:p-5">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-700">High Risk</p>
-                <p className="text-lg font-bold text-rose-800">{data.complianceForecast.highRiskCount}</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Medium</p>
-                <p className="text-lg font-bold text-amber-800">{data.complianceForecast.mediumRiskCount}</p>
-              </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Low</p>
-                <p className="text-lg font-bold text-emerald-800">{data.complianceForecast.lowRiskCount}</p>
-              </div>
-            </div>
 
-            {topForecastStores.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="space-y-2">
-                {topForecastStores.map((store: any) => (
-                  <div key={store.storeId} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {store.storeName}
-                        {store.storeCode ? <span className="ml-1 text-slate-500">({store.storeCode})</span> : null}
-                      </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          store.riskBand === 'high'
-                            ? 'border border-rose-200 bg-rose-50 text-rose-700'
-                            : store.riskBand === 'medium'
-                            ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                        }`}
-                      >
-                        {store.probability}% risk
-                      </span>
-                    </div>
-                    {store.drivers?.length > 0 && (
-                      <p className="mt-1 text-xs text-slate-600">
-                        {store.drivers[0]}
-                        {store.drivers[1] ? ` • ${store.drivers[1]}` : ''}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                <p className="text-xs font-bold uppercase text-slate-400">First Audit</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-3xl font-bold text-slate-800">{formatPercent(firstAuditRate)}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">{firstAuditCount}/{totalStores}</p>
+                </div>
+                <ProgressBar value={firstAuditRate} colorClass="bg-emerald-500" />
               </div>
-            ) : (
-              <p className="text-xs italic text-slate-500">No forecast data available.</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Bento Grid: Planned Visits, Audit Completion, Top Stores */}
-      <div className="grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        {/* Planned Visits - Small card */}
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-sm md:col-span-1 h-[180px]">
-          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-300/35 blur-2xl" />
-          <div className="pb-1.5 px-3 pt-3 relative z-10">
-            <h3 className="text-emerald-900 flex items-center gap-2 text-sm font-semibold">
-              <Calendar className="h-4 w-4" />
-              Planned Visits
-            </h3>
-          </div>
-          <div className="px-3 pb-3 relative z-10">
-            <div className="flex flex-col gap-1.5">
-              <p className="text-3xl font-bold text-emerald-900">
-                {plannedStoreCount}
-              </p>
-              <p className="text-xs text-emerald-700">
-                {plannedStoreCount === 1 ? 'store' : 'stores'} with planned visits
-              </p>
-              <p className="text-sm font-semibold text-emerald-700 mt-1">
-                {plannedRouteCount} {plannedRouteCount === 1 ? 'route' : 'routes'} planned
-              </p>
+              <div className="space-y-2 border-slate-100 md:border-l md:pl-6">
+                <p className="text-xs font-bold uppercase text-slate-400">Second Audit</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-3xl font-bold text-slate-800">{formatPercent(secondAuditRate)}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">{secondAuditCount}/{totalStores}</p>
+                </div>
+                <ProgressBar value={secondAuditRate} colorClass="bg-blue-500" />
+              </div>
+
+              <div className="space-y-2 border-slate-100 md:border-l md:pl-6">
+                <p className="text-xs font-bold uppercase text-slate-400">Fully Compliant</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-3xl font-bold text-indigo-600">{formatPercent(fullyCompliantRate)}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">{fullyCompliantCount}/{totalStores}</p>
+                </div>
+                <ProgressBar value={fullyCompliantRate} colorClass="bg-indigo-500" />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Audit Completion Rates - Large card spanning 2 columns */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm md:col-span-2 lg:col-span-2 h-[180px] flex flex-col">
-          <div className="pb-1.5 px-3 pt-3 border-b border-slate-100/80">
-            <div className="flex items-center gap-2">
-              <FileCheck className="h-4 w-4 text-slate-500 flex-shrink-0" />
-              <h3 className="text-sm font-semibold text-slate-800">Audit Completion Rates</h3>
-              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                {data.auditStats.totalStores} stores
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <AlertCircle size={18} className="text-red-500" /> Incident Breakdown
+              </h2>
+              <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                {incidentBreakdownTotal} Total Active
               </span>
             </div>
+
+            <div className="space-y-6">
+              <div>
+                <div className="mb-2 flex justify-between text-sm">
+                  <span className="font-semibold text-slate-600">Severity: Low</span>
+                  <span className="font-bold">{lowSeverityCount}</span>
+                </div>
+                <ProgressBar
+                  value={incidentBreakdownTotal > 0 ? (lowSeverityCount / incidentBreakdownTotal) * 100 : 0}
+                  colorClass="bg-slate-400"
+                  heightClass="h-3"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex justify-between text-sm">
+                  <span className="font-semibold text-slate-600">Severity: Medium</span>
+                  <span className="font-bold text-amber-600">{mediumSeverityCount}</span>
+                </div>
+                <ProgressBar
+                  value={incidentBreakdownTotal > 0 ? (mediumSeverityCount / incidentBreakdownTotal) * 100 : 0}
+                  colorClass="bg-amber-500"
+                  heightClass="h-3"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex justify-between text-sm">
+                  <span className="font-semibold text-slate-600">Severity: High/Critical</span>
+                  <span className="font-bold text-red-600">{highSeverityCount}</span>
+                </div>
+                <ProgressBar
+                  value={incidentBreakdownTotal > 0 ? (highSeverityCount / incidentBreakdownTotal) * 100 : 0}
+                  colorClass="bg-red-500"
+                  heightClass="h-3"
+                />
+              </div>
+            </div>
           </div>
-          <div className="px-3 pb-3 pt-2 flex-1 overflow-y-auto">
-            <div className="grid gap-2 grid-cols-1 md:grid-cols-3">
-              {/* First Audit */}
-              <div className="flex h-full flex-col p-2.5 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/70 border border-slate-200 hover:border-emerald-300 transition-colors">
-                <div className="min-h-[2rem]">
-                  <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">First Audit</span>
-                  <p className="text-[10px] leading-4 text-slate-400">Audit 1 completion</p>
-                </div>
-                <div className="mt-1 flex items-end justify-between">
-                  <span className="text-2xl font-bold text-slate-900">{formatPercent(data.auditStats.firstAuditPercentage)}</span>
-                  <span className="text-xs font-medium text-slate-400">{data.auditStats.firstAuditsComplete}/{data.auditStats.totalStores}</span>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar value={data.auditStats.firstAuditPercentage} colorClass="bg-emerald-500" />
-                </div>
-              </div>
 
-              {/* Second Audit */}
-              <div className="flex h-full flex-col p-2.5 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/70 border border-slate-200 hover:border-blue-300 transition-colors">
-                 <div className="min-h-[2rem]">
-                   <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Second Audit</span>
-                   <p className="text-[10px] leading-4 text-slate-400">Audit 2 completion</p>
-                 </div>
-                 <div className="mt-1 flex items-end justify-between">
-                  <span className="text-2xl font-bold text-slate-900">{formatPercent(data.auditStats.secondAuditPercentage)}</span>
-                  <span className="text-xs font-medium text-slate-400">{data.auditStats.secondAuditsComplete}/{data.auditStats.totalStores}</span>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar value={data.auditStats.secondAuditPercentage} colorClass="bg-blue-500" />
-                </div>
-              </div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-amber-50/50 p-6">
+              <h2 className="mb-1 flex items-center gap-2 text-lg font-bold text-amber-900">
+                <AlertTriangle size={18} className="text-amber-500" /> Compliance Visits Due
+              </h2>
+              <p className="text-sm text-amber-700">
+                {storesNeedingSecondVisit.length} stores still need a second visit this year. Minimum deadline is {daysUntilYearEnd} days.
+              </p>
+            </div>
 
-              {/* Total Complete */}
-              <div className="flex h-full flex-col p-2.5 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/70 border border-slate-200 hover:border-violet-300 transition-colors">
-                 <div className="min-h-[2rem]">
-                   <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Fully Compliant</span>
-                   <p className="text-[10px] leading-4 text-slate-400">Audit &gt;=80% + FRA in date</p>
-                 </div>
-                 <div className="mt-1 flex items-end justify-between">
-                  <span className="text-2xl font-bold text-slate-900">{formatPercent(data.auditStats.totalAuditPercentage)}</span>
-                  <span className="text-xs font-medium text-slate-400">{data.auditStats.totalAuditsComplete}/{data.auditStats.totalStores}</span>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar value={data.auditStats.totalAuditPercentage} colorClass="bg-purple-500" />
-                </div>
-              </div>
+            <div className="max-h-[460px] overflow-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-400">
+                  <tr>
+                    <th className="px-6 py-4 font-bold">Store</th>
+                    <th className="px-6 py-4 font-bold">Status</th>
+                    <th className="px-6 py-4 font-bold">Deadline</th>
+                    <th className="px-6 py-4 text-right font-bold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dueVisits.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-6 text-center text-sm italic text-slate-500">
+                        No due visits at the moment.
+                      </td>
+                    </tr>
+                  ) : (
+                    dueVisits.map((visit: any) => (
+                      <tr key={visit.id} className="transition-colors hover:bg-slate-50">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-900">{visit.name}</p>
+                          <p className="text-xs font-mono text-slate-400">{visit.code}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${
+                            visit.status === 'Planned'
+                              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                              : 'border-red-100 bg-red-50 text-red-600'
+                          }`}>
+                            <AlertCircle size={10} />
+                            {visit.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-mono font-medium text-amber-600">{daysUntilYearEnd} days</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link
+                            href="/route-planning"
+                            className="text-xs font-bold uppercase tracking-wider text-blue-600 transition-colors hover:text-blue-800"
+                          >
+                            Plan Visit
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
 
-        {/* Top Stores - Medium card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm md:col-span-1 h-[180px] flex flex-col">
-          <div className="pb-1.5 border-b border-slate-100 bg-slate-50/60 px-3 pt-3">
-            <div className="flex items-center gap-2">
-              <Store className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-              <h3 className="text-sm font-bold text-slate-800">Top Stores (Open Incidents)</h3>
+        <div className="space-y-6 lg:col-span-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <TrendingUp size={18} className="text-blue-500" /> Risk Forecast
+              </h2>
+              <span className="rounded bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                Next 30 Days
+              </span>
+            </div>
+
+            <div className="mb-6 flex gap-2">
+              <div className="flex-1 rounded-lg border border-red-100 bg-red-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-red-500">High</p>
+                <p className="text-xl font-bold text-red-700">{highRiskStoresCount}</p>
+              </div>
+              <div className="flex-1 rounded-lg border border-amber-100 bg-amber-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-amber-600">Medium</p>
+                <p className="text-xl font-bold text-amber-700">{Number(data.complianceForecast?.mediumRiskCount || 0)}</p>
+              </div>
+              <div className="flex-1 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-emerald-600">Low</p>
+                <p className="text-xl font-bold text-emerald-700">{Number(data.complianceForecast?.lowRiskCount || 0)}</p>
+              </div>
+            </div>
+
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Attention Required</h3>
+            <div className="space-y-3">
+              {topForecastStores.length === 0 ? (
+                <p className="text-sm italic text-slate-500">No stores currently flagged for elevated risk.</p>
+              ) : (
+                topForecastStores.map((store: any) => (
+                  <Link
+                    key={store.storeId}
+                    href={store.storeId ? `/stores/${store.storeId}` : '/stores'}
+                    className="group block rounded-xl border border-slate-100 p-3 transition-all hover:border-amber-200 hover:bg-amber-50/30"
+                  >
+                    <div className="mb-1 flex items-start justify-between">
+                      <div>
+                        <span className="mr-2 font-bold text-slate-800">{store.storeName}</span>
+                        <span className="text-xs font-mono text-slate-400">{store.storeCode || '—'}</span>
+                      </div>
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-600">
+                        {store.probability}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {Array.isArray(store.drivers) && store.drivers.length > 0
+                        ? store.drivers.slice(0, 2).join(' • ')
+                        : 'No recent audit score • No in-date FRA'}
+                    </p>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
-          <div className="pt-2 px-3 pb-3 flex-1 overflow-y-auto">
-            {data.topStores.length === 0 ? (
-              <p className="text-slate-400 text-sm py-1 italic">No data available</p>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold">
+              <MapIcon size={18} className="text-blue-500" /> Planned Rounds
+            </h2>
+
+            <div className="mb-6 grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
+                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Due</p>
+                <p className="text-lg font-bold text-red-500">{dueRoutesCount}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
+                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Upcoming</p>
+                <p className="text-lg font-bold text-blue-600">{upcomingRoutesCount}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
+                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Stops</p>
+                <p className="text-lg font-bold text-slate-800">{plannedStoreCount}</p>
+              </div>
+            </div>
+
+            {plannedRouteCount === 0 ? (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+                <CalendarDays size={24} className="mx-auto mb-2 text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-800">No planned rounds scheduled.</p>
+                <p className="mt-1 text-xs text-emerald-600">You&apos;re all caught up for this week.</p>
+                <Link
+                  href="/route-planning"
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-emerald-200 bg-white py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  Create New Route
+                </Link>
+              </div>
             ) : (
-              <div className="space-y-2">
-                {data.topStores.map((store: any, idx: number) => (
-                  <div key={store.id} className="group">
-                    <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="font-medium text-slate-700 truncate w-2/3 group-hover:text-emerald-700 transition-colors flex items-center gap-2">
-                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold group-hover:bg-emerald-100 group-hover:text-emerald-700 transition-colors">
-                          {idx + 1}
-                        </span>
-                        {store.name}
+              <div className="space-y-3">
+                {nextRoutes.map((route: any) => (
+                  <div key={route.key} className="rounded-xl border border-slate-100 p-3">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-800">{route.managerName || 'Unassigned'}</p>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        {(route.stores?.length || route.storeCount || 0)} stops
                       </span>
-                      <span className="font-bold text-slate-800">{store.count}</span>
                     </div>
-                    {/* Visual Bar relative to Max */}
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" 
-                        style={{ width: `${(store.count / data.maxStoreCount) * 100}%` }}
-                      />
-                    </div>
+                    <p className="text-xs text-slate-500">
+                      {route.area || 'Unknown area'} • {route.plannedDate || 'No date'}
+                    </p>
                   </div>
                 ))}
+                <Link
+                  href="/route-planning"
+                  className="inline-flex items-center text-sm font-semibold text-blue-600 transition-colors hover:text-blue-800"
+                >
+                  Open Route Planner
+                  <ChevronRight size={14} className="ml-1" />
+                </Link>
               </div>
             )}
           </div>
-        </div>
 
-      </div>
-
-      {/* Compliance Visits Due & Planned Rounds row */}
-      <div className="grid gap-3 md:gap-4 grid-cols-1 lg:grid-cols-[10fr_3fr]">
-        <div className="h-full min-w-0">
-          <ComplianceVisitsTracking 
-            stores={data.storesNeedingSecondVisit}
-          />
-        </div>
-        <div className="h-full min-w-0">
-          <PlannedRounds 
-            plannedRoutes={data.plannedRoutes || []} 
-          />
-        </div>
-      </div>
-
-      {/* Incident Breakdown - Full width below compliance visits */}
-      {data.totalIncidents > 0 && (
-        <Card className="shadow-sm border-slate-200 bg-white rounded-2xl overflow-hidden">
-          <CardHeader className="pb-3 border-b bg-slate-50/50 px-4 md:px-6 pt-4 md:pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-sm font-bold text-slate-800">Incident Breakdown</CardTitle>
-              <div className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                {data.totalIncidents} active
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Additional Signals</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Investigating</p>
+                <p className="text-xl font-bold text-slate-900">{Number(data.underInvestigation || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-slate-400">FRA Overdue</p>
+                <p className="text-xl font-bold text-rose-700">{fraOverdueCount}</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-4 md:pt-5 px-3 md:px-6 pb-4 md:pb-6">
-            <div className="grid gap-5 md:grid-cols-2">
-              {/* By Status */}
-              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">By Status</h4>
-                {Object.keys(data.statusCounts).length === 0 ? (
-                  <p className="text-slate-400 text-xs italic">No data available</p>
-                ) : (
-                  Object.entries(data.statusCounts).map(([status, count]) => (
-                    <LabeledProgressBar 
-                      key={status} 
-                      label={status} 
-                      value={count as number} 
-                      total={data.totalIncidents} 
-                      colorClass="bg-indigo-500" 
-                    />
-                  ))
-                )}
-              </div>
-
-              {/* By Severity */}
-              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">By Severity</h4>
-                {Object.keys(data.severityCounts).length === 0 ? (
-                  <p className="text-slate-400 text-xs italic">No data available</p>
-                ) : (
-                  Object.entries(data.severityCounts).map(([severity, count]) => (
-                    <LabeledProgressBar 
-                      key={severity} 
-                      label={severity} 
-                      value={count as number} 
-                      total={data.totalIncidents} 
-                      colorClass={
-                        severity === 'critical' ? 'bg-red-600' : 
-                        severity === 'high' ? 'bg-orange-500' : 'bg-slate-500'
-                      } 
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { RoutePlanningClient } from '@/components/route-planning/route-planning-client'
 
+// Closed stores that should not appear in Route Planning.
+const ROUTE_PLANNING_EXCLUDED_STORE_CODES = new Set(['EXT-HUDDERSFIELD', 'EXT-GLASGOW'])
+
 async function getRoutePlanningData() {
   const supabase = createClient()
   const sixMonthsAgo = new Date()
@@ -99,9 +102,14 @@ async function getRoutePlanningData() {
     console.error('Error fetching profiles:', profilesError)
   }
 
-  // Filter out stores that have completed Audit 1 with score >= 80% within the last 6 months
-  // These stores don't need a second audit for 6 months
+  // Filter out closed/excluded stores and stores that have completed Audit 1 with score >= 80% within the last 6 months.
+  // These stores don't need a second audit for 6 months.
   const filteredStores = (stores || []).filter((store: any) => {
+    const storeCode = String(store.store_code || '').trim().toUpperCase()
+    if (ROUTE_PLANNING_EXCLUDED_STORE_CODES.has(storeCode)) {
+      return false
+    }
+
     // If store has completed Audit 1 with score >= 80%
     if (store.compliance_audit_1_date && store.compliance_audit_1_overall_pct !== null && store.compliance_audit_1_overall_pct >= 80) {
       const audit1Date = new Date(store.compliance_audit_1_date)

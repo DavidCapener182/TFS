@@ -4,10 +4,10 @@ import { Fragment, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { StoreModalWrapper } from '@/components/stores/store-modal-wrapper'
 import { StoreMobileCard } from '@/components/stores/store-mobile-card'
 import { Search, Store, MapPin, CheckCircle2, XCircle, Layers3 } from 'lucide-react'
 import { getDisplayStoreCode } from '@/lib/utils'
+import Link from 'next/link'
 
 interface StoreDirectoryProps {
   stores: any[]
@@ -179,11 +179,12 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
                         <TableRow key={store.id} className="align-top border-b border-slate-100 transition-colors hover:bg-slate-50/70">
                           <TableCell>
                             <div className="space-y-1">
-                              <StoreModalWrapper store={store} incidents={store.incidents} actions={store.actions}>
-                                <span className="cursor-pointer font-semibold text-indigo-600 transition-colors hover:text-indigo-800">
-                                  {store.store_name}
-                                </span>
-                              </StoreModalWrapper>
+                              <Link
+                                href={`/stores/${store.id}`}
+                                className="font-semibold text-indigo-600 transition-colors hover:text-indigo-800 hover:underline"
+                              >
+                                {store.store_name}
+                              </Link>
                               <p className="text-[11px] text-slate-500">
                                 {(store.incidents?.length || 0)} incidents • {(store.actions?.length || 0)} actions
                               </p>

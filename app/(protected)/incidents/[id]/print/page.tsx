@@ -4,6 +4,29 @@ import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import { StatusBadge } from '@/components/shared/status-badge'
 
+function normalizeJsonObject(value: any): Record<string, any> | null {
+  if (!value) return null
+  if (Array.isArray(value)) {
+    const firstObject = value.find((item) => item && typeof item === 'object')
+    return (firstObject as Record<string, any>) || null
+  }
+  if (typeof value === 'object') {
+    return value as Record<string, any>
+  }
+  return null
+}
+
+function pickString(source: Record<string, any> | null, keys: string[]) {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return null
+}
+
 async function getIncident(id: string) {
   const supabase = createClient()
   const { data: openIncident } = await supabase
@@ -101,6 +124,9 @@ export default async function IncidentPrintPage({
     getInvestigation(params.id),
     getActions(params.id),
   ])
+  const personsObject = normalizeJsonObject(incident.persons_involved)
+  const reportedByLabel = pickString(personsObject, ['reported_by_label', 'reportedByLabel'])
+  const reportedByDisplay = reportedByLabel || incident.reporter?.full_name || 'Unknown'
 
   return (
     <div className="p-8 max-w-4xl mx-auto print:p-4">
@@ -148,7 +174,7 @@ export default async function IncidentPrintPage({
           </div>
           <div>
             <div className="text-sm font-medium text-muted-foreground">Reported By</div>
-            <div className="mt-1">{incident.reporter?.full_name || 'Unknown'}</div>
+            <div className="mt-1">{reportedByDisplay}</div>
           </div>
           {incident.assigned_investigator_user_id && (
             <div>

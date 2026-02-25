@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Flame, Store, AlertCircle } from 'lucide-react'
 import { FRARow, storeNeedsFRA, getFRAStatus } from './fra-table-helpers'
 
@@ -57,47 +56,47 @@ export function FRAStatsCards({ stores, selectedArea }: FRAStatsCardsProps) {
 
   return (
     <>
-      <Card className="shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Stores Requiring FRA
             </p>
-            <p className="text-3xl font-bold text-slate-900">{stats.storesRequiringFRA}</p>
+            <p className="mt-1 text-4xl font-black text-white">{stats.storesRequiringFRA}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-orange-50 flex items-center justify-center">
-            <Flame className="h-6 w-6 text-orange-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/20 text-orange-400">
+            <Flame className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       
-      <Card className="shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               FRAs Completed
             </p>
-            <p className="text-3xl font-bold text-slate-900">{stats.frasCompleted}</p>
+            <p className="mt-1 text-4xl font-black text-white">{stats.frasCompleted}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
-            <Store className="h-6 w-6 text-emerald-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+            <Store className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Due / Overdue
             </p>
-            <p className="text-3xl font-bold text-slate-900">{stats.frasDueOrOverdue}</p>
+            <p className="mt-1 text-4xl font-black text-white">{stats.frasDueOrOverdue}</p>
           </div>
-          <div className="h-12 w-12 rounded-full bg-rose-50 flex items-center justify-center">
-            <AlertCircle className="h-6 w-6 text-rose-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/20 text-rose-400">
+            <AlertCircle className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </>
   )
 }

@@ -16,6 +16,5 @@ export async function Header() {
   const profile = await getUserProfile()
   const userName = profile?.full_name || 'User'
 
-  return <HeaderClient signOut={signOut} />
+  return <HeaderClient signOut={signOut} activeUserNames={[userName]} />
 }
-

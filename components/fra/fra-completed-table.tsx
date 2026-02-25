@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
-import { File, Trash2 } from 'lucide-react'
+import { File, Search, Trash2 } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { getDisplayStoreCode } from '@/lib/utils'
 import { 
@@ -36,6 +36,12 @@ export function FRACompletedTable({
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false)
   const [selectedPdfRow, setSelectedPdfRow] = useState<FRARow | null>(null)
   const [deletingPdf, setDeletingPdf] = useState<string | null>(null)
+  const hasActiveFilters = search.trim().length > 0 || area !== 'all'
+
+  const resetFilters = () => {
+    setSearch('')
+    setArea('all')
+  }
 
   const areaOptions = useMemo(() => {
     const set = new Set<string>()
@@ -134,16 +140,19 @@ export function FRACompletedTable({
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <Input
-            placeholder="Search store name or code"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 md:w-64 bg-white min-h-[44px]"
-          />
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search store name or code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-h-[44px] bg-white pl-9"
+            />
+          </div>
           <Select value={area} onValueChange={setArea}>
-            <SelectTrigger className="w-full sm:w-40 bg-white min-h-[44px]">
+            <SelectTrigger className="w-full sm:w-44 bg-white min-h-[44px]">
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
@@ -153,16 +162,24 @@ export function FRACompletedTable({
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="ghost"
+            onClick={resetFilters}
+            disabled={!hasActiveFilters}
+            className="min-h-[44px] text-slate-500 hover:text-slate-700"
+          >
+            Reset
+          </Button>
         </div>
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-slate-500">
           Showing {filtered.length} of {rows.length} stores
         </div>
       </div>
 
       {/* Table Container */}
-      <div className="rounded-xl border bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="rounded-2xl border desktop-table-shell shadow-sm overflow-hidden flex flex-col">
         {/* Fixed Header */}
-        <div className="hidden md:block border-b bg-white overflow-x-auto">
+        <div className="hidden md:block border-b desktop-table-head overflow-x-auto">
           <Table className="w-full border-separate border-spacing-0" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '40px' }} />
@@ -282,10 +299,10 @@ export function FRACompletedTable({
                     return (
                       <>
                         {/* Area Divider Row */}
-                        <TableRow key={`hdr-${groupKey}`} className="bg-slate-100/80 hover:bg-slate-100/80">
+                        <TableRow key={`hdr-${groupKey}`} className="desktop-group-bar hover:bg-transparent">
                           <TableCell 
                             colSpan={8} 
-                            className="py-2 px-4 bg-slate-50 border-b border-t"
+                            className="py-2 px-4 border-b border-t"
                           >
                             <span className="font-bold text-slate-700">{groupKey}</span>
                           </TableCell>

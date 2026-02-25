@@ -8,9 +8,20 @@ import { StoreSearch } from '@/components/layout/store-search'
 
 interface HeaderClientProps {
   signOut: () => void
+  activeUserNames: string[]
 }
 
-export function HeaderClient({ signOut }: HeaderClientProps) {
+function getInitials(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (parts.length === 0) return 'U'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase()
+}
+
+export function HeaderClient({ signOut, activeUserNames }: HeaderClientProps) {
   const { isOpen, setIsOpen } = useSidebar()
 
   const handleMenuClick = (e: React.MouseEvent) => {
@@ -40,6 +51,17 @@ export function HeaderClient({ signOut }: HeaderClientProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2" aria-label="Logged in users">
+          {activeUserNames.map((name, index) => (
+            <div
+              key={`${name}-${index}`}
+              title={name}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs"
+            >
+              {getInitials(name)}
+            </div>
+          ))}
+        </div>
         <form action={signOut}>
           <Button 
             type="submit" 
