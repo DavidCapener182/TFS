@@ -73,7 +73,7 @@ export default async function ProtectedLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen overflow-hidden bg-[#0e1925]">
+        <div className="flex h-screen-zoom overflow-hidden bg-[#0e1925]">
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden md:ml-64 bg-[#0e1925]">
           <Header />

@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    --app-zoom: 1;
     --background: 240 5% 96%; /* Soft grey #F6F6F8 */
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%; /* White cards */
@@ -180,6 +181,14 @@
     }
   }
   
+  /* Zoom-aware full-viewport height: use instead of h-screen when
+     ScreenZoomNormalizer may apply a CSS zoom to <html>.
+     At zoom < 1 the 100vh CSS value is smaller than the visible viewport,
+     so we divide by the zoom factor to compensate. */
+  .h-screen-zoom {
+    height: calc(100vh / var(--app-zoom, 1));
+  }
+
   /* Safe area insets for notched devices */
   .safe-top {
     padding-top: env(safe-area-inset-top);
