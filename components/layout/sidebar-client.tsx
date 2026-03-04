@@ -96,7 +96,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
               return (
                 <li key={item.href}>
                   <button
-                    onClick={() => setFeedbackOpen(true)}
+                    onClick={() => { setIsOpen(false); setFeedbackOpen(true) }}
                     className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium transition-all min-h-[44px] rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
                   >
                     <Icon className="h-5 w-5 flex-shrink-0 text-white/70" />
@@ -110,6 +110,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={() => setIsOpen(false)}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all min-h-[44px] rounded-lg',
                     isActive

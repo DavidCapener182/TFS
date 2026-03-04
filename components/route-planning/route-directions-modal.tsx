@@ -1352,7 +1352,7 @@ export function RouteDirectionsModal({
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="!inset-[2vh_2vw] !h-[96vh] !max-h-none !w-auto !max-w-none !overflow-hidden !translate-x-0 !translate-y-0 border border-slate-200 p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden">
+      <DialogContent className="!inset-[1vh_1vw] md:!inset-[2vh_2vw] !h-[98vh] md:!h-[96vh] !max-h-none !w-auto !max-w-none !overflow-hidden !translate-x-0 !translate-y-0 border border-slate-200 p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden">
         <div className="flex h-full flex-col overflow-hidden rounded-[inherit] bg-slate-50">
           <DialogHeader className="flex-none border-b border-slate-200 bg-white p-4 md:px-8 md:py-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -1414,7 +1414,7 @@ export function RouteDirectionsModal({
                     <X className="h-5 w-5" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <div className="rounded-lg border border-slate-200 border-l-4 border-l-slate-400 bg-slate-50 p-3">
                     <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Visits</p>
                     <p className="text-lg font-bold leading-none text-slate-900">

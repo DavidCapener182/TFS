@@ -479,31 +479,31 @@ export function AuditLabClient() {
           <TabsList className="inline-flex w-max min-w-full bg-slate-100 p-1 min-h-[44px] md:grid md:w-full md:max-w-[820px] md:grid-cols-5">
           <TabsTrigger 
             value="templates"
-            className="min-w-[120px] whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
+            className="whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
           >
             Templates
           </TabsTrigger>
           <TabsTrigger 
             value="active-audits"
-            className="min-w-[120px] whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
+            className="whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
           >
             Active Audits
           </TabsTrigger>
           <TabsTrigger 
             value="history"
-            className="min-w-[120px] whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
+            className="whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
           >
             History
           </TabsTrigger>
           <TabsTrigger
             value="dashboard"
-            className="min-w-[120px] whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
+            className="whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
           >
             Dashboard
           </TabsTrigger>
           <TabsTrigger
             value="import"
-            className="min-w-[120px] whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
+            className="whitespace-nowrap px-3 text-xs sm:text-sm md:min-w-0 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all"
           >
             Import Audit
           </TabsTrigger>

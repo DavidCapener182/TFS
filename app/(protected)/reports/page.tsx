@@ -559,7 +559,7 @@ function AreaNewsletterDashboardCard({
 
       </div>
 
-      <div className="mb-6 grid grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
           <div className="mb-3 inline-flex rounded-lg bg-emerald-50 p-2">
             <TrendingUp className="h-4 w-4 text-emerald-600" />
@@ -1051,7 +1051,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-6 md:p-8 bg-slate-50/50 min-h-screen">
+    <div className="flex flex-col gap-6 md:gap-8 bg-slate-50/50 min-h-screen max-w-full overflow-x-hidden">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1 flex-1 min-w-0">
