@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils'
 import { UserRole, UserProfile } from '@/lib/auth'
 import { useSidebar } from './sidebar-provider'
 import { navItems, type NavItem } from './nav-items'
+import { FeedbackModal } from '@/components/FeedbackModal'
 
-// Add activity item (not in main nav-items but needed for sidebar)
 const activityItem: NavItem = { href: '/activity', label: 'Recent Activity', icon: Activity, clientHidden: true }
 const allNavItems = [...navItems, activityItem]
 
@@ -22,6 +22,7 @@ interface SidebarClientProps {
 export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
   const pathname = usePathname()
   const { isOpen, setIsOpen } = useSidebar()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const filteredItems = (() => {
     if (userRole === 'admin') {
@@ -89,7 +90,22 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
         <ul className="space-y-2">
           {filteredItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            const isActive = !item.action && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+
+            if (item.action === 'feedback') {
+              return (
+                <li key={item.href}>
+                  <button
+                    onClick={() => setFeedbackOpen(true)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium transition-all min-h-[44px] rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0 text-white/70" />
+                    {item.label}
+                  </button>
+                </li>
+              )
+            }
+
             return (
               <li key={item.href}>
                 <Link
@@ -155,6 +171,8 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
           {sidebarContent}
         </aside>
       </>
+
+      <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   )
 }

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { SidebarProvider } from '@/components/layout/sidebar-provider'
+import { Toaster } from '@/components/ui/toaster'
+import { ReleaseNotesModal } from '@/components/ReleaseNotesModal'
 
 export default async function ProtectedLayout({
   children,
@@ -84,6 +86,8 @@ export default async function ProtectedLayout({
           </main>
         </div>
       </div>
+      <ReleaseNotesModal />
+      <Toaster />
     </SidebarProvider>
   )
 }
