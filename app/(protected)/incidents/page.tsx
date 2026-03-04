@@ -144,6 +144,21 @@ function parseFilterYear(value?: string) {
   return parsed
 }
 
+function getFiscalYear(date: Date) {
+  return date.getMonth() === 0 ? date.getFullYear() - 1 : date.getFullYear()
+}
+
+function getFiscalYearRange(fiscalYear: number) {
+  return {
+    start: `${fiscalYear}-02-01T00:00:00.000Z`,
+    end: `${fiscalYear + 1}-01-31T23:59:59.999Z`,
+  }
+}
+
+function getFiscalYearLabel(fiscalYear: number) {
+  return `FY ${fiscalYear}/${String(fiscalYear + 1).slice(-2)}`
+}
+
 async function getIncidents(filters?: IncidentFilters) {
   const supabase = createClient()
   let query = supabase
@@ -166,9 +181,10 @@ async function getIncidents(filters?: IncidentFilters) {
   }
   const year = parseFilterYear(filters?.year)
   if (year) {
+    const range = getFiscalYearRange(year)
     query = query
-      .gte('occurred_at', `${year}-01-01T00:00:00.000Z`)
-      .lte('occurred_at', `${year}-12-31T23:59:59.999Z`)
+      .gte('occurred_at', range.start)
+      .lte('occurred_at', range.end)
   }
   if (filters?.date_from) {
     const fromDate = new Date(filters.date_from)
@@ -206,9 +222,10 @@ async function getClosedIncidents(filters?: IncidentFilters) {
     }
     const year = parseFilterYear(filters?.year)
     if (year) {
+      const range = getFiscalYearRange(year)
       filtered = filtered
-        .gte('occurred_at', `${year}-01-01T00:00:00.000Z`)
-        .lte('occurred_at', `${year}-12-31T23:59:59.999Z`)
+        .gte('occurred_at', range.start)
+        .lte('occurred_at', range.end)
     }
     if (filters?.date_from) {
       const fromDate = new Date(filters.date_from)
@@ -328,9 +345,9 @@ async function getAvailableIncidentYears() {
   const yearSet = new Set<number>()
   for (const row of [...(openResult.data || []), ...(closedResult.data || [])]) {
     if (!row?.occurred_at) continue
-    const year = new Date(row.occurred_at).getUTCFullYear()
-    if (Number.isFinite(year) && !Number.isNaN(year)) {
-      yearSet.add(year)
+    const fy = getFiscalYear(new Date(row.occurred_at))
+    if (Number.isFinite(fy) && !Number.isNaN(fy)) {
+      yearSet.add(fy)
     }
   }
 
@@ -384,8 +401,8 @@ async function getClaims(filters?: IncidentFilters) {
   const year = parseFilterYear(filters?.year)
   if (year) {
     query = query
-      .gte('received_date', `${year}-01-01`)
-      .lte('received_date', `${year}-12-31`)
+      .gte('received_date', `${year}-02-01`)
+      .lte('received_date', `${year + 1}-01-31`)
   }
   if (filters?.date_from) {
     query = query.gte('received_date', filters.date_from)
@@ -591,17 +608,19 @@ export default async function IncidentsPage({
   const currentMonthKey = toMonthKey(now)
   const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const previousMonthKey = toMonthKey(previousMonthDate)
-  const currentYear = now.getFullYear()
+  const currentYear = getFiscalYear(now)
   const previousYear = currentYear - 1
 
   const incidentRows = allIncidents
     .map((incident: any) => ({ incident, date: getValidDate(incident.occurred_at) }))
     .filter((entry: any) => entry.date) as Array<{ incident: any; date: Date }>
 
-  const isYearToDate = (date: Date, year: number) => {
-    if (date.getFullYear() !== year) return false
-    if (date.getMonth() < now.getMonth()) return true
-    if (date.getMonth() > now.getMonth()) return false
+  const isYearToDate = (date: Date, fiscalYear: number) => {
+    if (getFiscalYear(date) !== fiscalYear) return false
+    const fiscalMonth = (date.getMonth() + 11) % 12
+    const nowFiscalMonth = (now.getMonth() + 11) % 12
+    if (fiscalMonth < nowFiscalMonth) return true
+    if (fiscalMonth > nowFiscalMonth) return false
     return date.getDate() <= now.getDate()
   }
 
@@ -779,7 +798,7 @@ export default async function IncidentsPage({
               <option value="all">All years</option>
               {availableYears.map((year) => (
                 <option key={year} value={year}>
-                  {year}
+                  {getFiscalYearLabel(year)}
                 </option>
               ))}
             </select>
