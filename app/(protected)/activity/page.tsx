@@ -548,42 +548,42 @@ export default async function ActivityPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 sm:p-6 md:p-7 shadow-lg">
+      <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3 sm:p-4 md:rounded-3xl md:p-7 shadow-lg">
         <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 left-8 h-56 w-56 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-slate-200">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest text-slate-200 md:px-3 md:text-[11px]">
               <ShieldCheck className="h-3.5 w-3.5" />
               System Audit Trail
             </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">Recent Activity</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
+            <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">Recent Activity</h1>
+            <p className="mt-1.5 max-w-2xl text-xs leading-snug text-slate-300 sm:text-sm md:text-base">
               Live timeline of system events, record changes, and user actions across incidents, stores, and tasks.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 md:rounded-xl md:px-3 md:py-2 md:text-xs">
             <Clock3 className="h-3.5 w-3.5 text-slate-300" />
             Last 24h: {last24HoursCount}
           </div>
         </div>
 
-        <div className="relative z-10 mt-5 grid grid-cols-2 gap-2.5 md:grid-cols-4">
-          <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+        <div className="relative z-10 mt-3 grid grid-cols-2 gap-2 md:mt-5 md:grid-cols-4 md:gap-2.5">
+          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
             <p className="text-[10px] uppercase tracking-widest text-slate-300">Events</p>
-            <p className="mt-1 text-lg font-semibold text-white">{totalActivities}</p>
+            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{totalActivities}</p>
           </div>
-          <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
             <p className="text-[10px] uppercase tracking-widest text-slate-300">Created</p>
-            <p className="mt-1 text-lg font-semibold text-white">{actionCounts.created}</p>
+            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{actionCounts.created}</p>
           </div>
-          <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
             <p className="text-[10px] uppercase tracking-widest text-slate-300">Updated</p>
-            <p className="mt-1 text-lg font-semibold text-white">{actionCounts.updated}</p>
+            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{actionCounts.updated}</p>
           </div>
-          <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
             <p className="text-[10px] uppercase tracking-widest text-slate-300">Active Users</p>
-            <p className="mt-1 text-lg font-semibold text-white">{activeUsers}</p>
+            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{activeUsers}</p>
           </div>
         </div>
       </div>

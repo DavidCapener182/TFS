@@ -852,12 +852,12 @@ export function StoreCrmPanel({
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl bg-[#0f172a] p-6 text-white shadow-xl shadow-slate-200">
+        <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-4 text-white shadow-xl shadow-slate-200 md:rounded-2xl md:p-6">
           <div className="relative z-10">
-            <h3 className="mb-1 text-lg font-bold">Operational Health</h3>
-            <p className="mb-6 text-xs text-slate-400">Real-time status tracking</p>
+            <h3 className="mb-1 text-base font-bold md:text-lg">Operational Health</h3>
+            <p className="mb-4 text-[11px] text-slate-400 md:mb-6 md:text-xs">Real-time status tracking</p>
 
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <div>
                 <div className="mb-1 flex justify-between text-xs">
                   <span className="text-slate-300">Safety Compliance</span>
