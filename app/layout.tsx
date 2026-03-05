@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Footasylum KSS",
-    statusBarStyle: "black",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: [
