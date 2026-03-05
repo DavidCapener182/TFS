@@ -15,6 +15,7 @@ export async function Header() {
   const currentUser = {
     id: profile?.id || 'unknown-user',
     name: profile?.full_name || 'User',
+    role: profile?.role || 'pending',
   }
 
   return <HeaderClient signOut={signOut} currentUser={currentUser} />

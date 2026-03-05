@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, LogOut, Menu } from 'lucide-react'
 import { useSidebar } from './sidebar-provider'
 import { cn } from '@/lib/utils'
 import { StoreSearch } from '@/components/layout/store-search'
 import { createClient } from '@/lib/supabase/client'
+import type { UserRole } from '@/lib/auth'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +23,210 @@ interface HeaderClientProps {
   currentUser: {
     id: string
     name: string
+    role: UserRole
   }
+}
+
+type OnlineUser = {
+  id: string
+  name: string
+  page: string | null
+  lastSeen: string | null
+}
+
+type ActivityDetails = {
+  old?: Record<string, unknown> | null
+  new?: Record<string, unknown> | null
+  [key: string]: unknown
+}
+
+type LatestActivity = {
+  action: string
+  entityType: string
+  entityId: string | null
+  createdAt: string
+  details: ActivityDetails | null
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  status: 'Status',
+  title: 'Title',
+  priority: 'Priority',
+  due_date: 'Due date',
+  completed_at: 'Completed at',
+  route_sequence: 'Route sequence',
+  region: 'Region',
+  store_name: 'Store name',
+  compliance_audit_1_overall_pct: 'Audit 1 score',
+  compliance_audit_1_date: 'Audit 1 date',
+  compliance_audit_2_overall_pct: 'Audit 2 score',
+  compliance_audit_2_date: 'Audit 2 date',
+  compliance_audit_2_planned_date: 'Planned route date',
+  compliance_audit_2_assigned_manager_user_id: 'Assigned route manager',
+  compliance_audit_3_overall_pct: 'Audit 3 score',
+  compliance_audit_3_date: 'Audit 3 date',
+}
+
+const CHANGE_FIELD_PRIORITY = [
+  'compliance_audit_1_overall_pct',
+  'compliance_audit_2_overall_pct',
+  'compliance_audit_3_overall_pct',
+  'compliance_audit_2_planned_date',
+  'compliance_audit_2_assigned_manager_user_id',
+  'route_sequence',
+  'status',
+  'due_date',
+  'completed_at',
+  'priority',
+]
+
+const IGNORED_CHANGE_FIELDS = new Set([
+  'id',
+  'created_at',
+  'updated_at',
+  'performed_by_user_id',
+  'reference_no',
+  'area_average_pct',
+  'total_audits_to_date',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function toLabel(raw: string): string {
+  return raw
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function formatEntityLabel(entityType: string): string {
+  const normalized = String(entityType || '').trim().toLowerCase()
+  if (!normalized) return 'Record'
+  if (normalized === 'store') return 'Store'
+  if (normalized === 'action') return 'Action'
+  if (normalized === 'incident') return 'Incident'
+  if (normalized === 'investigation') return 'Investigation'
+  return toLabel(normalized)
+}
+
+function formatActionLabel(action: string): string {
+  const normalized = String(action || '').trim().toUpperCase()
+  if (!normalized) return 'updated'
+  if (normalized === 'ROUTE_VISIT_COMPLETED') return 'route visit completed'
+  if (normalized === 'ATTACHMENT_UPLOADED') return 'attachment uploaded'
+  if (normalized === 'CREATED') return 'created'
+  if (normalized === 'UPDATED') return 'updated'
+  if (normalized === 'DELETED') return 'deleted'
+  if (normalized === 'CLOSED') return 'closed'
+  return normalized.toLowerCase().replace(/_/g, ' ')
+}
+
+function formatFieldLabel(field: string): string {
+  return FIELD_LABELS[field] || toLabel(field)
+}
+
+function formatValue(value: unknown, field?: string): string {
+  if (value === null || value === undefined) return 'blank'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'number') {
+    if (field && field.endsWith('_pct')) return `${value}%`
+    return String(value)
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return 'blank'
+    if (isUuid(trimmed)) return 'assigned user'
+
+    const isDateLike = /^\d{4}-\d{2}-\d{2}/.test(trimmed)
+    if (isDateLike) {
+      const parsed = new Date(trimmed)
+      if (Number.isNaN(parsed.getTime())) return trimmed
+      const hasTime = /T\d{2}:\d{2}/.test(trimmed)
+      return hasTime
+        ? parsed.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : parsed.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+    }
+    return trimmed
+  }
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`
+  if (isRecord(value)) return 'updated'
+  return String(value)
+}
+
+function getChangedFields(
+  details: ActivityDetails | null | undefined
+): Array<{ field: string; oldValue: unknown; newValue: unknown }> {
+  if (!isRecord(details)) return []
+  const oldData = isRecord(details.old) ? details.old : null
+  const newData = isRecord(details.new) ? details.new : null
+  if (!oldData || !newData) return []
+
+  const changes: Array<{ field: string; oldValue: unknown; newValue: unknown }> = []
+  Object.keys(newData).forEach((field) => {
+    if (IGNORED_CHANGE_FIELDS.has(field)) return
+    const oldValue = oldData[field]
+    const newValue = newData[field]
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes.push({ field, oldValue, newValue })
+    }
+  })
+  return changes
+}
+
+function sortChangedFields(
+  changes: Array<{ field: string; oldValue: unknown; newValue: unknown }>
+): Array<{ field: string; oldValue: unknown; newValue: unknown }> {
+  const priority = new Map<string, number>(CHANGE_FIELD_PRIORITY.map((field, index) => [field, index]))
+  return [...changes].sort((a, b) => {
+    const aPriority = priority.get(a.field) ?? Number.MAX_SAFE_INTEGER
+    const bPriority = priority.get(b.field) ?? Number.MAX_SAFE_INTEGER
+    if (aPriority !== bPriority) return aPriority - bPriority
+    return a.field.localeCompare(b.field)
+  })
+}
+
+function summarizeChange(change: { field: string; oldValue: unknown; newValue: unknown }): string {
+  const label = formatFieldLabel(change.field)
+  if ((change.oldValue === null || change.oldValue === undefined) && change.newValue !== null && change.newValue !== undefined) {
+    return `${label} set to ${formatValue(change.newValue, change.field)}`
+  }
+  if ((change.newValue === null || change.newValue === undefined) && change.oldValue !== null && change.oldValue !== undefined) {
+    return `${label} cleared`
+  }
+  return `${label}: ${formatValue(change.oldValue, change.field)} -> ${formatValue(change.newValue, change.field)}`
+}
+
+function formatLatestChange(activity: LatestActivity | null | undefined): string {
+  if (!activity) return 'No field-level changes captured yet'
+
+  const action = String(activity.action || '').toUpperCase()
+  const details = activity.details
+
+  if (action === 'ROUTE_VISIT_COMPLETED' && isRecord(details)) {
+    const plannedDate = typeof details.planned_date === 'string' ? formatValue(details.planned_date, 'planned_date') : null
+    const region = typeof details.region === 'string' && details.region.trim() ? details.region.trim() : null
+    if (plannedDate && region) return `Completed planned visit on ${plannedDate} (${region})`
+    if (plannedDate) return `Completed planned visit on ${plannedDate}`
+    if (region) return `Completed planned visit (${region})`
+    return 'Completed a planned route visit'
+  }
+
+  const sortedChanges = sortChangedFields(getChangedFields(details))
+  if (sortedChanges.length > 0) {
+    const topChanges = sortedChanges.slice(0, 2).map(summarizeChange)
+    const remainder = sortedChanges.length - topChanges.length
+    return remainder > 0 ? `${topChanges.join(' • ')} (+${remainder} more)` : topChanges.join(' • ')
+  }
+
+  if (action === 'CREATED') return 'Created a new record'
+  if (action === 'DELETED') return 'Deleted a record'
+  if (action === 'CLOSED') return 'Closed the record'
+  return 'Updated record details'
 }
 
 function getInitials(name: string): string {
@@ -34,14 +239,93 @@ function getInitials(name: string): string {
   return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase()
 }
 
+function getEntityPageFallback(activity: LatestActivity | null | undefined): string | null {
+  if (!activity?.entityType) return null
+  const entityType = String(activity.entityType).toLowerCase()
+
+  if (['incident', 'incidents', 'investigation', 'claim', 'closed_incident'].includes(entityType)) return '/incidents'
+  if (['action', 'actions', 'store_action'].includes(entityType)) return '/actions'
+  if (['store', 'stores'].includes(entityType)) return '/stores'
+  if (['route', 'route_planning'].includes(entityType)) return '/route-planning'
+  if (['fra', 'fire_risk_assessment'].includes(entityType)) return '/fire-risk-assessment'
+  if (['profile', 'user', 'users'].includes(entityType)) return '/admin'
+
+  return null
+}
+
+function formatPagePath(path: string | null | undefined, activity?: LatestActivity | null): string {
+  const resolvedPath = path || getEntityPageFallback(activity)
+  if (!resolvedPath) return 'No tracked page yet'
+
+  const normalizedPath = resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`
+  const cleaned = normalizedPath.split('?')[0].replace(/^\/+/, '')
+  if (!cleaned) return 'Dashboard'
+  return cleaned
+    .split('/')
+    .map((segment) =>
+      segment
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    )
+    .join(' / ')
+}
+
+function formatLatestAction(activity: LatestActivity | null | undefined): string {
+  if (!activity) return 'No recent logged action'
+  const entity = formatEntityLabel(activity.entityType)
+  const action = formatActionLabel(activity.action)
+  return `${entity} ${action}`.trim()
+}
+
+function formatTime(value: string | null | undefined, fallbackValue?: string | null | undefined): string {
+  const candidate = value || fallbackValue
+  if (!candidate) return 'No timestamp yet'
+  const date = new Date(candidate)
+  if (Number.isNaN(date.getTime())) return 'No timestamp yet'
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function getMetaTimestamp(value: unknown): number {
+  if (typeof value !== 'string') return Number.NEGATIVE_INFINITY
+  const ts = new Date(value).getTime()
+  return Number.isNaN(ts) ? Number.NEGATIVE_INFINITY : ts
+}
+
+function pickBestPresenceMeta(
+  metas: Array<{ name?: string; userName?: string; page?: string; lastSeen?: string }>
+): { name?: string; userName?: string; page?: string; lastSeen?: string } {
+  if (!Array.isArray(metas) || metas.length === 0) return {}
+
+  return metas.reduce((best, current) => {
+    const bestTs = getMetaTimestamp(best.lastSeen)
+    const currentTs = getMetaTimestamp(current.lastSeen)
+
+    if (currentTs > bestTs) return current
+    if (currentTs < bestTs) return best
+
+    const bestHasPage = typeof best.page === 'string' && best.page.trim().length > 0
+    const currentHasPage = typeof current.page === 'string' && current.page.trim().length > 0
+    if (!bestHasPage && currentHasPage) return current
+
+    const bestHasName = typeof best.name === 'string' && best.name.trim().length > 0
+    const currentHasName = typeof current.name === 'string' && current.name.trim().length > 0
+    if (!bestHasName && currentHasName) return current
+
+    return best
+  }, metas[0] || {})
+}
+
 export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   const { isOpen, setIsOpen } = useSidebar()
-  const [onlineUsers, setOnlineUsers] = useState<Array<{ id: string; name: string }>>([
-    { id: currentUser.id, name: currentUser.name },
+  const pathname = usePathname()
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([
+    { id: currentUser.id, name: currentUser.name, page: pathname || '/', lastSeen: new Date().toISOString() },
   ])
+  const [latestActivityByUser, setLatestActivityByUser] = useState<Record<string, LatestActivity>>({})
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
   const [secondsRemaining, setSecondsRemaining] = useState(0)
   const logoutFormRef = useRef<HTMLFormElement | null>(null)
+  const presenceChannelRef = useRef<any>(null)
 
   const presenceKey = useMemo(() => {
     if (currentUser.id && currentUser.id !== 'unknown-user') return currentUser.id
@@ -104,30 +388,47 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
 
   useEffect(() => {
     const supabase = createClient()
+    const initialPage = window.location.pathname || '/'
     const channel = supabase.channel('fa-online-users', {
       config: {
         presence: { key: presenceKey },
       },
     })
+    presenceChannelRef.current = channel
 
     const syncUsers = () => {
-      const state = channel.presenceState<Record<string, Array<{ name?: string; userName?: string }>>>()
-      const userMap = new Map<string, string>()
+      const state = channel.presenceState<Record<string, Array<{ name?: string; userName?: string; page?: string; lastSeen?: string }>>>()
+      const userMap = new Map<string, OnlineUser>()
 
       Object.entries(state).forEach(([key, metas]) => {
-        const meta = (metas?.[0] ?? {}) as { name?: string; userName?: string }
+        const normalizedMetas = (Array.isArray(metas) ? metas : []) as Array<{
+          name?: string
+          userName?: string
+          page?: string
+          lastSeen?: string
+        }>
+        const meta = pickBestPresenceMeta(normalizedMetas)
         const explicitName = typeof meta.name === 'string' ? meta.name.trim() : ''
         const fallbackMetaName = typeof meta.userName === 'string' ? meta.userName.trim() : ''
         const userName = explicitName || fallbackMetaName || (key === presenceKey ? currentUser.name : 'User')
-        userMap.set(key, userName)
+        userMap.set(key, {
+          id: key,
+          name: userName,
+          page: typeof meta.page === 'string' ? meta.page : null,
+          lastSeen: typeof meta.lastSeen === 'string' ? meta.lastSeen : null,
+        })
       })
 
       if (!userMap.has(presenceKey)) {
-        userMap.set(presenceKey, currentUser.name)
+        userMap.set(presenceKey, {
+          id: presenceKey,
+          name: currentUser.name,
+          page: initialPage,
+          lastSeen: new Date().toISOString(),
+        })
       }
 
-      const users = Array.from(userMap.entries())
-        .map(([id, name]) => ({ id, name }))
+      const users = Array.from(userMap.values())
         .sort((a, b) => {
           if (a.id === presenceKey) return -1
           if (b.id === presenceKey) return 1
@@ -145,18 +446,79 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
         if (status === 'SUBSCRIBED') {
           await channel.track({
             name: currentUser.name,
+            page: initialPage,
+            lastSeen: new Date().toISOString(),
           })
         }
       })
 
     return () => {
+      presenceChannelRef.current = null
       void channel.untrack()
       void supabase.removeChannel(channel)
     }
   }, [currentUser.name, presenceKey])
 
+  useEffect(() => {
+    const channel = presenceChannelRef.current
+    if (!channel) return
+
+    void channel.track({
+      name: currentUser.name,
+      page: pathname || '/',
+      lastSeen: new Date().toISOString(),
+    })
+  }, [pathname, currentUser.name])
+
+  useEffect(() => {
+    if (currentUser.role !== 'admin') return
+    if (onlineUsers.length === 0) return
+
+    const supabase = createClient()
+
+    const fetchLatestActivity = async () => {
+      const userIds = onlineUsers.map((user) => user.id).filter(isUuid)
+      if (userIds.length === 0) {
+        setLatestActivityByUser({})
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('fa_activity_log')
+        .select('performed_by_user_id, entity_type, entity_id, action, created_at, details')
+        .in('performed_by_user_id', userIds)
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      if (error || !data) return
+
+      const latestByUser: Record<string, LatestActivity> = {}
+      data.forEach((row: any) => {
+        const userId = String(row.performed_by_user_id || '')
+        if (!userId || latestByUser[userId]) return
+        latestByUser[userId] = {
+          action: String(row.action || ''),
+          entityType: String(row.entity_type || ''),
+          entityId: row.entity_id ? String(row.entity_id) : null,
+          createdAt: String(row.created_at || ''),
+          details: isRecord(row.details) ? (row.details as ActivityDetails) : null,
+        }
+      })
+
+      setLatestActivityByUser(latestByUser)
+    }
+
+    void fetchLatestActivity()
+    const interval = window.setInterval(fetchLatestActivity, 20000)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [currentUser.role, onlineUsers])
+
   const visibleUsers = onlineUsers.slice(0, 5)
   const overflowCount = Math.max(onlineUsers.length - visibleUsers.length, 0)
+  const isAdmin = currentUser.role === 'admin'
 
   return (
     <header className="no-print relative z-30 flex h-[calc(4rem+env(safe-area-inset-top))] min-h-16 items-center justify-between bg-[#0e1925] px-4 pt-[env(safe-area-inset-top)] md:h-16 md:px-6 md:pt-0 lg:px-8">
@@ -184,9 +546,33 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
             <div
               key={user.id}
               title={user.name}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs"
+              className="group relative"
             >
-              {getInitials(user.name)}
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs">
+                {getInitials(user.name)}
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[#0e1925] bg-emerald-400" />
+
+              {isAdmin ? (
+                <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-72 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs text-slate-700 shadow-lg group-hover:block">
+                  <p className="font-semibold text-slate-900">{user.name}</p>
+                  <p className="mt-1 text-slate-600">
+                    <span className="font-semibold text-slate-800">Page:</span> {formatPagePath(user.page, latestActivityByUser[user.id])}
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    <span className="font-semibold text-slate-800">Latest action:</span>{' '}
+                    {formatLatestAction(latestActivityByUser[user.id])}
+                  </p>
+                  <p className="mt-1 text-slate-600 break-words">
+                    <span className="font-semibold text-slate-800">Updated:</span>{' '}
+                    {formatLatestChange(latestActivityByUser[user.id])}
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    <span className="font-semibold text-slate-800">Seen:</span>{' '}
+                    {formatTime(user.lastSeen, latestActivityByUser[user.id]?.createdAt)}
+                  </p>
+                </div>
+              ) : null}
             </div>
           ))}
           {overflowCount > 0 ? (
