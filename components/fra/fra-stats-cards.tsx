@@ -56,44 +56,44 @@ export function FRAStatsCards({ stores, selectedArea }: FRAStatsCardsProps) {
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+      <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Stores Requiring FRA
             </p>
-            <p className="mt-1 text-4xl font-black text-white">{stats.storesRequiringFRA}</p>
+            <p className="mt-1 text-3xl font-black text-white md:text-4xl">{stats.storesRequiringFRA}</p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/20 text-orange-400">
-            <Flame className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20 text-orange-400 md:h-12 md:w-12">
+            <Flame className="h-5 w-5 md:h-6 md:w-6" />
           </div>
         </div>
       </div>
       
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+      <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               FRAs Completed
             </p>
-            <p className="mt-1 text-4xl font-black text-white">{stats.frasCompleted}</p>
+            <p className="mt-1 text-3xl font-black text-white md:text-4xl">{stats.frasCompleted}</p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-            <Store className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 md:h-12 md:w-12">
+            <Store className="h-5 w-5 md:h-6 md:w-6" />
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+      <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Due / Overdue
             </p>
-            <p className="mt-1 text-4xl font-black text-white">{stats.frasDueOrOverdue}</p>
+            <p className="mt-1 text-3xl font-black text-white md:text-4xl">{stats.frasDueOrOverdue}</p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/20 text-rose-400">
-            <AlertCircle className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/20 text-rose-400 md:h-12 md:w-12">
+            <AlertCircle className="h-5 w-5 md:h-6 md:w-6" />
           </div>
         </div>
       </div>

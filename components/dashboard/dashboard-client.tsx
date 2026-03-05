@@ -197,30 +197,30 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         />
       ) : null}
 
-      <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-6 text-white shadow-xl shadow-slate-200/50 md:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-[#0f172a] p-4 text-white shadow-xl shadow-slate-200/50 sm:p-5 md:rounded-3xl md:p-8">
         <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
         <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
 
         <div className="relative z-10">
-          <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 md:mb-8 md:flex-row md:items-center">
             <div>
               <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
                 <Activity size={14} />
                 Compliance Overview
               </div>
-              <h1 className="mb-1 text-3xl font-bold tracking-tight">Dashboard</h1>
+              <h1 className="mb-1 text-2xl font-bold tracking-tight md:text-3xl">Dashboard</h1>
               <p className="text-sm text-slate-400">
                 Real-time view of incidents, audits, and planned operations across your network.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-xs text-slate-400">
+              <span className="rounded-lg bg-slate-800 px-2.5 py-1 font-mono text-[11px] text-slate-400 md:px-3 md:py-1.5 md:text-xs">
                 Updated: {updatedTime}
               </span>
               <button
                 onClick={handleGenerateReport}
-                className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+                className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100 md:px-4 md:py-2"
               >
                 <Download size={16} />
                 Generate Report
@@ -228,47 +228,47 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
-            <div className="col-span-2 flex items-center justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-5 backdrop-blur-sm">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6 md:gap-4">
+            <div className="col-span-2 flex items-center justify-between rounded-xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm md:rounded-2xl md:p-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">Network Health</p>
-                <p className="text-4xl font-black text-emerald-400">{healthScore}%</p>
+                <p className="text-3xl font-black text-emerald-400 md:text-4xl">{healthScore}%</p>
               </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 md:h-12 md:w-12">
                 <BarChart3 size={24} />
               </div>
             </div>
 
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+            <div className="flex flex-col justify-between rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-4">
               <div className="mb-2 flex items-center gap-2 text-slate-400">
                 <AlertTriangle size={14} className="text-blue-400" />
                 <span className="text-xs font-bold uppercase">Open Incidents</span>
               </div>
-              <p className="text-2xl font-bold">{Number(data.openIncidents || 0)}</p>
+              <p className="text-xl font-bold md:text-2xl">{Number(data.openIncidents || 0)}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+            <div className="flex flex-col justify-between rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-4">
               <div className="mb-2 flex items-center gap-2 text-slate-400">
                 <Clock size={14} className="text-amber-400" />
                 <span className="text-xs font-bold uppercase">Overdue Actions</span>
               </div>
-              <p className="text-2xl font-bold">{totalOverdueActions}</p>
+              <p className="text-xl font-bold md:text-2xl">{totalOverdueActions}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+            <div className="flex flex-col justify-between rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-4">
               <div className="mb-2 flex items-center gap-2 text-slate-400">
                 <ShieldAlert size={14} className="text-red-400" />
                 <span className="text-xs font-bold uppercase">High Risk Stores</span>
               </div>
-              <p className="text-2xl font-bold text-red-400">{highRiskStoresCount}</p>
+              <p className="text-xl font-bold text-red-400 md:text-2xl">{highRiskStoresCount}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 backdrop-blur-sm">
+            <div className="flex flex-col justify-between rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-4">
               <div className="mb-2 flex items-center gap-2 text-slate-400">
                 <Flame size={14} className="text-orange-400" />
                 <span className="text-xs font-bold uppercase">FRA Required</span>
               </div>
-              <p className="text-2xl font-bold text-orange-400">{fraRequiredCount}</p>
+              <p className="text-xl font-bold text-orange-400 md:text-2xl">{fraRequiredCount}</p>
             </div>
           </div>
         </div>

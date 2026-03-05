@@ -232,34 +232,34 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-6 text-white shadow-xl shadow-slate-200/50 md:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-[#0f172a] p-4 text-white shadow-xl shadow-slate-200/50 sm:p-5 md:rounded-3xl md:p-8">
         <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
         <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
 
-        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative z-10 flex flex-col gap-4 md:gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
               <CalendarIcon size={14} />
               Calendar Overview
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">{format(currentDate, 'MMMM yyyy')}</h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{format(currentDate, 'MMMM yyyy')}</h1>
             <p className="mt-1 max-w-xl text-sm text-slate-400">
               Monthly schedule for planned visits and completed compliance activity across your managed regions.
             </p>
           </div>
 
-          <div className="grid w-full grid-cols-3 gap-3 lg:w-auto">
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 text-center backdrop-blur-sm">
+          <div className="grid w-full grid-cols-3 gap-2 md:gap-3 lg:w-auto">
+            <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Routes</p>
-              <p className="text-2xl font-bold leading-none text-white">{totalPlannedRoutes}</p>
+              <p className="text-xl font-bold leading-none text-white md:text-2xl">{totalPlannedRoutes}</p>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 text-center backdrop-blur-sm">
+            <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed</p>
-              <p className="text-2xl font-bold leading-none text-white">{totalCompletedStores}</p>
+              <p className="text-xl font-bold leading-none text-white md:text-2xl">{totalCompletedStores}</p>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-4 text-center backdrop-blur-sm">
+            <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-3 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Days</p>
-              <p className="text-2xl font-bold leading-none text-white">{activeDays}</p>
+              <p className="text-xl font-bold leading-none text-white md:text-2xl">{activeDays}</p>
             </div>
           </div>
         </div>
