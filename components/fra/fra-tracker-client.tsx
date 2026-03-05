@@ -19,32 +19,32 @@ export function FRATrackerClient({ stores, userRole }: FRATrackerClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-6 text-white shadow-xl shadow-slate-200/50 md:p-8">
+      <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-3 text-white shadow-xl shadow-slate-200/50 sm:p-4 md:rounded-3xl md:p-8">
         <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-orange-500/10 blur-3xl" />
         <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-rose-500/10 blur-3xl" />
 
-        <div className="relative z-10 space-y-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="relative z-10 space-y-3 md:space-y-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-orange-400">
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-orange-400 md:text-xs">
                 <Flame size={14} />
                 Fire Compliance Monitoring
               </div>
-              <h1 className="text-3xl font-bold tracking-tight">Fire Risk Assessment</h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-400">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Fire Risk Assessment</h1>
+              <p className="mt-1 max-w-2xl text-xs leading-snug text-slate-400 sm:text-sm">
                 Track Fire Risk Assessments for stores that have completed audits. FRAs must be renewed every 12 months.
               </p>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 transition-colors hover:bg-slate-100 sm:text-sm md:px-4 md:py-2"
             >
               <Download size={16} />
               Export Data
             </button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4">
             <FRAStatsCards stores={stores} selectedArea={areaFilter} />
           </div>
         </div>
