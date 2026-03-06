@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { persistFraRiskRatingForInstance } from '@/lib/fra/persist-risk-rating'
 
 // ============================================
 // TEMPLATE ACTIONS
@@ -406,6 +407,7 @@ export async function completeAudit(instanceId: string) {
     .from('fa_audit_instances')
     .select(`
       id,
+      template_id,
       store_id,
       conducted_at,
       created_at,
@@ -571,6 +573,17 @@ export async function completeAudit(instanceId: string) {
     if (storeDateError) {
       console.error('Failed to update store fire_risk_assessment_date in completeAudit:', storeDateError)
     }
+
+    try {
+      await persistFraRiskRatingForInstance({
+        supabase,
+        instanceId,
+        templateId: String((instanceMeta as any).template_id || ''),
+        responses: responses || [],
+      })
+    } catch (persistError) {
+      console.error('Failed to persist FRA risk rating in completeAudit:', persistError)
+    }
   }
 
   revalidatePath('/audit-lab')
@@ -669,6 +682,7 @@ export async function getAuditDashboardData() {
       conducted_at,
       created_at,
       overall_score,
+      fra_overall_risk_rating,
       status,
       fa_audit_templates (
         id,

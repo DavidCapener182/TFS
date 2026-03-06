@@ -38,6 +38,7 @@ export interface FRARow {
   fire_risk_assessment_pdf_path: string | null
   fire_risk_assessment_notes: string | null
   fire_risk_assessment_pct: number | null
+  fire_risk_assessment_rating?: string | null
 }
 
 export type FRAStatus = 'up_to_date' | 'due' | 'overdue' | 'not_required' | 'required'
@@ -141,6 +142,34 @@ export function statusBadge(status: FRAStatus, days: number | null) {
     default:
       return <span className="text-xs text-slate-400">—</span>
   }
+}
+
+export function fraRiskRatingBadge(value: string | null | undefined) {
+  if (!value) {
+    return <span className="text-xs text-slate-400">—</span>
+  }
+
+  const normalized = value.toLowerCase()
+  const tone =
+    normalized.includes('intolerable')
+      ? 'bg-rose-50 text-rose-800 border-rose-300'
+      : normalized.includes('substantial')
+        ? 'bg-orange-50 text-orange-800 border-orange-300'
+        : normalized.includes('moderate')
+          ? 'bg-amber-50 text-amber-800 border-amber-300'
+          : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'h-6 rounded-full border px-2.5 text-[11px] font-semibold leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]',
+        tone
+      )}
+    >
+      {value}
+    </Badge>
+  )
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   calculateNextDueDate,
   getFRAStatus,
   getDaysUntilDue,
+  fraRiskRatingBadge,
   statusBadge,
   storeNeedsFRA
 } from './fra-table-helpers'
@@ -238,6 +239,7 @@ export function FRACompletedTable({
               <col style={{ width: '180px' }} />
               <col style={{ width: '120px' }} />
               <col style={{ width: '120px' }} />
+              <col style={{ width: '130px' }} />
               <col style={{ width: '150px' }} />
               <col style={{ width: '150px' }} />
             </colgroup>
@@ -250,6 +252,7 @@ export function FRACompletedTable({
                 <TableHead className="bg-white">FRA Date</TableHead>
                 <TableHead className="bg-white">Next Due Date</TableHead>
                 <TableHead className="bg-white">Status</TableHead>
+                <TableHead className="bg-white">Risk Rating</TableHead>
                 <TableHead className="bg-white">PDF</TableHead>
               </TableRow>
             </TableHeader>
@@ -267,6 +270,7 @@ export function FRACompletedTable({
                     <TableHead className="bg-white">Area</TableHead>
                     <TableHead className="bg-white">Store Name</TableHead>
                     <TableHead className="bg-white">FRA Date</TableHead>
+                    <TableHead className="bg-white">Risk</TableHead>
                     <TableHead className="bg-white">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -276,7 +280,7 @@ export function FRACompletedTable({
               <TableBody>
                 {grouped.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-10">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
                       No completed FRA data found matching your filters.
                     </TableCell>
                   </TableRow>
@@ -285,7 +289,7 @@ export function FRACompletedTable({
                     return (
                       <>
                         <TableRow key={`mob-hdr-${groupKey}`} className="bg-slate-100/80 hover:bg-slate-100/80">
-                          <TableCell colSpan={4} className="py-2 px-4 bg-slate-50 border-b border-t">
+                          <TableCell colSpan={5} className="py-2 px-4 bg-slate-50 border-b border-t">
                             <span className="font-bold text-slate-700">{groupKey}</span>
                           </TableCell>
                         </TableRow>
@@ -311,6 +315,9 @@ export function FRACompletedTable({
                                 </span>
                               </TableCell>
                               <TableCell className="border-b bg-white group-hover:bg-slate-50">
+                                {fraRiskRatingBadge(row.fire_risk_assessment_rating)}
+                              </TableCell>
+                              <TableCell className="border-b bg-white group-hover:bg-slate-50">
                                 {statusBadge(status, days)}
                               </TableCell>
                             </TableRow>
@@ -334,13 +341,14 @@ export function FRACompletedTable({
                 <col style={{ width: '180px' }} />
                 <col style={{ width: '120px' }} />
                 <col style={{ width: '120px' }} />
+                <col style={{ width: '130px' }} />
                 <col style={{ width: '150px' }} />
                 <col style={{ width: '150px' }} />
               </colgroup>
               <TableBody>
                 {grouped.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
                       No completed FRA data found matching your filters.
                     </TableCell>
                   </TableRow>
@@ -351,7 +359,7 @@ export function FRACompletedTable({
                         {/* Area Divider Row */}
                         <TableRow key={`hdr-${groupKey}`} className="desktop-group-bar hover:bg-transparent">
                           <TableCell 
-                            colSpan={8} 
+                            colSpan={9} 
                             className="py-2 px-4 border-b border-t"
                           >
                             <span className="font-bold text-slate-700">{groupKey}</span>
@@ -396,6 +404,10 @@ export function FRACompletedTable({
                               
                               <TableCell className="border-b bg-white group-hover:bg-slate-50">
                                 {statusBadge(status, days)}
+                              </TableCell>
+
+                              <TableCell className="border-b bg-white group-hover:bg-slate-50">
+                                {fraRiskRatingBadge(row.fire_risk_assessment_rating)}
                               </TableCell>
                               
                               <TableCell className="border-b bg-white group-hover:bg-slate-50">

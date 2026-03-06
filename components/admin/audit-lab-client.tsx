@@ -31,6 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn, formatAppDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { getFRAStatusFromDate } from '@/lib/compliance-forecast'
+import { extractFraRiskRatingFromResponses } from '@/lib/fra/risk-rating-from-responses'
 import { 
   getTemplates, 
   getTemplate, 
@@ -97,8 +98,6 @@ const getTemplateTheme = (category?: string) => {
   }
 }
 
-const FRA_OVERALL_RISK_ORDER = ['Tolerable', 'Moderate', 'Substantial', 'Intolerable'] as const
-
 const toTitleCase = (value: string): string =>
   value
     .toLowerCase()
@@ -107,82 +106,10 @@ const toTitleCase = (value: string): string =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 
-const normalizeFraRiskRating = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) return null
-
-  const match = FRA_OVERALL_RISK_ORDER.find((risk) => risk.toLowerCase() === normalized)
-  if (match) return match
-
-  if (normalized === 'moderate harm') return 'Moderate'
-  return null
-}
-
-const extractFraRiskRating = (audit: any): string | null => {
-  const responses = Array.isArray(audit?.fa_audit_responses) ? audit.fa_audit_responses : []
-
-  for (const response of responses) {
-    const responseJson = response?.response_json && typeof response.response_json === 'object' ? response.response_json : null
-    const extractedData =
-      responseJson?.fra_extracted_data && typeof responseJson.fra_extracted_data === 'object'
-        ? responseJson.fra_extracted_data
-        : null
-    const customData =
-      responseJson?.fra_custom_data && typeof responseJson.fra_custom_data === 'object'
-        ? responseJson.fra_custom_data
-        : null
-
-    const directCandidates = [
-      responseJson?.riskRatingOverall,
-      responseJson?.actionPlanLevel,
-      responseJson?.overallRiskRating,
-      responseJson?.overall_risk_rating,
-      responseJson?.overallRisk,
-      responseJson?.overall_risk,
-      extractedData?.riskRatingOverall,
-      extractedData?.actionPlanLevel,
-      extractedData?.overallRiskRating,
-      extractedData?.overall_risk_rating,
-      extractedData?.overallRisk,
-      extractedData?.overall_risk,
-      customData?.riskRatingOverall,
-      customData?.actionPlanLevel,
-      customData?.overallRiskRating,
-      customData?.overall_risk_rating,
-      customData?.overallRisk,
-      customData?.overall_risk,
-      responseJson?.value,
-      response?.response_value,
-    ]
-
-    for (const candidate of directCandidates) {
-      const normalized = normalizeFraRiskRating(candidate)
-      if (normalized) return normalized
-    }
-
-    const questionText = String(response?.fa_audit_template_questions?.question_text || '').toLowerCase()
-    const isOverallRiskQuestion =
-      questionText.includes('overall risk') ||
-      questionText.includes('overall fire risk') ||
-      questionText.includes('risk rating')
-
-    if (!isOverallRiskQuestion) continue
-
-    const questionCandidates = [response?.response_value, responseJson?.value, responseJson]
-    for (const candidate of questionCandidates) {
-      const normalized = normalizeFraRiskRating(candidate)
-      if (normalized) return normalized
-      if (typeof candidate === 'string') {
-        for (const risk of FRA_OVERALL_RISK_ORDER) {
-          if (candidate.toLowerCase().includes(risk.toLowerCase())) return risk
-        }
-      }
-    }
-  }
-
-  return null
-}
+const extractFraRiskRating = (audit: any): string | null =>
+  (typeof audit?.fra_overall_risk_rating === 'string' && audit.fra_overall_risk_rating.trim())
+    ? audit.fra_overall_risk_rating
+    : extractFraRiskRatingFromResponses(Array.isArray(audit?.fa_audit_responses) ? audit.fa_audit_responses : [])
 
 const getFraRiskBadgeClass = (risk: string | null): string => {
   switch ((risk || '').toLowerCase()) {

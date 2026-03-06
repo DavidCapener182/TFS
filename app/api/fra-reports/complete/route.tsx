@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { persistFraRiskRatingForInstance } from '@/lib/fra/persist-risk-rating'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
       .from('fa_audit_instances')
       .select(`
         id,
+        template_id,
         store_id,
         conducted_at,
         created_at,
@@ -162,6 +164,26 @@ export async function POST(request: NextRequest) {
     if (updateStoreError) {
       console.error('Error updating store FRA date:', updateStoreError)
       // Instance is already updated; log but don't fail the request
+    }
+
+    const { data: ratingResponses, error: ratingResponsesError } = await supabase
+      .from('fa_audit_responses')
+      .select('response_value, response_json, fa_audit_template_questions(question_text)')
+      .eq('audit_instance_id', instanceId)
+
+    if (ratingResponsesError) {
+      console.error('Error loading FRA responses for risk rating persistence:', ratingResponsesError)
+    } else if (instance.template_id) {
+      try {
+        await persistFraRiskRatingForInstance({
+          supabase,
+          instanceId,
+          templateId: instance.template_id,
+          responses: ratingResponses || [],
+        })
+      } catch (persistError) {
+        console.error('Error persisting FRA risk rating during completion:', persistError)
+      }
     }
 
     return NextResponse.json({

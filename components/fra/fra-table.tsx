@@ -19,6 +19,7 @@ import {
   calculateNextDueDate,
   getFRAStatus,
   getDaysUntilDue,
+  fraRiskRatingBadge,
   statusBadge,
   storeNeedsFRA
 } from './fra-table-helpers'
@@ -304,6 +305,7 @@ export function FRATable({
             fire_risk_assessment_pdf_path: null,
             fire_risk_assessment_date: null,
             fire_risk_assessment_pct: null,
+            fire_risk_assessment_rating: null,
             fire_risk_assessment_notes: null
           }
         }
@@ -527,7 +529,7 @@ export function FRATable({
                         <div>{statusBadge(status, days)}</div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="mt-3 grid grid-cols-3 gap-2">
                         <div className="rounded-xl border bg-white/90 px-2.5 py-2">
                           <div className="text-[10px] uppercase tracking-wide text-slate-500">Last FRA</div>
                           <div className="mt-1 text-xs text-slate-700 leading-tight">{formatDate(row.fire_risk_assessment_date)}</div>
@@ -537,6 +539,10 @@ export function FRATable({
                           <div className="mt-1 text-xs text-slate-700 leading-tight">
                             {nextDue ? formatDate(nextDue.toISOString().split('T')[0]) : '—'}
                           </div>
+                        </div>
+                        <div className="rounded-xl border bg-white/90 px-2.5 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-slate-500">Risk Rating</div>
+                          <div className="mt-1">{fraRiskRatingBadge(row.fire_risk_assessment_rating)}</div>
                         </div>
                       </div>
 
@@ -673,6 +679,7 @@ export function FRATable({
                 <col style={{ width: '100px' }} />
                 <col style={{ width: '100px' }} />
                 <col style={{ width: '126px' }} />
+                <col style={{ width: '128px' }} />
                 <col style={{ width: '120px' }} />
                 <col style={{ width: '150px' }} />
                 <col style={{ width: '128px' }} />
@@ -686,6 +693,7 @@ export function FRATable({
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Last FRA Date</TableHead>
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Next Due Date</TableHead>
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Status</TableHead>
+                  <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Risk Rating</TableHead>
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">PDF</TableHead>
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Notes</TableHead>
                   <TableHead className="bg-transparent text-[11px] font-semibold uppercase tracking-wide text-slate-500">Actions</TableHead>
@@ -702,6 +710,7 @@ export function FRATable({
                   <col style={{ width: '100px' }} />
                   <col style={{ width: '100px' }} />
                   <col style={{ width: '126px' }} />
+                  <col style={{ width: '128px' }} />
                   <col style={{ width: '120px' }} />
                   <col style={{ width: '150px' }} />
                   <col style={{ width: '128px' }} />
@@ -709,7 +718,7 @@ export function FRATable({
                 <TableBody>
                   {grouped.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-10">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-10">
                         No FRA data found matching your filters.
                       </TableCell>
                     </TableRow>
@@ -720,7 +729,7 @@ export function FRATable({
                           {/* Area Divider Row */}
                           <TableRow className="desktop-group-bar hover:bg-transparent">
                             <TableCell 
-                              colSpan={10} 
+                              colSpan={11} 
                               className="py-1.5 px-4 border-y border-slate-200/70"
                             >
                               <span className="font-bold text-slate-700">{groupKey}</span>
@@ -764,6 +773,10 @@ export function FRATable({
                             
                             <TableCell className="border-b bg-white group-hover:bg-slate-50">
                               {statusBadge(status, days)}
+                            </TableCell>
+
+                            <TableCell className="border-b bg-white group-hover:bg-slate-50">
+                              {fraRiskRatingBadge(row.fire_risk_assessment_rating)}
                             </TableCell>
                             
                             <TableCell className="border-b bg-white group-hover:bg-slate-50">
