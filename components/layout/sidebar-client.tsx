@@ -118,11 +118,11 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
                   className={cn(
                     'flex min-h-[52px] items-center gap-3 px-4 py-3 text-[15px] font-medium transition-all md:min-h-[48px] md:rounded-2xl md:text-sm',
                     isActive
-                      ? 'bg-white text-slate-950 font-semibold shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)] md:bg-white/18 md:text-white md:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'
+                      ? 'bg-white text-slate-950 font-semibold shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)] md:bg-white md:text-slate-950 md:shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]'
                       : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 md:text-white/80 md:hover:bg-white/10 md:hover:text-white'
                   )}
                 >
-                  <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900 md:text-white' : 'text-slate-400 md:text-white/70')} />
+                  <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900 md:text-slate-900' : 'text-slate-400 md:text-white/70')} />
                   {item.label}
                 </Link>
               </li>
