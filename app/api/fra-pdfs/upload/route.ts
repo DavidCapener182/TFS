@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+const MAX_FRA_PDF_SIZE_BYTES = 25 * 1024 * 1024
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -23,10 +25,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only PDF files are allowed' }, { status: 400 })
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 })
+    if (file.size > MAX_FRA_PDF_SIZE_BYTES) {
+      return NextResponse.json({ error: 'File size must be less than 25MB' }, { status: 400 })
     }
 
     const fileExt = 'pdf'

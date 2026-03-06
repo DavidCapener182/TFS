@@ -10,6 +10,7 @@ import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { UserRole } from '@/lib/auth'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
 import { updateFRA } from '@/app/actions/stores'
+import { uploadFraPdfFromClient } from '@/lib/fra/upload-pdf-client'
 import { Upload, File, SlidersHorizontal, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -36,23 +37,6 @@ interface EditState {
 
 interface DeleteFRAPdfState {
   row: FRARow
-}
-
-async function parsePdfUploadResponse(response: Response): Promise<{ filePath?: string; error?: string }> {
-  const raw = await response.text()
-
-  try {
-    return JSON.parse(raw) as { filePath?: string; error?: string }
-  } catch {
-    const normalized = raw.trim()
-    if (/request entity too large/i.test(normalized) || /payload too large/i.test(normalized)) {
-      return { error: 'File size is too large to upload. Please use a smaller PDF.' }
-    }
-
-    return {
-      error: normalized || `Upload failed with status ${response.status}`,
-    }
-  }
 }
 
 export function FRATable({ 
@@ -187,23 +171,7 @@ export function FRATable({
       let pdfPath: string | null = null
       if (pdfFile) {
         try {
-          // Use FormData to upload via API route
-          const formData = new FormData()
-          formData.append('storeId', storeId)
-          formData.append('file', pdfFile)
-
-          const response = await fetch('/api/fra-pdfs/upload', {
-            method: 'POST',
-            body: formData,
-          })
-
-          const result = await parsePdfUploadResponse(response)
-
-          if (!response.ok || !result.filePath) {
-            throw new Error(result.error || 'Failed to upload PDF')
-          }
-
-          pdfPath = result.filePath
+          pdfPath = await uploadFraPdfFromClient(storeId, pdfFile)
         } catch (uploadError) {
           console.error('PDF upload error:', uploadError)
           const uploadErrorMessage = uploadError instanceof Error ? uploadError.message : 'Unknown error'
@@ -265,23 +233,7 @@ export function FRATable({
     setUploadingPdf(row.id)
     setTableMessage(null)
     try {
-      // Use FormData to upload via API route
-      const formData = new FormData()
-      formData.append('storeId', row.id)
-      formData.append('file', file)
-
-      const response = await fetch('/api/fra-pdfs/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const result = await parsePdfUploadResponse(response)
-
-      if (!response.ok || !result.filePath) {
-        throw new Error(result.error || 'Failed to upload PDF')
-      }
-
-      const uploadedFilePath = result.filePath
+      const uploadedFilePath = await uploadFraPdfFromClient(row.id, file)
 
       // Update local state
       setLocalRows(prevRows => prevRows.map(r => {

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { getFRAPDFDownloadUrl, deleteFRAPDF } from '@/app/actions/fra-pdfs'
+import { uploadFraPdfFromClient } from '@/lib/fra/upload-pdf-client'
 import { File, Search, Upload } from 'lucide-react'
 import { PDFViewerModal } from '@/components/shared/pdf-viewer-modal'
 import { getDisplayStoreCode } from '@/lib/utils'
@@ -20,23 +21,6 @@ import {
   statusBadge,
   storeNeedsFRA
 } from './fra-table-helpers'
-
-async function parsePdfUploadResponse(response: Response): Promise<{ filePath?: string; error?: string }> {
-  const raw = await response.text()
-
-  try {
-    return JSON.parse(raw) as { filePath?: string; error?: string }
-  } catch {
-    const normalized = raw.trim()
-    if (/request entity too large/i.test(normalized) || /payload too large/i.test(normalized)) {
-      return { error: 'File size is too large to upload. Please use a smaller PDF.' }
-    }
-
-    return {
-      error: normalized || `Upload failed with status ${response.status}`,
-    }
-  }
-}
 
 export function FRACompletedTable({ 
   rows, 
@@ -162,20 +146,7 @@ export function FRACompletedTable({
     setTableMessage(null)
 
     try {
-      const formData = new FormData()
-      formData.append('storeId', row.id)
-      formData.append('file', file)
-
-      const response = await fetch('/api/fra-pdfs/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const result = await parsePdfUploadResponse(response)
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to upload PDF')
-      }
+      await uploadFraPdfFromClient(row.id, file)
 
       setTableMessage({
         type: 'success',
