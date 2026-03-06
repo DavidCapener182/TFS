@@ -92,6 +92,10 @@ function getDaysUntil(date: Date): number {
   return Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+function hasAssignedArea(row: AuditRow): boolean {
+  return typeof row.region === 'string' && row.region.trim().length > 0
+}
+
 export function AuditTable({ 
   rows, 
   userRole, 
@@ -145,7 +149,11 @@ export function AuditTable({
 
   const areaOptions = useMemo(() => {
     const set = new Set<string>()
-    rows.forEach((r) => r.region && set.add(r.region))
+    rows.forEach((r) => {
+      if (hasAssignedArea(r)) {
+        set.add(r.region.trim())
+      }
+    })
     return Array.from(set).sort()
   }, [rows])
 
@@ -197,6 +205,10 @@ export function AuditTable({
 
   const filtered = useMemo(() => {
     return localRows.filter((row) => {
+      if (!hasAssignedArea(row)) {
+        return false
+      }
+
       const matchesArea = area === 'all' || row.region === area
       const term = search.trim().toLowerCase()
       const matchesSearch =
