@@ -124,6 +124,14 @@ const extractFraRiskRating = (audit: any): string | null => {
 
   for (const response of responses) {
     const responseJson = response?.response_json && typeof response.response_json === 'object' ? response.response_json : null
+    const extractedData =
+      responseJson?.fra_extracted_data && typeof responseJson.fra_extracted_data === 'object'
+        ? responseJson.fra_extracted_data
+        : null
+    const customData =
+      responseJson?.fra_custom_data && typeof responseJson.fra_custom_data === 'object'
+        ? responseJson.fra_custom_data
+        : null
 
     const directCandidates = [
       responseJson?.riskRatingOverall,
@@ -132,6 +140,18 @@ const extractFraRiskRating = (audit: any): string | null => {
       responseJson?.overall_risk_rating,
       responseJson?.overallRisk,
       responseJson?.overall_risk,
+      extractedData?.riskRatingOverall,
+      extractedData?.actionPlanLevel,
+      extractedData?.overallRiskRating,
+      extractedData?.overall_risk_rating,
+      extractedData?.overallRisk,
+      extractedData?.overall_risk,
+      customData?.riskRatingOverall,
+      customData?.actionPlanLevel,
+      customData?.overallRiskRating,
+      customData?.overall_risk_rating,
+      customData?.overallRisk,
+      customData?.overall_risk,
       responseJson?.value,
       response?.response_value,
     ]
