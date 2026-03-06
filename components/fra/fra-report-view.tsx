@@ -512,22 +512,28 @@ export function FRAReportView({ data, onDataUpdate, showPrintHeaderFooter }: FRA
   }
 
   const handleIntumescentStripsToggle = async (value: boolean) => {
-    setCustomData(prev => ({ ...prev, intumescentStripsPresent: value }))
+    const previousValue = customData.intumescentStripsPresent
+    const nextCustomData = { ...customData, intumescentStripsPresent: value }
+    setCustomData(nextCustomData)
     try {
       const response = await fetch('/api/fra-reports/save-custom-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instanceId: data.fraInstance.id,
-          customData: { ...customData, intumescentStripsPresent: value },
+          customData: nextCustomData,
         }),
       })
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to save')
       }
+
+      if (onDataUpdate) {
+        await onDataUpdate()
+      }
     } catch (e: any) {
-      setCustomData(prev => ({ ...prev, intumescentStripsPresent: !value }))
+      setCustomData(prev => ({ ...prev, intumescentStripsPresent: previousValue }))
       alert(e?.message || 'Failed to save intumescent strips setting')
     }
   }
@@ -1863,20 +1869,20 @@ export function FRAReportView({ data, onDataUpdate, showPrintHeaderFooter }: FRA
               <button
                 type="button"
                 onClick={() => handleIntumescentStripsToggle(true)}
-                className={`px-3 py-1.5 text-sm rounded ${(data.intumescentStripsPresent !== false) ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
+                className={`px-3 py-1.5 text-sm rounded ${(customData.intumescentStripsPresent !== false) ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
               >
                 Yes
               </button>
               <button
                 type="button"
                 onClick={() => handleIntumescentStripsToggle(false)}
-                className={`px-3 py-1.5 text-sm rounded ${data.intumescentStripsPresent === false ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
+                className={`px-3 py-1.5 text-sm rounded ${customData.intumescentStripsPresent === false ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
               >
                 No
               </button>
             </div>
           </div>
-          {data.intumescentStripsPresent !== false ? (
+          {customData.intumescentStripsPresent !== false ? (
             <>
               <p>
                 Intumescent strips (and where fitted, intumescent smoke seals) are present on fire-resisting doors within the premises. These strips expand when exposed to heat, sealing the gap between the door leaf and the frame and helping to prevent smoke and fire spread. This maintains the fire resistance of the door assembly and supports compartmentation, giving occupants time to evacuate.

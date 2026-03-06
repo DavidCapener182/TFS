@@ -2,10 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getFraReportFilename } from '@/lib/utils'
 import puppeteer from 'puppeteer'
+import fs from 'fs'
 
 export const dynamic = 'force-dynamic'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+function resolveChromeExecutablePath(): string | undefined {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean) as string[]
+
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate)
+    } catch {
+      return false
+    }
+  })
+}
 
 /**
  * Generate a PDF of the FRA report using Puppeteer.
@@ -34,10 +56,13 @@ export async function GET(request: NextRequest) {
     const baseUrl = `${protocol}://${host}`
     const reportUrl = `${baseUrl}/print/fra-report?instanceId=${instanceId}`
 
+    const executablePath = resolveChromeExecutablePath()
+
     // Launch Puppeteer
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      ...(executablePath ? { executablePath } : {}),
     })
 
     const page = await browser.newPage()
@@ -174,8 +199,12 @@ export async function GET(request: NextRequest) {
       } catch (_) {}
     }
     const message = error?.message || String(error)
+    const launchHint =
+      resolveChromeExecutablePath()
+        ? ''
+        : ' No Chrome executable was found. Set PUPPETEER_EXECUTABLE_PATH to your browser binary, or install one with `npx puppeteer browsers install chrome`.'
     return NextResponse.json(
-      { error: 'Failed to generate PDF', details: message },
+      { error: 'Failed to generate PDF', details: `${message}${launchHint}` },
       { status: 500 }
     )
   }
