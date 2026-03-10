@@ -5,6 +5,7 @@
 @layer base {
   :root {
     --app-zoom: 1;
+    --mobile-header-height: 0px;
     --background: 240 5% 96%; /* Soft grey #F6F6F8 */
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%; /* White cards */
@@ -103,6 +104,31 @@
   /* Touch-friendly interactions */
   button, a, input, select, textarea {
     touch-action: manipulation;
+  }
+}
+
+@media (max-width: 767px) {
+  html,
+  body {
+    min-height: 100dvh;
+  }
+
+  body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (display-mode: standalone) and (max-width: 767px) {
+  html,
+  body {
+    min-height: 100dvh;
+    height: auto;
+  }
+
+  body {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
   }
 }
 

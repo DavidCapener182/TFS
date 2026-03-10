@@ -327,6 +327,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   const [latestActivityByUser, setLatestActivityByUser] = useState<Record<string, LatestActivity>>({})
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
   const [secondsRemaining, setSecondsRemaining] = useState(0)
+  const headerRef = useRef<HTMLElement | null>(null)
   const logoutFormRef = useRef<HTMLFormElement | null>(null)
   const presenceChannelRef = useRef<any>(null)
 
@@ -340,6 +341,36 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
     e.stopPropagation()
     setIsOpen(!isOpen)
   }
+
+  useEffect(() => {
+    const root = document.documentElement
+    const updateMobileHeaderHeight = () => {
+      const headerHeight =
+        window.innerWidth < 768
+          ? Math.ceil(headerRef.current?.getBoundingClientRect().height || 0)
+          : 0
+      root.style.setProperty('--mobile-header-height', `${headerHeight}px`)
+    }
+
+    updateMobileHeaderHeight()
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => updateMobileHeaderHeight())
+        : null
+
+    if (headerRef.current && resizeObserver) {
+      resizeObserver.observe(headerRef.current)
+    }
+
+    window.addEventListener('resize', updateMobileHeaderHeight)
+
+    return () => {
+      window.removeEventListener('resize', updateMobileHeaderHeight)
+      resizeObserver?.disconnect()
+      root.style.setProperty('--mobile-header-height', '0px')
+    }
+  }, [])
 
   // Absolute session timeout: warn at 9 hours, auto-logout at 10 hours.
   useEffect(() => {
@@ -527,7 +558,10 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   const mobilePageTitle = getMobilePageTitle(pathname || '/')
 
   return (
-    <header className="no-print sticky top-0 z-30 border-b border-white/8 bg-[linear-gradient(180deg,rgba(6,22,37,0.98)_0%,rgba(5,20,33,0.94)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#0e1925] md:px-6 md:pt-0 lg:px-8">
+    <header
+      ref={headerRef}
+      className="no-print fixed inset-x-0 top-0 z-30 border-b border-white/8 bg-[linear-gradient(180deg,rgba(6,22,37,0.98)_0%,rgba(5,20,33,0.94)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#0e1925] md:px-6 md:pt-0 lg:px-8"
+    >
       <div className="flex w-full flex-col gap-3.5 pb-4 pt-3 md:flex-row md:items-center md:justify-between md:gap-4 md:pb-0 md:pt-0">
         <div className="flex items-center gap-3 md:hidden">
           <button

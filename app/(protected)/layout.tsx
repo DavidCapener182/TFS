@@ -76,12 +76,12 @@ export default async function ProtectedLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen-zoom min-h-0 overflow-hidden bg-[#071321]">
+      <div className="flex min-h-[100dvh] bg-[#071321] md:h-screen-zoom md:min-h-0 md:overflow-hidden">
         <Sidebar />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:ml-64 bg-[#0e1925]">
+        <div className="flex min-h-[100dvh] flex-1 flex-col bg-[#0e1925] md:ml-64 md:min-h-0 md:overflow-hidden">
           <Header />
-          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] bg-[#edf2f7] px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 sm:pt-4 md:bg-[#0e1925] md:p-0">
-            <div className="min-h-full max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:rounded-tl-[8px] md:rounded-tr-[0px] md:rounded-bl-[0px] md:rounded-br-[0px] md:bg-white md:p-6 md:shadow-soft lg:p-8 main-content-wrapper">
+          <main className="flex-1 overflow-x-hidden bg-[#edf2f7] px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:bg-[#0e1925] md:p-0 md:[-webkit-overflow-scrolling:touch]">
+            <div className="max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:min-h-full md:rounded-tl-[8px] md:rounded-tr-[0px] md:rounded-bl-[0px] md:rounded-br-[0px] md:bg-white md:p-6 md:shadow-soft lg:p-8 main-content-wrapper">
               {children}
             </div>
           </main>

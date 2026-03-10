@@ -394,7 +394,7 @@ export function StoreSearch() {
             <Button
               type="button"
               variant="ghost"
-              className="h-11 w-full justify-start gap-2 rounded-[18px] border border-white/10 bg-white/8 px-3 text-sm font-medium text-white/68 shadow-[0_10px_24px_rgba(2,12,24,0.14)] hover:bg-white/12 hover:text-white"
+              className="h-11 w-full justify-start gap-2 rounded-[18px] border border-white/10 bg-white/8 px-3 text-sm font-medium !text-white/70 shadow-[0_10px_24px_rgba(2,12,24,0.14)] hover:bg-white/12 hover:!text-white"
               onClick={() => {
                 setMobileSearchOpen(true)
                 // open dropdown once user types
