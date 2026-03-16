@@ -13,6 +13,13 @@ interface IncidentMobileCardProps {
   incident: any
 }
 
+function formatCompactDate(value: string | null | undefined) {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return format(parsed, 'dd MMM')
+}
+
 export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
   const category = incident.incident_category?.split('_').map((w: string) => 
     w.charAt(0).toUpperCase() + w.slice(1)
@@ -63,7 +70,7 @@ export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
               <StatusBadge status={incident.status} type="incident" />
            </div>
            <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-             {format(new Date(incident.occurred_at), 'dd MMM')}
+             {formatCompactDate(incident.occurred_at)}
            </span>
         </div>
 
