@@ -818,6 +818,24 @@ function tightenPosterPrompt(prompt: string): string {
     .replace(/^ask area managers to\s+/i, 'Area managers must ')
 }
 
+function buildPosterSummary(report: AreaNewsletterReport): string {
+  const { activeCount, highPriorityCount, overdueCount } = report.storeActionMetrics
+
+  if (overdueCount > 0) {
+    return `${overdueCount} overdue actions need immediate closure across ${activeCount} open actions in ${report.areaLabel}.`
+  }
+
+  if (highPriorityCount > 0) {
+    return `${activeCount} open actions remain, including ${highPriorityCount} high-risk items that need close area-manager follow-up.`
+  }
+
+  if (activeCount > 0) {
+    return `${activeCount} open actions remain in ${report.areaLabel}. Keep owners, due dates and evidence uploads moving to closure.`
+  }
+
+  return `No open actions are currently recorded in ${report.areaLabel}. Maintain standards and continue routine checks.`
+}
+
 function buildPosterFocusCards(report: AreaNewsletterReport): PosterFocusCard[] {
   const tones = [
     { bg: '#10b981', text: '#042f2e' },
@@ -927,7 +945,7 @@ export function MonthlyNewsletterPDF({
   )
   const posterFocusTopRow = posterFocusSlots.slice(0, 3)
   const posterFocusBottomRow = posterFocusSlots.slice(3, 6)
-  const targetCompletionLabel = report.storeActionMetrics.activeCount === 0 ? '100%' : 'Action'
+  const posterSummary = buildPosterSummary(report)
 
   return (
     <Document>
@@ -1184,10 +1202,7 @@ export function MonthlyNewsletterPDF({
             </View>
           </View>
 
-          <Text style={styles.posterTrendLine}>
-            Previous Month: Baseline pending | This Month: {report.storeActionMetrics.activeCount} Open |{' '}
-            {report.storeActionMetrics.highPriorityCount} High Risk
-          </Text>
+          <Text style={styles.posterTrendLine}>{posterSummary}</Text>
 
           <View style={styles.posterSectionTitleRow}>
             <View style={styles.posterSectionRule} />
@@ -1316,11 +1331,6 @@ export function MonthlyNewsletterPDF({
                   )}
                 </View>
               </View>
-            </View>
-
-            <View style={styles.posterTargetPanel}>
-              <Text style={styles.posterTargetValue}>{targetCompletionLabel}</Text>
-              <Text style={styles.posterTargetLabel}>Target Completion</Text>
             </View>
           </View>
 

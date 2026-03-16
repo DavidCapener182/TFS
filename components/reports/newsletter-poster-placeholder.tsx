@@ -18,6 +18,10 @@ interface PosterFocusCard {
   prompt: string
   imagePath: string
   tone: FocusTone
+  actionCount: number
+  storeCount: number
+  highPriorityCount: number
+  overdueCount: number
 }
 
 const MAX_POSTER_FOCUS_CARDS = 6
@@ -143,7 +147,7 @@ function resolveComplianceStatus(
 
 function buildFocusImageStyle(imagePath: string): React.CSSProperties {
   return {
-    backgroundImage: `url(${imagePath}), url(${FOCUS_IMAGE_FALLBACK_PATH})`,
+    backgroundImage: `linear-gradient(180deg, rgba(8,15,28,0.08) 0%, rgba(8,15,28,0.52) 100%), url(${imagePath}), url(${FOCUS_IMAGE_FALLBACK_PATH})`,
   }
 }
 
@@ -153,6 +157,10 @@ function toFocusCard(item: NewsletterStoreActionFocusItem, index: number): Poste
     prompt: tightenManagerPrompt(item.managerPrompt || ''),
     imagePath: resolveFocusImagePath(item.topic || ''),
     tone: FOCUS_TONES[index % FOCUS_TONES.length],
+    actionCount: item.actionCount,
+    storeCount: item.storeCount,
+    highPriorityCount: item.highPriorityCount,
+    overdueCount: item.overdueCount,
   }
 }
 
@@ -167,6 +175,24 @@ const focusToneClass: Record<FocusTone, string> = {
   amber: styles.priorityAmber,
   cyan: styles.priorityCyan,
   slate: styles.prioritySlate,
+}
+
+function buildPosterSummary(report: AreaNewsletterReport): string {
+  const { activeCount, highPriorityCount, overdueCount } = report.storeActionMetrics
+
+  if (overdueCount > 0) {
+    return `${overdueCount} overdue actions need immediate closure across ${activeCount} open actions in ${report.areaLabel}.`
+  }
+
+  if (highPriorityCount > 0) {
+    return `${activeCount} open actions remain, including ${highPriorityCount} high-risk items that need close area-manager follow-up.`
+  }
+
+  if (activeCount > 0) {
+    return `${activeCount} open actions remain in ${report.areaLabel}. Keep owners, due dates and evidence uploads moving to closure.`
+  }
+
+  return `No open actions are currently recorded in ${report.areaLabel}. Maintain standards and continue routine checks.`
 }
 
 export function NewsletterPosterPlaceholder({
@@ -198,6 +224,7 @@ export function NewsletterPosterPlaceholder({
       : complianceStatus === 'AMBER'
         ? styles.statusAmber
         : styles.statusRed
+  const summaryLine = buildPosterSummary(report)
 
   return (
     <section className={styles.poster} aria-label={`${report.areaLabel} poster placeholder`}>
@@ -207,20 +234,29 @@ export function NewsletterPosterPlaceholder({
       <header className={styles.header}>
         <p className={styles.brand}>FOOTASYLUM</p>
         <p className={styles.updatePill}>HEALTH &amp; SAFETY AUDIT UPDATE • {monthLabel.toUpperCase()}</p>
+        <div className={styles.headerMeta}>
+          <span className={styles.metaPill}>{report.areaLabel}</span>
+          <span className={styles.metaPillStrong}>Area Managers</span>
+          {report.areaManagerName ? <span className={styles.metaPill}>{report.areaManagerName}</span> : null}
+          {report.areaManagerEmail ? <span className={styles.metaPill}>{report.areaManagerEmail}</span> : null}
+        </div>
       </header>
 
       <div className={styles.metricsGrid}>
-        <article className={styles.metricTile}>
+        <article className={`${styles.metricTile} ${styles.metricTileActions}`}>
           <p className={styles.metricLabel}>Open Actions</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.activeCount}</p>
+          <p className={styles.metricCaption}>Need active ownership</p>
         </article>
-        <article className={styles.metricTile}>
+        <article className={`${styles.metricTile} ${styles.metricTileRisk}`}>
           <p className={styles.metricLabel}>High Risk</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.highPriorityCount}</p>
+          <p className={styles.metricCaption}>Priority review items</p>
         </article>
-        <article className={styles.metricTile}>
+        <article className={`${styles.metricTile} ${styles.metricTileOverdue}`}>
           <p className={styles.metricLabel}>Overdue</p>
           <p className={styles.metricValue}>{report.storeActionMetrics.overdueCount}</p>
+          <p className={styles.metricCaption}>Past target date</p>
         </article>
         <article className={`${styles.statusTile} ${statusClass}`}>
           <p className={styles.metricLabel}>Current Status</p>
@@ -230,10 +266,7 @@ export function NewsletterPosterPlaceholder({
         </article>
       </div>
 
-      <p className={styles.trendLine}>
-        Previous Month: Baseline pending | This Month: {report.storeActionMetrics.activeCount} Open |{' '}
-        {report.storeActionMetrics.highPriorityCount} High Risk
-      </p>
+      <p className={styles.trendLine}>{summaryLine}</p>
 
       <p className={styles.sectionTitle}>
         <span className={styles.sectionLine} />
@@ -247,7 +280,14 @@ export function NewsletterPosterPlaceholder({
             <article key={`${card.title}-${index}`} className={styles.focusCard}>
               <p className={`${styles.priorityTag} ${focusToneClass[card.tone]}`}>PRIORITY {index + 1}</p>
               <h6 className={styles.focusTitle}>{card.title}</h6>
-              <div className={styles.focusImage} style={buildFocusImageStyle(card.imagePath)} />
+              <div className={styles.focusMetaRow}>
+                <span>{card.actionCount} actions</span>
+                <span>{card.storeCount} stores</span>
+                <span>{card.overdueCount > 0 ? `${card.overdueCount} overdue` : `${card.highPriorityCount} high risk`}</span>
+              </div>
+              <div className={styles.focusImageFrame}>
+                <div className={styles.focusImage} style={buildFocusImageStyle(card.imagePath)} />
+              </div>
               <p className={styles.focusPrompt}>{card.prompt}</p>
             </article>
           ) : (
@@ -289,11 +329,6 @@ export function NewsletterPosterPlaceholder({
               )}
             </div>
           </div>
-        </div>
-
-        <div className={styles.targetPanel}>
-          <p className={styles.targetValue}>{report.storeActionMetrics.activeCount === 0 ? '100%' : 'Action'}</p>
-          <p className={styles.targetLabel}>Target Completion</p>
         </div>
       </div>
 

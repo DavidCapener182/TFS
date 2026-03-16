@@ -31,7 +31,6 @@ import type {
   MonthlyNewsletterResponse,
   NewsletterAIPromptPack,
 } from '@/lib/reports/monthly-newsletter-types'
-import { NewsletterPosterPlaceholder } from '@/components/reports/newsletter-poster-placeholder'
 
 // --- REAL IMPORTS (Uncomment these in your project) ---
 // import { requireAuth } from '@/lib/auth'
@@ -352,9 +351,14 @@ function copyComputedStylesRecursive(source: Element, target: Element): void {
 
 async function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): Promise<string> {
   const clone = cardElement.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('[data-pdf-exclude="true"]').forEach((node) => node.remove())
-
   copyComputedStylesRecursive(cardElement, clone)
+  clone.querySelectorAll('[data-pdf-exclude="true"]').forEach((node) => node.remove())
+  clone.querySelectorAll<HTMLElement>('[data-pdf-force-white-card="true"]').forEach((node) => {
+    node.style.background = '#ffffff'
+    node.style.backgroundColor = '#ffffff'
+    node.style.backgroundImage = 'none'
+    node.style.boxShadow = 'none'
+  })
 
   const embeddedFontFaceCss = await collectEmbeddedFontFaceCss()
   const width = Math.max(1, Math.ceil(cardElement.getBoundingClientRect().width))
@@ -362,6 +366,9 @@ async function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): Promi
   const rootCssVariables = collectRootCssVariableMarkup()
   const htmlClass = escapeHtmlAttribute(document.documentElement.className || '')
   const bodyClass = escapeHtmlAttribute(document.body.className || '')
+  const resolvedBodyFontFamily = escapeHtmlAttribute(
+    window.getComputedStyle(document.body).fontFamily || 'Inter, Arial, sans-serif'
+  )
   const baseHref = escapeHtmlAttribute(
     window.location.origin.endsWith('/') ? window.location.origin : `${window.location.origin}/`
   )
@@ -378,6 +385,7 @@ async function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): Promi
       html, body { margin: 0; padding: 0; background: #f8fafc; }
       body { width: ${width}px; margin: 0 auto; }
       #pdf-root { width: ${width}px; margin: 0 auto; box-sizing: border-box; }
+      html, body, #pdf-root { font-family: ${resolvedBodyFontFamily}; }
       body, #pdf-root { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style>
@@ -417,9 +425,6 @@ function AreaNewsletterDashboardCard({
     ...store,
     rank: index + 1,
   }))
-  const leaderboardSplitIndex = Math.ceil(storesWithRank.length / 2)
-  const leaderboardFirstColumn = storesWithRank.slice(0, leaderboardSplitIndex)
-  const leaderboardSecondColumn = storesWithRank.slice(leaderboardSplitIndex)
   const revisitRiskRadar = report.revisitRiskMetrics.radar.map((point) => {
     const meta = getRadarAxisMeta(point.axis)
     return {
@@ -572,7 +577,10 @@ function AreaNewsletterDashboardCard({
       </div>
 
       <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+        <div
+          className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]"
+          data-pdf-force-white-card="true"
+        >
           <div className="mb-3 inline-flex rounded-lg bg-emerald-50 p-2">
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
@@ -581,7 +589,10 @@ function AreaNewsletterDashboardCard({
             {toPercentLabel(report.auditMetrics.averageLatestScore)}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+        <div
+          className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]"
+          data-pdf-force-white-card="true"
+        >
           <div className="mb-3 inline-flex rounded-lg bg-slate-100 p-2">
             <CheckCircle2 className="h-4 w-4 text-slate-700" />
           </div>
@@ -590,7 +601,10 @@ function AreaNewsletterDashboardCard({
             {report.auditMetrics.auditsCompletedThisMonth}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+        <div
+          className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]"
+          data-pdf-force-white-card="true"
+        >
           <div className="mb-3 inline-flex rounded-lg bg-amber-50 p-2">
             <AlertCircle className="h-4 w-4 text-amber-600" />
           </div>
@@ -599,7 +613,10 @@ function AreaNewsletterDashboardCard({
             {report.auditMetrics.belowThresholdCount}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]">
+        <div
+          className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)]"
+          data-pdf-force-white-card="true"
+        >
           <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             Compliance Status
           </p>
@@ -613,7 +630,7 @@ function AreaNewsletterDashboardCard({
       </div>
 
       <div className="mb-6 grid gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-5">
+        <div className="space-y-4 xl:col-span-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h5 className="mb-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <TrendingUp className="h-3.5 w-3.5" />
@@ -718,7 +735,7 @@ function AreaNewsletterDashboardCard({
 
             <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
-                AI Revisit Prevention Alert
+                Revisit Prevention Alert
               </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-700">
                 {report.revisitRiskMetrics.narrative}
@@ -753,7 +770,7 @@ function AreaNewsletterDashboardCard({
           </div>
         </div>
 
-        <div className="xl:col-span-7">
+        <div className="space-y-4 xl:col-span-6">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
               <h5 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -764,104 +781,97 @@ function AreaNewsletterDashboardCard({
                 By audit score
               </span>
             </div>
-            <div className={`grid ${leaderboardSecondColumn.length > 0 ? 'md:grid-cols-2' : ''}`}>
-              <div className={leaderboardSecondColumn.length > 0 ? 'border-r border-slate-200' : ''}>
-                {renderLeaderboardColumn(leaderboardFirstColumn)}
-              </div>
-              {leaderboardSecondColumn.length > 0 ? (
-                <div>{renderLeaderboardColumn(leaderboardSecondColumn)}</div>
-              ) : null}
-            </div>
+            <div>{renderLeaderboardColumn(storesWithRank)}</div>
           </div>
         </div>
       </div>
 
-      <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
-        <h5 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
-          <Sparkles className="h-3.5 w-3.5" /> KSS NW Consultant Briefing
-        </h5>
-        {aiPromptPack ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
-                  Regional Summary
-                </p>
-                <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.generateBriefing}</p>
-              </div>
-              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
-                  Risk Pattern
-                </p>
-                <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.analyzeRegionalRisk}</p>
-              </div>
+      <div className="mb-6 space-y-4">
+        {report.hsAuditMetrics.highlights.length > 0 ? (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+            <h5 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
+              <BarChart3 className="h-3.5 w-3.5" /> H&S Highlights
+            </h5>
+            <div className="mb-2 text-xs text-slate-600">
+              Completed: <span className="font-semibold">{report.hsAuditMetrics.auditsCompletedThisMonth}</span>
+              {' | '}
+              Avg: <span className="font-semibold">{toPercentLabel(report.hsAuditMetrics.averageScore)}</span>
             </div>
-            <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
-                Newsletter Email Draft
-              </p>
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-700">
-                {aiPromptPack.composeNewsletter}
-              </pre>
-            </div>
-          </div>
-        ) : aiLoadingAreaCode === report.areaCode ? (
-          <div className="flex items-center gap-2 text-sm text-indigo-700">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Generating KSS NW briefing for {report.areaCode}...
-          </div>
-        ) : (
-          <p className="text-sm text-slate-600">
-            Use the top-level consultant briefing button to generate outputs for all visible areas.
-          </p>
-        )}
-      </div>
-
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
-          <h5 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
-            <BarChart3 className="h-3.5 w-3.5" /> H&S Highlights
-          </h5>
-          <div className="mb-2 text-xs text-slate-600">
-            Completed: <span className="font-semibold">{report.hsAuditMetrics.auditsCompletedThisMonth}</span>
-            {' | '}
-            Avg: <span className="font-semibold">{toPercentLabel(report.hsAuditMetrics.averageScore)}</span>
-          </div>
-          {report.hsAuditMetrics.highlights.length > 0 ? (
             <ul className="space-y-1.5 text-sm text-slate-700">
               {report.hsAuditMetrics.highlights.map((line, idx) => (
                 <li key={`${line.slice(0, 20)}-${idx}`}>{line}</li>
               ))}
             </ul>
-          ) : (
-            <p className="text-sm text-slate-600">No H&S highlights provided.</p>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
-          <h5 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          <h5 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
             <CheckCircle2 className="h-3.5 w-3.5" /> Reminders &amp; Updates
           </h5>
-          <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">Reminders</p>
-          <ul className="mb-3 space-y-1 text-sm text-slate-700">
-            {report.reminders.map((line, idx) => (
-              <li key={`r-${idx}`}>{line}</li>
-            ))}
-          </ul>
-          <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">Legislation / Policy</p>
-          <ul className="space-y-1 text-sm text-slate-700">
-            {report.legislationUpdates.map((line, idx) => (
-              <li key={`l-${idx}`}>{line}</li>
-            ))}
-          </ul>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-emerald-100 bg-white/70 p-3">
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">Reminders</p>
+              <ul className="space-y-1.5 text-sm text-slate-700">
+                {report.reminders.map((line, idx) => (
+                  <li key={`r-${idx}`}>{line}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white/70 p-3">
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">Legislation / Policy</p>
+              <ul className="space-y-1.5 text-sm text-slate-700">
+                {report.legislationUpdates.map((line, idx) => (
+                  <li key={`l-${idx}`}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4" data-pdf-exclude="true">
+          <h5 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
+            <Sparkles className="h-3.5 w-3.5" /> KSS NW Consultant Briefing
+          </h5>
+          {aiPromptPack ? (
+            <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                    Regional Summary
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.generateBriefing}</p>
+                </div>
+                <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                    Risk Pattern
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{aiPromptPack.analyzeRegionalRisk}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                  Newsletter Email Draft
+                </p>
+                <pre className="max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-700">
+                  {aiPromptPack.composeNewsletter}
+                </pre>
+              </div>
+            </div>
+          ) : aiLoadingAreaCode === report.areaCode ? (
+            <div className="flex items-center gap-2 text-sm text-indigo-700">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generating KSS NW briefing for {report.areaCode}...
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Use the top-level consultant briefing button to generate outputs for all visible areas.
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="mb-4">
-        <NewsletterPosterPlaceholder report={report} newsletterMonth={newsletterMonth} />
-      </div>
-
-      <details className="rounded-xl border border-slate-200 bg-slate-50/60">
+      <details className="rounded-xl border border-slate-200 bg-slate-50/60" data-pdf-exclude="true">
         <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
           Show newsletter copy (for email body)
         </summary>
@@ -894,6 +904,16 @@ export default function ReportsPage() {
     reminders: toLines(remindersText),
     legislationUpdates: toLines(legislationText),
   })
+
+  const visibleAvailableAreas = (newsletterData?.availableAreas ?? []).filter(
+    (area) => area.code !== 'UNASSIGNED'
+  )
+  const visibleAreaReports = (newsletterData?.areaReports ?? []).filter(
+    (report) => report.areaCode !== 'UNASSIGNED'
+  )
+  const visibleAiPromptCount = visibleAreaReports.filter(
+    (report) => newsletterAiByArea[report.areaCode]
+  ).length
 
   const handleGenerateMonthlyNewsletter = async () => {
     setNewsletterLoading(true)
@@ -978,7 +998,7 @@ export default function ReportsPage() {
   }
 
   const handleGenerateAllAiPromptPacks = async () => {
-    const reports = newsletterData?.areaReports || []
+    const reports = visibleAreaReports
     if (reports.length === 0) return
 
     setNewsletterError(null)
@@ -1147,7 +1167,7 @@ export default function ReportsPage() {
                   className="h-11 min-h-[48px] w-full rounded-[16px] border border-input bg-background px-4 py-3 text-base ring-offset-background md:h-10 md:min-h-10 md:rounded-md md:px-3 md:py-2 md:text-sm"
                 >
                   <option value="all">All Areas</option>
-                  {newsletterData?.availableAreas.map((area) => (
+                  {visibleAvailableAreas.map((area) => (
                     <option key={area.code} value={area.code}>
                       {area.label} ({area.storeCount} stores)
                     </option>
@@ -1202,7 +1222,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {newsletterData && newsletterData.areaReports.length > 0 && (
+            {newsletterData && visibleAreaReports.length > 0 && (
               <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -1214,7 +1234,7 @@ export default function ReportsPage() {
                       fills each area card automatically.
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
-                      Generated: {Object.keys(newsletterAiByArea).length}/{newsletterData.areaReports.length}
+                      Generated: {visibleAiPromptCount}/{visibleAreaReports.length}
                       {newsletterAiLoadingArea ? ` | Currently: ${newsletterAiLoadingArea}` : ''}
                     </p>
                   </div>
@@ -1239,9 +1259,9 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {newsletterData && newsletterData.areaReports.length > 0 && (
+            {newsletterData && visibleAreaReports.length > 0 && (
               <div className="space-y-5">
-                {newsletterData.areaReports.map((report) => (
+                {visibleAreaReports.map((report) => (
                   <AreaNewsletterDashboardCard
                     key={report.areaCode}
                     report={report}
@@ -1255,7 +1275,7 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {newsletterData && newsletterData.areaReports.length === 0 && !newsletterLoading && (
+            {newsletterData && visibleAreaReports.length === 0 && !newsletterLoading && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5" />
                 No area data matched this filter/month. Try selecting &quot;All Areas&quot; or a different month.
