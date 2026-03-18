@@ -104,6 +104,9 @@ export function AdminClient() {
     setInviteSuccess(null)
     try {
       const result = await inviteUserByEmail(inviteEmail.trim(), inviteRole)
+      if (!result || typeof (result as any).success !== 'boolean') {
+        throw new Error('Invite failed: unexpected response from server')
+      }
       if (result.success) {
         setInviteSuccess(result.message || 'User invited successfully')
         setInviteEmail('')
@@ -130,6 +133,9 @@ export function AdminClient() {
     setError(null)
     try {
       const result = await deleteUser(userId)
+      if (!result || typeof (result as any).success !== 'boolean') {
+        throw new Error('Delete failed: unexpected response from server')
+      }
       if (result.success) {
         // Reload users to reflect the deletion
         await loadUsers()
