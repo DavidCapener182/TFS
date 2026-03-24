@@ -105,6 +105,42 @@ Emergency Lighting Switch Photo
 Private & Confidential 22/34
 `
 
+const ANDY_DUPLICATE_DENSE_TEXT = `
+Conductedon 18.02.202614:49GMT
+Preparedby AndyMcIntosh
+FireSafety
+Areallcallpointsclearandeasilyaccessible Yes
+Atthetimeofinspectionorcallpointswereclearandaccessible.
+Photo59 Photo60 Photo61 Photo62 Photo63
+WeeklyFireTestscarriedoutanddocumented? Yes
+Weeklyfiretestsmakeuppartoftheweeklyhealthandsafetychecks.Thesearerecordedinzipline.
+Photo64
+Firedrillhasbeencarriedoutinthepast6monthsand
+Yes
+recordsavailableonsite?
+ThelastfiredrillwasactionedinOctober2025
+EvidenceofMonthlyEmergencyLighting testbeing
+Yes
+conducted?
+Emergencylightingmakesuppartofthehealthandsafetyweeklychecks.Thesearerecordedinzipline.
+LocationofFirePanel Groundfloorfireexit.
+AlarmPanelPhoto
+Photo65
+Ispanelfreeoffaults Yes
+LocationofEmergencyLightingTestSwitch(Photograph) Groundfloorstockroom
+EmergencyLightingSwitchPhoto
+Private&Confidential 22/34
+
+SignatureofPersoninChargeofstoreattimeofassessment.
+LuisaAsiedu
+18.02.202610:48GMT
+17.2.1.AuditCompletedby
+AuditCompletedby
+AndyMcIntosh
+18.02.202610:34GMT
+Private&Confidential 25/34
+`
+
 describe('FRA PDF parser', () => {
   it('prefers a locked parser variant when one is already stored', () => {
     const variant = getLockedFraParserVariantFromResponses([
@@ -149,6 +185,18 @@ describe('FRA PDF parser', () => {
     const extracted = extractFraPdfDataFromText(ANDY_DUPLICATE_PDFJS_TEXT, { variant: 'andy_duplicate' })
 
     expect(extracted.storeManager).toBe('Luisa Asiedu')
+    expect(extracted.firePanelLocation).toBe('Ground floor fire exit')
+    expect(extracted.firePanelFaults).toBe('No faults')
+    expect(extracted.emergencyLightingSwitch).toBe('Ground floor stockroom')
+    expect(extracted.weeklyFireTests).toContain('recorded in zip line')
+  })
+
+  it('extracts Andy duplicate fields from dense copied text', () => {
+    const extracted = extractFraPdfDataFromText(ANDY_DUPLICATE_DENSE_TEXT, { variant: 'andy_duplicate' })
+
+    expect(extracted.storeManager).toBe('Luisa Asiedu')
+    expect(extracted.conductedDate).toBe('18 February 2026')
+    expect(extracted.assessmentStartTime).toBe('14:49 GMT')
     expect(extracted.firePanelLocation).toBe('Ground floor fire exit')
     expect(extracted.firePanelFaults).toBe('No faults')
     expect(extracted.emergencyLightingSwitch).toBe('Ground floor stockroom')

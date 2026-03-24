@@ -105,6 +105,62 @@ const MONTH_MAP: Record<string, number> = {
   dec: 12,
 }
 
+const DENSE_AUDIT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/Conductedon/gi, 'Conducted on'],
+  [/Preparedby/gi, 'Prepared by'],
+  [/Siteconducted/gi, 'Site conducted'],
+  [/Private&Confidential/gi, 'Private & Confidential'],
+  [/GeneralSiteInformation/gi, 'General Site Information'],
+  [/StatutoryTesting/gi, 'Statutory Testing'],
+  [/FireSafety/gi, 'Fire Safety'],
+  [/SignatureofPersoninChargeofstoreattimeofassessment/gi, 'Signature of Person in Charge of store at time of assessment'],
+  [/AuditCompletedby/gi, 'Audit Completed by'],
+  [/LocationofFirePanel/gi, 'Location of Fire Panel'],
+  [/AlarmPanelPhoto/gi, 'Alarm Panel Photo'],
+  [/Ispanelfreeoffaults/gi, 'Is panel free of faults'],
+  [/LocationofEmergencyLightingTestSwitch/gi, 'Location of Emergency Lighting Test Switch'],
+  [/EmergencyLightingSwitchPhoto/gi, 'Emergency Lighting Switch Photo'],
+  [/Areallcallpointsclearandeasilyaccessible/gi, 'Are all call points clear and easily accessible'],
+  [/WeeklyFireTestscarriedoutanddocumented/gi, 'Weekly Fire Tests carried out and documented'],
+  [/Weeklyfiretestsmakeuppartoftheweeklyhealthandsafetychecks/gi, 'Weekly fire tests make up part of the weekly health and safety checks'],
+  [/Firedrillhasbeencarriedoutinthepast6monthsand/gi, 'Fire drill has been carried out in the past 6 months and'],
+  [/recordsavailableonsite/gi, 'records available on site'],
+  [/Thelastfiredrillwasactionedin/gi, 'The last fire drill was actioned in'],
+  [/EvidenceofMonthlyEmergencyLighting\s*testbeing/gi, 'Evidence of Monthly Emergency Lighting test being'],
+  [/Emergencylightingmakesuppartofthehealthandsafetyweeklychecks/gi, 'Emergency lighting makes up part of the health and safety weekly checks'],
+  [/Thesearerecordedinzip\s*line/gi, 'These are recorded in zip line'],
+  [/Atthetimeofinspection/gi, 'At the time of inspection'],
+  [/Attimeofinspection/gi, 'At time of inspection'],
+  [/Atatimeofinspection/gi, 'At a time of inspection'],
+  [/Atimeofinspection/gi, 'At time of inspection'],
+  [/Groundfloor/gi, 'Ground floor'],
+  [/Basementfloor/gi, 'Basement floor'],
+  [/backofhouse/gi, 'back of house'],
+  [/frontofhouse/gi, 'front of house'],
+  [/fireexit/gi, 'fire exit'],
+  [/callpoints/gi, 'call points'],
+  [/firedoors/gi, 'fire doors'],
+  [/floorfire/gi, 'floor fire'],
+  [/floorstock/gi, 'floor stock'],
+  [/inspectionor/gi, 'inspection or '],
+  [/pointswere/gi, 'points were '],
+  [/wereclearandaccessible/gi, 'were clear and accessible'],
+  [/doorshave/gi, 'doors have'],
+  [/wedgedopened/gi, 'wedged opened'],
+  [/foundtobe/gi, 'found to be'],
+  [/goodsafecondition/gi, 'good safe condition'],
+  [/andintact/gi, 'and intact'],
+  [/retainsits/gi, 'retains its'],
+  [/PATtestingwaslastactionedonthe/gi, 'PAT testing was last actioned on the'],
+  [/FixedElectricalWiring/gi, 'Fixed Electrical Wiring'],
+  [/FireAlarmMaintenance/gi, 'Fire Alarm Maintenance'],
+  [/Thefirealarmwaslastcheckedonthe/gi, 'The fire alarm was last checked on the'],
+  [/EmergencyLightingMaintenance/gi, 'Emergency Lighting Maintenance'],
+  [/Emergencylightingwaslastexternallycheckedonthe/gi, 'Emergency lighting was last externally checked on the'],
+  [/FireExtinguisherService/gi, 'Fire Extinguisher Service'],
+  [/Fireextinguisherswerelastservicedonthe/gi, 'Fire extinguishers were last serviced on the'],
+]
+
 const NEXT_QUESTION_BOUNDARIES: RegExp[] = [
   /location\s+of\s+fire\s+panel/i,
   /is\s+panel\s+free\s+of\s+faults\s*\??/i,
@@ -171,8 +227,24 @@ const ANDY_DUPLICATE_CONFIG: ParserConfig = {
   fireDrillAnchor: /fire\s+drill\s+has\s+been\s+carried\s+out\s+in\s+the\s+past\s+6\s+months\s+and\s+records\s+available\s+on\s+site\s*\?/i,
 }
 
+function normalizeDenseAuditText(value: string): string {
+  let normalized = value.replace(/\u00A0/g, ' ')
+
+  for (const [pattern, replacement] of DENSE_AUDIT_TEXT_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement)
+  }
+
+  normalized = normalized
+    .replace(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})(\d{1,2}:\d{2}\s*(?:am|pm|gmt|bst|utc))/gi, '$1 $2')
+    .replace(/(\d{1,2}:\d{2})(am|pm|gmt|bst|utc)\b/gi, '$1 $2')
+    .replace(/(\b\d{1,2}(?:st|nd|rd|th))of\b/gi, '$1 of')
+    .replace(/([a-z]{2,})([A-Z][a-z]{2,})/g, '$1 $2')
+
+  return normalized
+}
+
 export function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim()
+  return normalizeDenseAuditText(value).replace(/\s+/g, ' ').trim()
 }
 
 export function normalizeFraParserVariant(value: unknown): FRAParserVariant | null {
@@ -277,7 +349,7 @@ export function extractDateFromText(value: string): string | null {
 
 export function extractConductedDateFromPdfText(pdfText: string): string | null {
   const patterns = [
-    /(?:conducted on|conducted at|assessment date)[\s:]*([^\n\r]{1,80})/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[\s:]*([^\n\r]{1,80})/i,
     /conducted[\s\S]{0,100}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i,
     /conducted[\s\S]{0,100}?(\d{1,2}(?:st|nd|rd|th)?(?:\s+of)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
   ]
@@ -294,10 +366,10 @@ export function extractConductedDateFromPdfText(pdfText: string): string | null 
 
 export function extractAssessmentStartTime(text: string): string | null {
   const patterns = [
-    /(?:conducted on|conducted at|assessment date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
-    /(?:conducted on|conducted at|assessment date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
-    /(?:conducted on|conducted at|assessment date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:gmt|bst|utc))/i,
-    /(?:conducted on|conducted at|assessment date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:gmt|bst|utc))/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:gmt|bst|utc))/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:gmt|bst|utc))/i,
     /\b(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc))\b/i,
   ]
 
@@ -315,6 +387,15 @@ export function extractAssessmentStartTime(text: string): string | null {
   }
 
   return null
+}
+
+function toFlexibleWhitespaceRegex(regex: RegExp): RegExp {
+  return new RegExp(
+    regex.source
+      .replace(/\\s\+/g, '\\s*')
+      .replace(/\\s\*/g, '\\s*'),
+    regex.flags.replace(/g/g, '')
+  )
 }
 
 function normalizeLines(text: string): string[] {
@@ -349,7 +430,7 @@ function isLikelyNewQuestionLine(value: string): boolean {
 function splitBeforeNextQuestionBoundary(value: string): { before: string; hitBoundary: boolean } {
   let cutIndex = -1
   for (const pattern of NEXT_QUESTION_BOUNDARIES) {
-    const match = pattern.exec(value)
+    const match = toFlexibleWhitespaceRegex(pattern).exec(value)
     if (!match || typeof match.index !== 'number') continue
     if (cutIndex < 0 || match.index < cutIndex) cutIndex = match.index
   }
@@ -362,7 +443,7 @@ function splitBeforeNextQuestionBoundary(value: string): { before: string; hitBo
 function cutAtEarliestPattern(value: string, patterns: RegExp[]): string {
   let cutIndex = -1
   for (const pattern of patterns) {
-    const safePattern = new RegExp(pattern.source, pattern.flags.replace(/g/g, ''))
+    const safePattern = toFlexibleWhitespaceRegex(pattern)
     const match = safePattern.exec(value)
     if (!match || typeof match.index !== 'number') continue
     if (cutIndex < 0 || match.index < cutIndex) {
@@ -660,7 +741,7 @@ function combineUniqueNarratives(parts: Array<string | null | undefined>): strin
 }
 
 function findAnchorLineIndex(sectionText: string, anchorRegex: RegExp): number {
-  const safeRegex = new RegExp(anchorRegex.source, anchorRegex.flags.replace(/g/g, ''))
+  const safeRegex = toFlexibleWhitespaceRegex(anchorRegex)
   const match = safeRegex.exec(sectionText)
   if (!match || typeof match.index !== 'number') return -1
   return sectionText.slice(0, match.index).split(/\r\n?|\n/).length - 1
@@ -681,7 +762,7 @@ function parseAnchoredQuestionBlock(
   let answer: ParsedAnchoredQuestion['answer'] = null
   const commentParts: string[] = []
   const windowParts: string[] = []
-  const safeRegex = new RegExp(anchorRegex.source, anchorRegex.flags.replace(/g/g, ''))
+  const safeRegex = toFlexibleWhitespaceRegex(anchorRegex)
 
   const anchorLine = normalizeWhitespace(lines[anchorIndex] || '')
   if (anchorLine) {
@@ -754,7 +835,7 @@ export function parseYesNoQuestionBlock(
   text: string,
   questionRegex: RegExp
 ): ParsedYesNoQuestion {
-  const safeRegex = new RegExp(questionRegex.source, questionRegex.flags.replace(/g/g, ''))
+  const safeRegex = toFlexibleWhitespaceRegex(questionRegex)
   const questionMatch = safeRegex.exec(text)
   if (!questionMatch || questionMatch.index === undefined) {
     return { answer: null, comment: null }
@@ -818,7 +899,7 @@ function extractNumericAfterAnchoredLabel(sectionText: string, anchorRegex: RegE
   const anchorIndex = findAnchorLineIndex(sectionText, anchorRegex)
   if (anchorIndex < 0) return null
 
-  const safeRegex = new RegExp(anchorRegex.source, anchorRegex.flags.replace(/g/g, ''))
+  const safeRegex = toFlexibleWhitespaceRegex(anchorRegex)
   const sameLine = normalizeWhitespace(lines[anchorIndex] || '')
   const sameLineRemainder = normalizeWhitespace(
     sameLine
@@ -1007,7 +1088,7 @@ function extractBetweenAnchors(
     stripLeadingAnswer?: boolean
   }
 ): string | null {
-  const safeAnchor = new RegExp(anchorRegex.source, anchorRegex.flags.replace(/g/g, ''))
+  const safeAnchor = toFlexibleWhitespaceRegex(anchorRegex)
   const anchorMatch = safeAnchor.exec(text)
   if (!anchorMatch || typeof anchorMatch.index !== 'number') return null
 
@@ -1017,7 +1098,7 @@ function extractBetweenAnchors(
 
   let cutIndex = window.length
   for (const stopRegex of stopRegexes) {
-    const safeStop = new RegExp(stopRegex.source, stopRegex.flags.replace(/g/g, ''))
+    const safeStop = toFlexibleWhitespaceRegex(stopRegex)
     const stopMatch = safeStop.exec(window)
     if (!stopMatch || typeof stopMatch.index !== 'number') continue
     if (stopMatch.index < cutIndex) cutIndex = stopMatch.index
@@ -1180,7 +1261,7 @@ function sanitizeStoreManagerName(value: string | null | undefined): string | nu
 
 function extractStoreManagerFromSignatureBlock(text: string): string | null {
   const signatureBlock = text.match(
-    /signature\s+of\s+person\s+in\s+charge\s+of\s+store\s+at\s+time\s+of\s+assessment[.\s:]*([\s\S]{0,220})/i
+    /signature\s*of\s*person\s*in\s*charge\s*of\s*store\s*at\s*time\s*of\s*assessment[.\s:]*([\s\S]{0,220})/i
   )?.[1]
 
   if (!signatureBlock) return null
