@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
         supabase,
         instanceId,
         userId: user.id,
+        pdfText,
       })
       pdfExtractedData = extractFraPdfDataFromText(pdfText, { variant: parserVariant })
       pdfExtractedData = await enrichStoreFallbacks(pdfExtractedData, store)

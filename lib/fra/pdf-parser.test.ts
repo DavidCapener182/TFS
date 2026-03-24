@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  detectFraParserVariantFromPdfText,
   extractConductedDateFromPdfText,
   extractDateFromText,
   extractFraPdfDataFromText,
@@ -156,6 +157,12 @@ describe('FRA PDF parser', () => {
     expect(resolveFraParserVariantFromUserName('David Capener')).toBe('default')
     expect(resolveFraParserVariantFromUserName('Dave Smith')).toBe('default')
     expect(resolveFraParserVariantFromUserName('Someone Else')).toBe('default')
+  })
+
+  it('detects the Andy duplicate parser from PDF text regardless of logged-in user', () => {
+    expect(detectFraParserVariantFromPdfText(ANDY_DUPLICATE_TEXT)).toBe('andy_duplicate')
+    expect(detectFraParserVariantFromPdfText(ANDY_DUPLICATE_DENSE_TEXT)).toBe('andy_duplicate')
+    expect(detectFraParserVariantFromPdfText('Generic audit text with no duplicate markers')).toBeNull()
   })
 
   it('extracts the Andy duplicate audit format with the new parser variant', () => {

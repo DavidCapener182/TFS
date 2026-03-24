@@ -623,6 +623,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       supabase,
       instanceId: fraInstanceId,
       userId: user.id,
+      pdfText,
     })
     console.log('[FRA] Extracting data from PDF text, length:', pdfText.length, 'variant:', parserVariant)
     pdfExtractedData = extractFraPdfDataFromText(pdfText, { variant: parserVariant }) as Record<string, string | null>

@@ -262,6 +262,22 @@ export function resolveFraParserVariantFromUserName(fullName?: string | null): F
   return 'default'
 }
 
+export function detectFraParserVariantFromPdfText(pdfText?: string | null): FRAParserVariant | null {
+  const normalized = normalizeWhitespace(pdfText || '')
+  if (!normalized) return null
+
+  let andySignals = 0
+
+  if (/footasylum\s*h\s*&\s*s\s*audit\s*-\s*duplicate/i.test(normalized)) andySignals += 2
+  if (/fire\s*doors?\s*are\s*kept\s*shut\s*and\s*not\s*held\s*open/i.test(normalized)) andySignals += 1
+  if (/weekly\s*fire\s*tests?\s*carried\s*out\s*and\s*documented/i.test(normalized)) andySignals += 1
+  if (/is\s*panel\s*free\s*of\s*faults/i.test(normalized)) andySignals += 1
+  if (/location\s*of\s*emergency\s*lighting\s*test\s*switch/i.test(normalized)) andySignals += 1
+  if (/conducted\s*on\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\s*\d{1,2}:\d{2}\s*(?:gmt|bst|utc)/i.test(normalized)) andySignals += 1
+
+  return andySignals >= 2 ? 'andy_duplicate' : null
+}
+
 function formatDayMonthYear(day: number, month1Based: number, year: number): string {
   return `${day} ${MONTH_NAMES[month1Based - 1]} ${year}`
 }
@@ -2099,11 +2115,15 @@ export async function ensureLockedFraParserVariant(params: {
   instanceId: string
   userId: string
   userFullName?: string | null
+  pdfText?: string | null
 }): Promise<FRAParserVariant> {
-  const { supabase, instanceId, userId, userFullName } = params
+  const { supabase, instanceId, userId, userFullName, pdfText } = params
   const existingResponses = await loadAllFraResponseRows(supabase, instanceId)
   const lockedVariant = getLockedFraParserVariantFromResponses(existingResponses)
-  if (lockedVariant) return lockedVariant
+  const detectedVariant = detectFraParserVariantFromPdfText(pdfText)
+  if (lockedVariant && !(lockedVariant === 'default' && detectedVariant === 'andy_duplicate')) {
+    return lockedVariant
+  }
 
   let resolvedFullName = userFullName ?? null
   if (!resolvedFullName) {
@@ -2115,7 +2135,7 @@ export async function ensureLockedFraParserVariant(params: {
     resolvedFullName = profile?.full_name || null
   }
 
-  const variant = resolveFraParserVariantFromUserName(resolvedFullName)
+  const variant = detectedVariant || resolveFraParserVariantFromUserName(resolvedFullName)
   const targetResponse = await ensureFraMetadataResponseRow(supabase, instanceId, existingResponses)
   if (!targetResponse?.id) return variant
 
