@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { extractConductedDateFromPdfText, parseAuditDateString } from '@/lib/fra/pdf-parser'
 import { persistFraRiskRatingForInstance } from '@/lib/fra/persist-risk-rating'
 
 export const dynamic = 'force-dynamic'
@@ -48,64 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not a Fire Risk Assessment instance' }, { status: 400 })
     }
 
-    const buildNoonUtcDate = (year: number, month1Based: number, day: number) =>
-      new Date(Date.UTC(year, month1Based - 1, day, 12, 0, 0))
-
-    const parseAuditDateString = (raw: unknown): Date | null => {
-      if (typeof raw !== 'string') return null
-      const value = raw.trim()
-      if (!value) return null
-
-      // DD/MM/YYYY or DD-MM-YYYY
-      const dmy = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/)
-      if (dmy) {
-        const day = parseInt(dmy[1], 10)
-        const month = parseInt(dmy[2], 10)
-        let year = parseInt(dmy[3], 10)
-        if (year < 100) year += 2000
-        if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-          return buildNoonUtcDate(year, month, day)
-        }
-      }
-
-      // D Month YYYY (e.g. 10 February 2026)
-      const monthMap: Record<string, number> = {
-        jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-        jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
-      }
-      const dMonY = value.match(/^(\d{1,2})\s+([a-z]{3,9})\w*\s+(\d{4})$/i)
-      if (dMonY) {
-        const day = parseInt(dMonY[1], 10)
-        const monthName = dMonY[2].toLowerCase().slice(0, 3)
-        const year = parseInt(dMonY[3], 10)
-        const month = monthMap[monthName]
-        if (month && day >= 1 && day <= 31) {
-          return buildNoonUtcDate(year, month, day)
-        }
-      }
-
-      // ISO / browser-parseable fallback
-      const parsed = new Date(value)
-      if (!Number.isNaN(parsed.getTime())) {
-        return buildNoonUtcDate(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, parsed.getUTCDate())
-      }
-      return null
-    }
-
-    const extractConductedDateFromPdfText = (pdfText: string): Date | null => {
-      const patterns = [
-        /(?:conducted on|conducted at|assessment date)[\s:]*(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /conducted[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:conducted on|conducted at|assessment date)[\s:]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      ]
-      for (const pattern of patterns) {
-        const match = pdfText.match(pattern)
-        const parsed = parseAuditDateString(match?.[1])
-        if (parsed) return parsed
-      }
-      return null
-    }
-
     const resolveAssessmentDate = async (): Promise<{ date: Date; source: string }> => {
       const { data: responses } = await supabase
         .from('fa_audit_responses')
@@ -121,7 +64,7 @@ export async function POST(request: NextRequest) {
       for (const row of responses || []) {
         const pdfText = (row as any)?.response_json?.fra_pdf_text
         if (typeof pdfText !== 'string' || !pdfText.trim()) continue
-        const parsed = extractConductedDateFromPdfText(pdfText)
+        const parsed = parseAuditDateString(extractConductedDateFromPdfText(pdfText))
         if (parsed) return { date: parsed, source: 'fra_pdf_text' }
       }
 

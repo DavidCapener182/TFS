@@ -5,31 +5,14 @@ import { summarizeHSAuditForFRA } from '@/lib/ai/fra-summarize'
 import { getOpeningHoursFromSearch } from '@/lib/fra/opening-hours-search'
 import { getBuildDateFromSearch } from '@/lib/fra/build-date-search'
 import { getStoreDataFromGoogleSearch } from '@/lib/fra/google-store-data-search'
+import {
+  ensureLockedFraParserVariant,
+  extractDateFromText as extractAuditDateFromText,
+  extractFraPdfDataFromText,
+  parseAuditDateString,
+} from '@/lib/fra/pdf-parser'
 import { buildFRARiskSummary, computeFRARiskRating, type FRARiskFindings } from '@/lib/fra/risk-rating'
 import { getAuditInstance } from './safehub'
-
-/**
- * Extract information from PDF text using pattern matching
- */
-function extractFromPDFText(pdfText: string, patterns: { key: string; regex: RegExp; extract?: (match: RegExpMatchArray) => string }[]): Record<string, string | null> {
-  const results: Record<string, string | null> = {}
-  const normalizedText = pdfText.replace(/\s+/g, ' ').toLowerCase()
-  
-  for (const { key, regex, extract } of patterns) {
-    const match = normalizedText.match(regex)
-    if (match) {
-      if (extract) {
-        results[key] = extract(match)
-      } else {
-        results[key] = match[1]?.trim() || match[0]?.trim() || null
-      }
-    } else {
-      results[key] = null
-    }
-  }
-  
-  return results
-}
 
 type ParsedYesNoQuestion = {
   answer: 'yes' | 'no' | 'na' | null
@@ -246,13 +229,7 @@ function normalizeWhitespace(value: string): string {
 }
 
 function extractDateFromText(value: string): string | null {
-  const normalized = normalizeWhitespace(value)
-  if (!normalized) return null
-  const dated =
-    normalized.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/)?.[1]
-    || normalized.match(/\b(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})\b/i)?.[1]
-    || null
-  return dated ? normalizeWhitespace(dated) : null
+  return extractAuditDateFromText(value)
 }
 
 function isLikelyGeneralSiteLabel(value: string): boolean {
@@ -642,397 +619,13 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   // Extract data from PDF text if available
   let pdfExtractedData: Record<string, string | null> = {}
   if (pdfText) {
-    console.log('[FRA] Extracting data from PDF text, length:', pdfText.length)
-    console.log('[FRA] PDF text sample (first 1000 chars):', pdfText.substring(0, 1000))
-    
-    // Use original text (not normalized) for better matching
-    const originalText = pdfText
-
-    // Store Manager - try multiple patterns
-    let storeManagerMatch = originalText.match(/(?:signature of person in charge of store at time of assessment|signature of person in charge|person in charge)[\s:]*([^\n\r]+?)(?:\*\*|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}|pm|gmt)/i)
-    if (!storeManagerMatch) {
-      storeManagerMatch = originalText.match(/(?:store manager name|manager name)[\s:]*([^\n\r]+?)(?:\n|$)/i)
-    }
-    if (storeManagerMatch) {
-      let managerName = storeManagerMatch[1]?.trim() || ''
-      managerName = managerName.replace(/\*\*/g, '')
-        .replace(/\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}/gi, '')
-        .replace(/\d{1,2}:\d{2}\s*(?:am|pm|AM|PM)/gi, '')
-        .replace(/\d{1,2}\s+(?:am|pm|AM|PM)\s+gmt/gi, '')
-        .trim()
-      if (managerName.length > 0) {
-        pdfExtractedData.storeManager = managerName
-        console.log('[FRA] Found store manager from PDF:', managerName)
-      }
-    }
-
-    // Fire Panel Location
-    const firePanelMatch = originalText.match(/(?:location of fire panel|fire panel location)[\s:]*([^\n\r]+?)(?:\n|$|is panel|panel free)/i)
-    if (firePanelMatch) {
-      pdfExtractedData.firePanelLocation = firePanelMatch[1]?.trim() || null
-      console.log('[FRA] Found fire panel location from PDF:', pdfExtractedData.firePanelLocation)
-    }
-
-    // Fire Panel Faults
-    const firePanelFaultsQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /is panel free of faults\?/i
-    )
-    if (firePanelFaultsQuestion.answer === 'no') {
-      pdfExtractedData.firePanelFaults = firePanelFaultsQuestion.comment || 'Fault present at time of inspection'
-      console.log('[FRA] Found fire panel faults from PDF (anchored NO):', pdfExtractedData.firePanelFaults)
-    } else if (firePanelFaultsQuestion.answer === 'yes') {
-      pdfExtractedData.firePanelFaults = firePanelFaultsQuestion.comment || 'No faults'
-      console.log('[FRA] Found fire panel faults from PDF (anchored YES):', pdfExtractedData.firePanelFaults)
-    } else {
-      const firePanelFaultsMatch = originalText.match(/(?:is panel free of faults|panel free of faults|panel faults)[\s:]*([^\n\r]+?)(?:\n|$|location of emergency)/i)
-      if (firePanelFaultsMatch) {
-        pdfExtractedData.firePanelFaults = firePanelFaultsMatch[1]?.trim() || null
-        console.log('[FRA] Found fire panel faults from PDF:', pdfExtractedData.firePanelFaults)
-      }
-    }
-
-    // Emergency Lighting Switch
-    const emergencyLightingMatch = originalText.match(/(?:location of emergency lighting test switch|emergency lighting test switch|emergency lighting switch)[\s:]*([^\n\r]+?)(?:\n|$|photo|photograph)/i)
-    if (emergencyLightingMatch) {
-      pdfExtractedData.emergencyLightingSwitch = emergencyLightingMatch[1]?.trim() || null
-      console.log('[FRA] Found emergency lighting switch from PDF:', pdfExtractedData.emergencyLightingSwitch)
-    }
-
-    // Number of floors: strict extraction from the matching General Site Information label.
-    const extractedFloors = extractNumericAfterLabel(originalText, /number of floors/i)
-    if (extractedFloors) {
-      pdfExtractedData.numberOfFloors = extractedFloors
-      console.log('[FRA] Found number of floors from PDF:', extractedFloors)
-    }
-
-    // Operating Hours
-    let operatingHoursMatch = originalText.match(/(?:operating hours|trading hours|opening hours|store hours)[\s:]*([^\n\r]+?)(?:\n|$|sleeping|number of)/i)
-    if (!operatingHoursMatch) {
-      const siteInfoSection = originalText.match(/(?:general|site)[\s\S]{0,300}(?:operating|trading|opening|store)[\s:]*hours?[\s:]*([^\n\r]+?)(?:\n|$)/i)
-      if (siteInfoSection) {
-        operatingHoursMatch = siteInfoSection
-      }
-    }
-    if (operatingHoursMatch) {
-      pdfExtractedData.operatingHours = operatingHoursMatch[1]?.trim() || null
-      console.log('[FRA] Found operating hours from PDF:', pdfExtractedData.operatingHours)
-    }
-
-    // Conducted Date
-    let conductedDateMatch = originalText.match(/(?:conducted on|conducted at|assessment date)[\s:]*(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i)
-    if (!conductedDateMatch) {
-      const conductedSection = originalText.match(/conducted[\s\S]{0,100}(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i)
-      if (conductedSection) {
-        conductedDateMatch = conductedSection
-      }
-    }
-    if (conductedDateMatch) {
-      pdfExtractedData.conductedDate = conductedDateMatch[1] || null
-      console.log('[FRA] Found conducted date from PDF:', pdfExtractedData.conductedDate)
-    }
-
-    // Square footage: strict extraction from its own label only.
-    const extractedSquareFootage = extractSquareFootageAfterLabel(originalText)
-    if (extractedSquareFootage) {
-      pdfExtractedData.squareFootage = extractedSquareFootage
-      console.log('[FRA] Found square footage from PDF:', extractedSquareFootage)
-    }
-
-    // H&S audit evidence for FRA: parse exact question blocks before fallback inference.
-    const fireExitRoutesQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /fire exit routes clear and unobstructed\?/i
-    )
-    if (fireExitRoutesQuestion.comment) {
-      pdfExtractedData.escapeRoutesEvidence = fireExitRoutesQuestion.comment
-    }
-    if (fireExitRoutesQuestion.answer === 'no') {
-      pdfExtractedData.escapeRoutesObstructed = 'yes'
-      console.log('[FRA] Found fire exit routes question = NO')
-    }
-
-    // Conservative fallback: only treat as obstruction when clearly negative (not "unobstructed").
-    if (!pdfExtractedData.escapeRoutesObstructed) {
-      const explicitObstruction = originalText.match(/\b(?:fire\s+exit|escape\s+route|delivery\s+door)s?\b[\s\S]{0,80}\b(?:blocked|partially\s+blocked|restricted)\b/i)
-      if (explicitObstruction && !/\bunobstructed\b/i.test(explicitObstruction[0])) {
-        pdfExtractedData.escapeRoutesObstructed = 'yes'
-        console.log('[FRA] Found explicit escape obstruction from PDF text')
-      }
-    }
-
-    // Combustible storage / escape route compromise: use exact question answer.
-    const combustibleStorageQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /combustible materials are stored correctly\?/i
-    )
-    if (combustibleStorageQuestion.answer === 'no') {
-      pdfExtractedData.combustibleStorageEscapeCompromise = 'yes'
-      console.log('[FRA] Found combustible materials question = NO')
-    } else if (combustibleStorageQuestion.answer === 'yes') {
-      pdfExtractedData.combustibleStorageEscapeCompromise = 'no'
-    }
-
-    // Fire doors held open / blocked: use exact question answer first.
-    const fireDoorsHeldOpenQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /fire doors closed and not held open\?/i
-    )
-    if (fireDoorsHeldOpenQuestion.answer === 'no') {
-      pdfExtractedData.fireDoorsHeldOpen = 'yes'
-      console.log('[FRA] Found fire doors question = NO (held open)')
-    } else if (fireDoorsHeldOpenQuestion.answer === 'yes') {
-      pdfExtractedData.fireDoorsHeldOpen = 'no'
-    }
-    if (fireDoorsHeldOpenQuestion.comment) {
-      pdfExtractedData.fireDoorsHeldOpenComment = fireDoorsHeldOpenQuestion.comment
-    }
-
-    const fireDoorsBlockedMatch = originalText.match(
-      /\b(fire door(?:s)?|door(?:s)?)\b[\s\S]{0,60}\b(blocked|obstructed|restricted|impeded)\b/i
-    )
-    if (fireDoorsBlockedMatch && !/\bnot blocked|unobstructed\b/i.test(fireDoorsBlockedMatch[0])) {
-      pdfExtractedData.fireDoorsBlocked = 'yes'
-      console.log('[FRA] Found fire doors blocked signal from PDF')
-    }
-
-    // Fire safety training shortfall (toolbox not 100%, induction incomplete)
-    const trainingShortfallMatch = originalText.match(/(?:toolbox|fire\s+safety\s+training).*?(?:not\s+100%|incomplete)/i)
-      || originalText.match(/(?:induction\s+training).*?incomplete/i)
-      || originalText.match(/training\s+not\s+at\s+100%|incomplete\s+for\s+(?:two\s+)?staff/i)
-    if (trainingShortfallMatch) {
-      pdfExtractedData.fireSafetyTrainingShortfall = 'yes'
-      console.log('[FRA] Found fire safety training shortfall from PDF')
-    }
-
-    const trainingCompletionMatch =
-      originalText.match(/(?:toolbox(?:\s+refresher)?\s+training|refresher\s+training|completion\s+rate)[\s\S]{0,180}?(\d{1,3}(?:\.\d+)?)\s*%/i)
-      || originalText.match(/standing\s+at\s+(\d{1,3}(?:\.\d+)?)\s*%/i)
-    if (trainingCompletionMatch) {
-      const parsedCompletion = Number.parseFloat(trainingCompletionMatch[1])
-      if (Number.isFinite(parsedCompletion)) {
-        pdfExtractedData.trainingCompletionRate = String(parsedCompletion)
-        console.log('[FRA] Found training completion rate from PDF:', pdfExtractedData.trainingCompletionRate)
-      }
-    }
-
-    // Number of fire exits: strict extraction from the General Site Information label.
-    const extractedFireExits = extractNumericAfterLabel(originalText, /number of fire exits/i)
-    if (extractedFireExits) {
-      pdfExtractedData.numberOfFireExits = extractedFireExits
-      console.log('[FRA] Found number of fire exits from PDF:', extractedFireExits)
-    }
-
-    // HIGH PRIORITY: Staff numbers - multiple patterns for different formats
-    const totalStaffPatterns = [
-      /(?:number of staff employed|staff employed)[\s:]*(\d+)/i,
-      /(?:total staff|total employees)[\s:]*(\d+)/i,
-      /(?:staff|employees)[\s:]+(\d+)(?!\s*(?:working|on site|at any))/i,
-      /general site information[\s\S]{0,300}(?:staff employed|number of staff)[\s:]*(\d+)/i,
-    ]
-    for (const pattern of totalStaffPatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.totalStaffEmployed = match[1]
-        console.log('[FRA] Found total staff employed from PDF:', pdfExtractedData.totalStaffEmployed)
-        break
-      }
-    }
-
-    // Maximum staff on site - multiple patterns
-    const maxStaffPatterns = [
-      /(?:maximum number of staff working|maximum staff working|max staff working)[\s\S]{0,30}?(\d+)/i,
-      /(?:maximum.*staff.*at any.*time)[\s:]*(\d+)/i,
-      /(?:max staff|maximum staff)[\s:]*(\d+)/i,
-      /(?:staff working at any one time)[\s:]*(\d+)/i,
-      /general site information[\s\S]{0,400}(?:maximum.*staff|max.*staff)[\s\S]{0,30}?(\d+)/i,
-    ]
-    for (const pattern of maxStaffPatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.maxStaffOnSite = match[1]
-        console.log('[FRA] Found max staff on site from PDF:', pdfExtractedData.maxStaffOnSite)
-        break
-      }
-    }
-
-    // HIGH PRIORITY: Young persons - multiple patterns
-    // NOTE: Do NOT match "under 18" as it captures the 18 from the phrase itself
-    const youngPersonsPatterns = [
-      /(?:young persons employed|young persons)[\s:]*(\d+)/i,
-      /(?:young person)[\s:]+(\d+)/i,
-      /(?:number of young persons)[\s:]*(\d+)/i,
-      /general site information[\s\S]{0,400}(?:young person)[\s:]+(\d+)/i,
-    ]
-    for (const pattern of youngPersonsPatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.youngPersonsCount = match[1]
-        console.log('[FRA] Found young persons count from PDF:', pdfExtractedData.youngPersonsCount)
-        break
-      }
-    }
-
-    // Fire drill date: use exact question comment first, then fallback patterns.
-    const fireDrillQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /fire drill has been carried out in the past 6 months and records available on site\?/i
-    )
-    const fireDrillDateFromQuestion = extractDateFromText(fireDrillQuestion.comment || '')
-    if (fireDrillDateFromQuestion) {
-      pdfExtractedData.fireDrillDate = fireDrillDateFromQuestion
-    } else if (
-      fireDrillQuestion.answer === 'yes'
-      && fireDrillQuestion.comment
-      && /no date|not been recorded|not recorded/i.test(fireDrillQuestion.comment)
-    ) {
-      pdfExtractedData.fireDrillDate = 'Not recorded (drill marked complete)'
-    }
-    if (!pdfExtractedData.fireDrillDate) {
-      const fireDrillPatterns = [
-        /(?:fire drill|last drill|drill.*carried out|evacuation drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:fire drill|last drill|drill.*carried out)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:drill|evacuation).*?(?:date|carried out|conducted)[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:fire drill has been carried out)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-        /(?:when was.*drill|last fire drill)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      ]
-      for (const pattern of fireDrillPatterns) {
-        const match = originalText.match(pattern)
-        if (match) {
-          pdfExtractedData.fireDrillDate = match[1]
-          break
-        }
-      }
-    }
-    if (pdfExtractedData.fireDrillDate) {
-      console.log('[FRA] Found fire drill date from PDF:', pdfExtractedData.fireDrillDate)
-    }
-
-    // PAT/electrical testing status: exact PAT question first.
-    const patQuestion = parseYesNoQuestionBlock(originalText, /\bPAT\?/i)
-    const patDateFromQuestion = extractDateFromText(patQuestion.comment || '')
-    if (patQuestion.answer === 'yes') {
-      pdfExtractedData.patTestingStatus = patDateFromQuestion
-        ? `Satisfactory, last conducted ${patDateFromQuestion}`
-        : (patQuestion.comment || 'Satisfactory')
-    } else if (patQuestion.answer === 'no') {
-      pdfExtractedData.patTestingStatus = patQuestion.comment || 'Unsatisfactory'
-    }
-    if (!pdfExtractedData.patTestingStatus) {
-      if (originalText.match(/(?:pat|portable appliance|electrical.*test).*?(?:passed|satisfactory|up to date|completed|yes)/i)
-        || originalText.match(/(?:fixed wiring|electrical installation).*?(?:satisfactory|passed|completed)/i)
-        || originalText.match(/(?:pat testing|pat test)[\s\S]{0,30}?(?:yes|ok|satisfactory|passed)/i)) {
-        pdfExtractedData.patTestingStatus = 'Satisfactory'
-      }
-    }
-    if (pdfExtractedData.patTestingStatus) {
-      console.log('[FRA] Found PAT testing status from PDF:', pdfExtractedData.patTestingStatus)
-    }
-
-    // Fixed wire date: exact "Fixed Electrical Wiring?" question first.
-    const fixedWiringQuestion = parseYesNoQuestionBlock(
-      originalText,
-      /fixed electrical wiring\?/i
-    )
-    const fixedWiringDateFromQuestion = extractDateFromText(fixedWiringQuestion.comment || '')
-    if (fixedWiringDateFromQuestion) {
-      pdfExtractedData.fixedWireTestDate = fixedWiringDateFromQuestion
-    }
-    if (!pdfExtractedData.fixedWireTestDate) {
-      const fixedWireDatePatterns = [
-        /(?:fixed electrical wiring|fixed wire|fixed wiring|fixed wire installation)[\s\S]{0,100}?(?:last tested|inspected and tested|tested|last conducted|conducted)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:fixed electrical wiring|fixed wire|fixed wiring)[\s\S]{0,80}?(?:yes|satisfactory)[\s\S]{0,80}?last (?:tested|conducted)[\s\S]{0,30}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-        /(?:electrical installation|fixed wiring)[\s\S]{0,60}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      ]
-      for (const pattern of fixedWireDatePatterns) {
-        const match = originalText.match(pattern)
-        if (match) {
-          pdfExtractedData.fixedWireTestDate = match[1]
-          break
-        }
-      }
-    }
-    if (pdfExtractedData.fixedWireTestDate) {
-      console.log('[FRA] Found fixed wire test date from PDF:', pdfExtractedData.fixedWireTestDate)
-    }
-
-    // MEDIUM PRIORITY: Exit signage condition - more flexible patterns
-    if (originalText.match(/(?:exit sign|signage|fire exit sign).*?(?:good|satisfactory|clear|visible|yes|ok)/i)
-      || originalText.match(/(?:signage).*?(?:installed|visible|clearly|in place)/i)
-      || originalText.match(/(?:fire exit.*sign|emergency.*sign).*?(?:good|satisfactory|visible|yes)/i)
-      || originalText.match(/(?:signs.*visible|signage.*adequate|signage.*good)/i)) {
-      pdfExtractedData.exitSignageCondition = 'Good condition'
-      console.log('[FRA] Found exit signage condition from PDF: Good')
-    }
-
-    // MEDIUM PRIORITY: Ceiling tiles / compartmentation
-    const extractCompartmentationStatusFromText = (text: string): string | null => {
-      const sentences = text
-        .replace(/\r/g, '\n')
-        .split(/[\n.?!]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-
-      // Prefer explicit defect statements over generic "no issues" wording from question text.
-      const issueSentence = sentences.find((sentence) => {
-        const lower = sentence.toLowerCase()
-        const hasIssueSignal = /missing ceiling tiles?|ceiling tiles? missing|breach(?:es)?|gaps? from area to area|compartmentation[\s\S]{0,40}?(?:damage|breach|issue)/i.test(sentence)
-        if (!hasIssueSignal) return false
-        if (lower.includes('e.g. missing') || lower.includes('eg missing')) return false
-        if (/\bno missing\b|\bno breaches\b|\bno evidence of damage\b|\bno evident breaches\b/.test(lower)) return false
-        return true
-      })
-
-      if (issueSentence) {
-        return issueSentence.replace(/\s+/g, ' ').replace(/[.]+$/, '')
-      }
-
-      const noBreachDetected = /(?:ceiling tile|compartmentation|fire stopping|structure|structural)[\s\S]{0,120}?(?:no missing|no breaches|no evidence of damage|intact|satisfactory|good condition|no evident breaches)/i.test(text)
-      return noBreachDetected ? 'No breaches identified' : null
-    }
-
-    const compartmentationStatusFromText = extractCompartmentationStatusFromText(originalText)
-    if (compartmentationStatusFromText) {
-      pdfExtractedData.compartmentationStatus = compartmentationStatusFromText
-      console.log('[FRA] Found compartmentation status from PDF:', compartmentationStatusFromText)
-    }
-
-    // MEDIUM PRIORITY: Fire extinguisher service date - more patterns
-    const extinguisherServicePatterns = [
-      /(?:extinguisher.*service|fire extinguisher.*service|last service.*extinguisher)[\s\S]{0,50}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      /(?:extinguisher)[\s\S]{0,50}?serviced[\s\S]{0,30}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-      /(?:extinguisher.*service|fire extinguisher.*service)[\s\S]{0,50}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i,
-      /(?:fire extinguisher service)[\s\S]{0,100}?(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})/i,
-    ]
-    for (const pattern of extinguisherServicePatterns) {
-      const match = originalText.match(pattern)
-      if (match) {
-        pdfExtractedData.extinguisherServiceDate = match[1]
-        console.log('[FRA] Found extinguisher service date from PDF:', pdfExtractedData.extinguisherServiceDate)
-        break
-      }
-    }
-
-    // MEDIUM PRIORITY: Call point accessibility
-    if (originalText.match(/(?:call point|manual call point).*?(?:accessible|unobstructed|clear|yes)/i)
-      || originalText.match(/(?:call points clear|call points.*accessible)/i)
-      || originalText.match(/(?:mcp|manual call).*?(?:clear|accessible|unobstructed)/i)) {
-      pdfExtractedData.callPointAccessibility = 'Accessible and unobstructed'
-      console.log('[FRA] Found call point accessibility from PDF: Accessible')
-    }
-
-    // Strip cross-question contamination from legacy PDF parsing output.
-    pdfExtractedData.firePanelLocation = sanitizeExtractedValue(pdfExtractedData.firePanelLocation, { asLocation: true })
-    pdfExtractedData.emergencyLightingSwitch = sanitizeExtractedValue(pdfExtractedData.emergencyLightingSwitch, { asLocation: true })
-    pdfExtractedData.firePanelFaults = sanitizeExtractedValue(pdfExtractedData.firePanelFaults)
-    pdfExtractedData.escapeRoutesEvidence = sanitizeExtractedValue(pdfExtractedData.escapeRoutesEvidence)
-    pdfExtractedData.fireDoorsCondition = sanitizeExtractedValue(pdfExtractedData.fireDoorsCondition)
-    pdfExtractedData.fireDoorsHeldOpenComment = sanitizeExtractedValue(pdfExtractedData.fireDoorsHeldOpenComment)
-    pdfExtractedData.weeklyFireTests = sanitizeExtractedValue(pdfExtractedData.weeklyFireTests)
-    pdfExtractedData.emergencyLightingMonthlyTest = sanitizeExtractedValue(pdfExtractedData.emergencyLightingMonthlyTest)
-    pdfExtractedData.callPointAccessibility = sanitizeExtractedValue(pdfExtractedData.callPointAccessibility)
-    pdfExtractedData.compartmentationStatus = sanitizeExtractedValue(pdfExtractedData.compartmentationStatus)
-
+    const parserVariant = await ensureLockedFraParserVariant({
+      supabase,
+      instanceId: fraInstanceId,
+      userId: user.id,
+    })
+    console.log('[FRA] Extracting data from PDF text, length:', pdfText.length, 'variant:', parserVariant)
+    pdfExtractedData = extractFraPdfDataFromText(pdfText, { variant: parserVariant }) as Record<string, string | null>
     console.log('[FRA] Final PDF Extracted Data:', pdfExtractedData)
   }
 
@@ -1920,7 +1513,8 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   const escapeObstructedFromNarrative = hasEscapeRouteObstructionSignal(escapeRoutesNarrativeFromAudit)
   const escapeObstructed = escapeObstructedFromAnswers || escapeObstructedFromNarrative
   const hasEscapeRouteConcern = escapeObstructed
-  const combustibleEscapeCompromise = pdfExtractedData.combustibleStorageEscapeCompromise === 'yes' ||
+  const combustibleEscapeCompromise = (pdfExtractedData as any).combustibleStorageEscapeCompromiseFlag === 'yes' ||
+    pdfExtractedData.combustibleStorageEscapeCompromise === 'yes' ||
     Boolean(combustibleMaterials && String(combustibleMaterials.value).toLowerCase() === 'no')
   const fireSafetyTrainingShortfall = pdfExtractedData.fireSafetyTrainingShortfall === 'yes' ||
     trainingInduction?.value === 'No' || trainingToolbox?.value === 'No'
@@ -2386,38 +1980,12 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   
   // Assessment date should ALWAYS come from H&S audit conducted date if available
   // Check edited data first, then PDF, then database audit, then FRA instance
-  const hsAuditConductedAt = editedExtractedData?.conductedDate
-    ? (() => {
-        // Try to parse the date from edited data
-        const dateStr = editedExtractedData.conductedDate
-        const dateMatch = dateStr.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{4})/i)
-        if (dateMatch) {
-          const months: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 }
-          const day = parseInt(dateMatch[1])
-          const month = months[dateMatch[2].toLowerCase().substring(0, 3)]
-          const year = parseInt(dateMatch[3])
-          return new Date(year, month, day).toISOString()
-        }
-        // Try parsing as ISO string
-        try {
-          return new Date(dateStr).toISOString()
-        } catch {
-          return null
-        }
-      })()
-    : pdfExtractedData.conductedDate
-      ? (() => {
-          // Try to parse the date from PDF text
-          const dateMatch = pdfExtractedData.conductedDate.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{4})/i)
-          if (dateMatch) {
-            const months: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 }
-            const day = parseInt(dateMatch[1])
-            const month = months[dateMatch[2].toLowerCase().substring(0, 3)]
-            const year = parseInt(dateMatch[3])
-            return new Date(year, month, day).toISOString()
-          }
-          return null
-        })()
+  const editedConductedDate = parseAuditDateString(editedExtractedData?.conductedDate)
+  const parsedPdfConductedDate = parseAuditDateString(pdfExtractedData.conductedDate)
+  const hsAuditConductedAt = editedConductedDate
+    ? editedConductedDate.toISOString()
+    : parsedPdfConductedDate
+      ? parsedPdfConductedDate.toISOString()
       : (hsAudit as any)?.conducted_at
     
   const assessmentDateValue = hsAuditConductedAt 
@@ -2425,6 +1993,8 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
     : formatDate(fraInstance.conducted_at || fraInstance.created_at)
   const assessmentStartTimeValue = editedExtractedData?.assessmentStartTime?.trim()
     ? editedExtractedData.assessmentStartTime.trim()
+    : pdfExtractedData.assessmentStartTime?.trim()
+      ? pdfExtractedData.assessmentStartTime.trim()
     : hsAuditConductedAt
       ? formatDateTime(hsAuditConductedAt)?.split(' ').slice(-3).join(' ') || null
       : formatDateTime(fraInstance.conducted_at || fraInstance.created_at)?.split(' ').slice(-3).join(' ') || null
