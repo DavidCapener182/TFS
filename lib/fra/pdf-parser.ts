@@ -159,6 +159,30 @@ const DENSE_AUDIT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Emergencylightingwaslastexternallycheckedonthe/gi, 'Emergency lighting was last externally checked on the'],
   [/FireExtinguisherService/gi, 'Fire Extinguisher Service'],
   [/Fireextinguisherswerelastservicedonthe/gi, 'Fire extinguishers were last serviced on the'],
+  [/H&Sinduction/gi, 'H&S induction'],
+  [/H&Stoolbox/gi, 'H&S toolbox'],
+  [/andrecords/gi, 'and records'],
+  [/Numberof/gi, 'Number of '],
+  [/commentssection/gi, 'comments section'],
+  [/Maximumnumberofstaffworking/gi, 'Maximum number of staff working'],
+  [/onsite/gi, 'on site'],
+  [/onetime/gi, 'one time'],
+  [/knowenforcement/gi, 'know enforcement'],
+  [/Companyauthorised/gi, 'Company authorised'],
+  [/COSHHdatasheets/gi, 'COSHH data sheets'],
+  [/Aclean\s+as\s+you\s+gopolicy/gi, 'A clean as you go policy'],
+  [/damagenoted/gi, 'damage noted'],
+  [/managementteam\/employeesawareoftheir/gi, 'management team / employees aware of their'],
+  [/damagewhichwouldcompromisefire/gi, 'damage which would compromise fire'],
+  [/DueDatetoResolve\/Complete/gi, 'Due Date to Resolve/Complete'],
+  [/commentsorfindings/gi, 'comments or findings'],
+  [/SignoffandacceptancetocompleteActionPlanbyDueDates/gi, 'Sign off and acceptance to complete Action Plan by Due Dates'],
+  [/ActionPoints/gi, 'Action Points'],
+  [/madegood/gi, 'made good'],
+  [/Whenhazards/gi, 'When hazards'],
+  [/KSSNWLtdlimits/gi, 'KSS NW Ltd limits'],
+  [/KSSNWLtd/gi, 'KSS NW Ltd'],
+  [/deemedtobesuitable/gi, 'deemed to be suitable'],
 ]
 
 const NEXT_QUESTION_BOUNDARIES: RegExp[] = [
@@ -182,6 +206,13 @@ const NEXT_QUESTION_BOUNDARIES: RegExp[] = [
   /weekly\s+fire\s+alarm\s+tests?\s+carried\s+out\s+and\s+documented\s*\??/i,
   /evidence\s+of\s+monthly\s+emergency\s+lighting\s+test\s+being\s+conducted\?/i,
   /monthly\s+emergency\s+lighting\s+testing\s+is\s+being\s+conducted/i,
+  /air\s+conditioning\?/i,
+  /lift\?/i,
+  /lifting\s+equipment\?/i,
+  /fire\s+alarm\s+maintenance\?/i,
+  /emergency\s+lighting\s+maintenance\?/i,
+  /sprinkler\s+system\?/i,
+  /escalators?\s*-\s*service\s+and\s+maintenance\?/i,
   /fire\s+extinguisher\s+service\?/i,
   /fire\s+drill\s+has\s+been\s+carried\s+out\s+in\s+the\s+past\s+6\s+months\s+and\s+records?\s+available\s+on\s+site\?/i,
   /\bpat\s*\?/i,
@@ -191,6 +222,7 @@ const NEXT_QUESTION_BOUNDARIES: RegExp[] = [
   /due\s+date\s+to\s+resolve\/complete/i,
   /actions?\s+by\s+the\s+set\s+due\s+date/i,
   /signature\s+of\s+person\s+in\s+charge/i,
+  /audit\s+completed\s+by/i,
 ]
 
 const TRAILING_CONTAMINATION_PATTERNS: RegExp[] = [
@@ -435,11 +467,12 @@ export function extractConductedDateFromPdfText(pdfText: string): string | null 
 export function extractAssessmentStartTime(text: string): string | null {
   const normalizedText = normalizeDenseAuditText(text)
   const patterns = [
-    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
-    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
-    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}:\d{2}\s*(?:gmt|bst|utc))/i,
-    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[^\n\r]{0,120}?(\d{1,2}\.\d{2}\s*(?:gmt|bst|utc))/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[\s\S]{0,120}?(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[\s\S]{0,120}?(\d{1,2}\.\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc)?)/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[\s\S]{0,120}?(\d{1,2}:\d{2}\s*(?:gmt|bst|utc))/i,
+    /(?:conducted\s*on|conducted\s*at|assessment\s*date)[\s\S]{0,120}?(\d{1,2}\.\d{2}\s*(?:gmt|bst|utc))/i,
     /\b(\d{1,2}:\d{2}\s*(?:am|pm)\s*(?:gmt|bst|utc))\b/i,
+    /\b(\d{1,2}:\d{2}\s*(?:gmt|bst|utc))\b/i,
   ]
 
   for (const pattern of patterns) {
@@ -486,6 +519,20 @@ function isSectionHeadingLine(value: string): boolean {
     'COSHH',
     'Training',
   ].some((heading) => new RegExp(`^${heading}\\b`, 'i').test(line))
+}
+
+function isLikelyScoreSummaryLine(value: string): boolean {
+  const line = normalizeWhitespace(value)
+  if (!line) return false
+  return /^(\d+\s+flagged,?\s*)?\d+\s*\/\s*\d+(?:\s*\(\d+(?:\.\d+)?%\))?$/i.test(line)
+    || /^\d+\s+flagged$/i.test(line)
+}
+
+function isDocumentChromeLine(value: string): boolean {
+  const line = normalizeWhitespace(value)
+  if (!line) return true
+  return /^private\s*&\s*confidential(?:\s+\d+\s*\/\s*\d+)?$/i.test(line)
+    || /^\d+\s*\/\s*\d+$/i.test(line)
 }
 
 function isLikelyNewQuestionLine(value: string): boolean {
@@ -577,6 +624,9 @@ function sanitizeAnchoredValue(
       .replace(/\bphotograph\b/gi, ' ')
   )
   cleaned = cutAtEarliestPattern(cleaned, TRAILING_CONTAMINATION_PATTERNS)
+  if (!/^(yes|no|n\/a|na)$/i.test(cleaned)) {
+    cleaned = cleaned.replace(/\b(?:yes|no|n\/a|na)\b$/i, '').trim()
+  }
   cleaned = normalizeWhitespace(cleaned.replace(/^[:\-\s]+/, '').replace(/[.]+$/, ''))
   if (!cleaned) return null
   if (options?.asLocation) {
@@ -632,6 +682,7 @@ function extractNumericAfterLabel(text: string, labelRegex: RegExp): string | nu
 
   for (let i = labelIndex + 1; i < lines.length && i <= labelIndex + 3; i += 1) {
     const line = lines[i]
+    if (isLikelyScoreSummaryLine(line)) continue
     if (isLikelyGeneralSiteLabel(line)) break
     const numeric = line.match(/^(\d+)\b/)?.[1] || null
     if (numeric) return numeric
@@ -762,10 +813,11 @@ function splitAuditSections(cleanedText: string): ExtractSectionMap {
   }
 
   const findHeadingOffset = (title: string): number | null => {
+    let lastHit: number | null = null
     for (let i = 0; i < lines.length; i += 1) {
-      if (isSectionHeadingCandidate(i, title)) return offsets[i]
+      if (isSectionHeadingCandidate(i, title)) lastHit = offsets[i]
     }
-    return null
+    return lastHit
   }
 
   const hits: Array<{ key: keyof Omit<ExtractSectionMap, 'full'>; index: number }> = []
@@ -854,6 +906,7 @@ function parseAnchoredQuestionBlock(
     const rawLine = normalizeWhitespace(lines[i])
     const { before, hitBoundary } = splitBeforeNextQuestionBoundary(rawLine)
     const line = before
+    if (!line && hitBoundary) break
     if (!line) continue
 
     if (options?.skipLinePatterns?.some((re) => re.test(line))) {
@@ -861,6 +914,8 @@ function parseAnchoredQuestionBlock(
       continue
     }
 
+    if (isLikelyScoreSummaryLine(line)) continue
+    if (isDocumentChromeLine(line)) continue
     if (isPhotoOnlyLine(line) || isSectionHeadingLine(line)) break
     if (i > anchorIndex && isLikelyNewQuestionLine(line)) break
 
@@ -869,16 +924,22 @@ function parseAnchoredQuestionBlock(
     const standaloneAnswer = line.match(/^(yes|no|n\/a|na)$/i)
     if (standaloneAnswer) {
       const raw = standaloneAnswer[1].toLowerCase()
-      answer = raw === 'yes' ? 'yes' : raw === 'no' ? 'no' : 'na'
-      break
+      if (!answer) {
+        answer = raw === 'yes' ? 'yes' : raw === 'no' ? 'no' : 'na'
+      }
+      if (hitBoundary) break
+      continue
     }
 
     const leadingAnswer = line.match(/^(yes|no|n\/a|na)\b(?:\s*[:\-]\s*(.*))?$/i)
     if (leadingAnswer) {
       const raw = leadingAnswer[1].toLowerCase()
-      answer = raw === 'yes' ? 'yes' : raw === 'no' ? 'no' : 'na'
+      if (!answer) {
+        answer = raw === 'yes' ? 'yes' : raw === 'no' ? 'no' : 'na'
+      }
       if (leadingAnswer[2]) commentParts.push(leadingAnswer[2])
-      break
+      if (hitBoundary) break
+      continue
     }
 
     commentParts.push(line)
@@ -919,8 +980,10 @@ export function parseYesNoQuestionBlock(
     const rawLine = normalizeWhitespace(lines[i])
     const { before, hitBoundary } = splitBeforeNextQuestionBoundary(rawLine)
     const line = before
+    if (!line && hitBoundary) break
     if (!line) continue
     if (isPhotoOnlyLine(line)) continue
+    if (isLikelyScoreSummaryLine(line) || isDocumentChromeLine(line)) continue
     if (isSectionHeadingLine(line)) break
     if (i > anchorLineIndex + 1 && isLikelyNewQuestionLine(line)) break
 
@@ -963,6 +1026,17 @@ function toDisplayAnswer(answer: ParsedYesNoQuestion['answer']): string | null {
   return null
 }
 
+function extractLeadingOrTrailingAnswer(value: string | null | undefined): ParsedYesNoQuestion['answer'] {
+  const normalized = normalizeWhitespace(value || '')
+  if (!normalized) return null
+
+  const leading = normalized.match(/^(yes|no|n\/a|na)\b/i)?.[1]?.toLowerCase() || null
+  const trailing = normalized.match(/\b(yes|no|n\/a|na)\s*$/i)?.[1]?.toLowerCase() || null
+  const raw = leading || trailing
+  if (!raw) return null
+  return raw === 'yes' ? 'yes' : raw === 'no' ? 'no' : 'na'
+}
+
 function extractNumericAfterAnchoredLabel(sectionText: string, anchorRegex: RegExp): string | null {
   const lines = normalizeLines(sectionText)
   const anchorIndex = findAnchorLineIndex(sectionText, anchorRegex)
@@ -984,6 +1058,7 @@ function extractNumericAfterAnchoredLabel(sectionText: string, anchorRegex: RegE
     const line = normalizeWhitespace(lines[i])
     if (!line) continue
     if (isPhotoOnlyLine(line)) continue
+    if (isLikelyScoreSummaryLine(line) || isDocumentChromeLine(line)) continue
     if (isLikelyGeneralSiteLabel(line) || isSectionHeadingLine(line) || (i > anchorIndex + 1 && isLikelyNewQuestionLine(line))) break
     const numeric = line.match(/\b(\d+)\b/)?.[1] || null
     if (numeric) return numeric
@@ -1008,6 +1083,7 @@ function extractSquareFootageAfterAnchoredLabel(sectionText: string): string | n
     const line = normalizeWhitespace(lines[i]).replace(/^[:\-\s]+/, '')
     if (!line) continue
     if (isPhotoOnlyLine(line)) continue
+    if (isLikelyScoreSummaryLine(line)) continue
     if (isLikelyGeneralSiteLabel(line) || isSectionHeadingLine(line) || (i > anchorIndex + 1 && isLikelyNewQuestionLine(line))) break
     if (isValidSquareFootageValue(line)) return line
   }
@@ -1070,8 +1146,10 @@ function extractValueAfterAnchoredLabel(
     const rawLine = normalizeWhitespace(lines[i])
     const { before, hitBoundary } = splitBeforeNextQuestionBoundary(rawLine)
     const line = before
+    if (!line && hitBoundary) break
     if (!line) continue
     if (isPhotoOnlyLine(line)) continue
+    if (isLikelyScoreSummaryLine(line) || isDocumentChromeLine(line)) continue
     if (isSectionHeadingLine(line)) break
     if (i > anchorIndex && isLikelyNewQuestionLine(line)) break
     if (options?.disallowLinePatterns?.some((re) => re.test(line))) {
@@ -1314,6 +1392,7 @@ function sanitizeStoreManagerName(value: string | null | undefined): string | nu
   if (!normalized) return null
 
   const trimmed = normalized
+    .replace(/^\d+(?:\.\d+)*\.?\s*/, '')
     .replace(/\d{1,2}\s*[\/.-]\s*\d{1,2}\s*[\/.-]\s*\d{2,4}\b[\s\S]*$/i, '')
     .replace(/\d{1,2}(?:st|nd|rd|th)?(?:\s+of)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}\b[\s\S]*$/i, '')
     .replace(/\baudit\s+completed\s+by\b[\s\S]*$/i, '')
@@ -1328,19 +1407,70 @@ function sanitizeStoreManagerName(value: string | null | undefined): string | nu
   return trimmed
 }
 
+function isLikelyStoreManagerNoiseLine(value: string): boolean {
+  const normalized = normalizeWhitespace(value)
+  if (!normalized) return true
+  return isLikelyScoreSummaryLine(normalized)
+    || isPhotoOnlyLine(normalized)
+    || isDocumentChromeLine(normalized)
+    || /^audit\s+completed\s+by$/i.test(normalized)
+    || /^signature\s+of\s+person\s+in\s+charge/i.test(normalized)
+    || /^action\s+points?$/i.test(normalized)
+    || /^sign\s+off\s+and\s+acceptance/i.test(normalized)
+    || /^due\s+date\s+to\s+resolve\/complete/i.test(normalized)
+    || /^\d+(?:\.\d+)+\.?\s*(?:audit\s+completed\s+by|action\s+points?|sign\s+off)/i.test(normalized)
+    || /^\d{1,2}\s*[\/.-]\s*\d{1,2}\s*[\/.-]\s*\d{2,4}(?:\s+\d{1,2}[:.]\d{2}\s*(?:am|pm|gmt|bst|utc)?)?$/i.test(normalized)
+    || /^\d{1,2}(?:st|nd|rd|th)?(?:\s+of)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}(?:\s+\d{1,2}[:.]\d{2}\s*(?:am|pm|gmt|bst|utc)?)?$/i.test(normalized)
+}
+
+function isLikelyPersonName(value: string | null | undefined): boolean {
+  const normalized = normalizeWhitespace(value || '')
+  if (!normalized) return false
+  const parts = normalized.split(/\s+/).filter(Boolean)
+  if (parts.length < 2 || parts.length > 5) return false
+  if (!parts.every((part) => /^[A-Za-z][A-Za-z'’-]*$/.test(part))) return false
+  return true
+}
+
 function extractStoreManagerFromSignatureBlock(text: string): string | null {
+  const lines = normalizeLines(text)
+  const anchorRegex = /signature\s*of\s*person\s*in\s*charge\s*of\s*store\s*at\s*time\s*of\s*assessment/i
+  const anchorIndex = findAnchorLineIndex(text, anchorRegex)
+  if (anchorIndex < 0) return null
+
+  const safeAnchor = toFlexibleWhitespaceRegex(anchorRegex)
+  const sameLineRemainder = sanitizeStoreManagerName(
+    normalizeWhitespace((lines[anchorIndex] || '').replace(safeAnchor, '').replace(/^[:\-\s]+/, ''))
+  )
+  if (sameLineRemainder && isLikelyPersonName(sameLineRemainder)) {
+    return sameLineRemainder
+  }
+
+  for (let i = anchorIndex + 1; i < lines.length && i <= anchorIndex + 10; i += 1) {
+    const line = normalizeWhitespace(lines[i] || '')
+    if (!line) continue
+    if (/^private\s*&\s*confidential$/i.test(line)) break
+    if (isLikelyStoreManagerNoiseLine(line)) continue
+
+    const candidate = sanitizeStoreManagerName(line)
+    if (candidate && isLikelyPersonName(candidate)) {
+      return candidate
+    }
+  }
+
   const signatureBlock = text.match(
     /signature\s*of\s*person\s*in\s*charge\s*of\s*store\s*at\s*time\s*of\s*assessment[.\s:]*([\s\S]{0,220})/i
   )?.[1]
 
   if (!signatureBlock) return null
 
-  return sanitizeStoreManagerName(
+  const fallback = sanitizeStoreManagerName(
     cutAtEarliestPattern(signatureBlock, [
       /\baudit\s+completed\s+by\b/i,
       /\bprivate\s*&\s*confidential\b/i,
     ])
   )
+  return fallback
 }
 
 function getParserConfig(variant: FRAParserVariant): ParserConfig {
@@ -1572,6 +1702,26 @@ export function extractFraPdfDataFromText(
     /combustible\s+materials\s+are\s+stored\s+correctly\s*\?/i,
     { maxLines: 14 }
   )
+  const combustibleStorageBlockRaw = fireSafetyText.match(
+    /combustible\s+materials\s+are\s+stored\s+correctly\s*\?([\s\S]{0,360}?)(?=fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?)/i
+  )?.[1] || null
+  const combustibleStorageWindowRaw = extractBetweenAnchors(
+    fireSafetyText,
+    /combustible\s+materials\s+are\s+stored\s+correctly\s*\?/i,
+    [
+      config.fireDoorsClosedAnchor,
+      /fire\s+doors\s+in\s+a\s+good\s+condition\s*\?/i,
+      /\bphoto\s+\d+\b/i,
+    ],
+    { maxChars: 360, stripLeadingAnswer: false }
+  )
+  const combustibleStorageWindow = sanitizeAnchoredValue(combustibleStorageWindowRaw)
+  const combustibleWindowAnswer =
+    extractLeadingOrTrailingAnswer(combustibleStorageWindowRaw)
+    || extractLeadingOrTrailingAnswer(combustibleStorageBlockRaw)
+  const combustibleStorageBlock = sanitizeAnchoredValue(
+    combustibleStorageBlockRaw?.replace(/^\s*(?:yes|no|n\/a|na)\b[:\-\s]*/i, '')
+  )
   if (combustibleStorageQuestion.answer === 'no') {
     pdfExtractedData.combustibleStorageEscapeCompromise =
       combustibleStorageQuestion.comment || 'Escape routes compromised'
@@ -1582,6 +1732,15 @@ export function extractFraPdfDataFromText(
     pdfExtractedData.combustibleStorageEscapeCompromiseFlag = 'no'
   } else if (combustibleStorageQuestion.comment) {
     pdfExtractedData.combustibleStorageEscapeCompromise = combustibleStorageQuestion.comment
+  }
+  if (!pdfExtractedData.combustibleStorageEscapeCompromise && combustibleStorageBlock) {
+    pdfExtractedData.combustibleStorageEscapeCompromise = combustibleStorageBlock
+  }
+  if (!pdfExtractedData.combustibleStorageEscapeCompromise && combustibleStorageWindow) {
+    pdfExtractedData.combustibleStorageEscapeCompromise = combustibleStorageWindow
+  }
+  if (!pdfExtractedData.combustibleStorageEscapeCompromiseFlag && combustibleWindowAnswer) {
+    pdfExtractedData.combustibleStorageEscapeCompromiseFlag = combustibleWindowAnswer === 'no' ? 'yes' : 'no'
   }
 
   const inductionTrainingQuestion = parseAnchoredQuestionBlock(
@@ -1650,6 +1809,24 @@ export function extractFraPdfDataFromText(
     config.fireDoorsClosedAnchor,
     { maxLines: 12 }
   )
+  const fireDoorsClosedBlockRaw = fireSafetyText.match(
+    /fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?([\s\S]{0,320}?)(?=fire\s+doors\s+in\s+a\s+good\s+condition\s*\?)/i
+  )?.[1] || null
+  const fireDoorsClosedWindowRaw = extractBetweenAnchors(
+    fireSafetyText,
+    config.fireDoorsClosedAnchor,
+    [
+      /fire\s+doors\s+in\s+a\s+good\s+condition\s*\?/i,
+      /are\s+fire\s+door\s+intumescent\s+strips\s+in\s+place\s+and\s+intact/i,
+      /\bphoto\s+\d+\b/i,
+    ],
+    { maxChars: 280, stripLeadingAnswer: false }
+  )
+  const fireDoorsClosedWindow = sanitizeAnchoredValue(fireDoorsClosedWindowRaw)
+  const fireDoorsClosedWindowAnswer =
+    extractLeadingOrTrailingAnswer(fireDoorsClosedWindowRaw)
+    || extractLeadingOrTrailingAnswer(fireDoorsClosedBlockRaw)
+  const fireDoorsClosedBlock = sanitizeAnchoredValue(fireDoorsClosedBlockRaw)
   const fireDoorsConditionQuestion = parseAnchoredQuestionBlock(
     fireSafetyText,
     /fire\s+doors\s+in\s+a\s+good\s+condition\s*\?/i,
@@ -1688,13 +1865,27 @@ export function extractFraPdfDataFromText(
   if (finalFireDoorNarrative) {
     pdfExtractedData.fireDoorsCondition = finalFireDoorNarrative
   }
+  if (!pdfExtractedData.fireDoorsCondition && fireDoorsClosedBlock) {
+    pdfExtractedData.fireDoorsCondition = fireDoorsClosedBlock
+  }
+  if (!pdfExtractedData.fireDoorsCondition && fireDoorsClosedWindow) {
+    pdfExtractedData.fireDoorsCondition = fireDoorsClosedWindow
+  }
   if (fireDoorsClosedQuestion.answer === 'no') {
     pdfExtractedData.fireDoorsHeldOpen = 'yes'
   } else if (fireDoorsClosedQuestion.answer === 'yes') {
     pdfExtractedData.fireDoorsHeldOpen = 'no'
+  } else if (fireDoorsClosedWindowAnswer === 'no') {
+    pdfExtractedData.fireDoorsHeldOpen = 'yes'
+  } else if (fireDoorsClosedWindowAnswer === 'yes') {
+    pdfExtractedData.fireDoorsHeldOpen = 'no'
   }
   if (fireDoorsClosedQuestion.comment) {
     pdfExtractedData.fireDoorsHeldOpenComment = sanitizeAnchoredValue(fireDoorsClosedQuestion.comment) || fireDoorsClosedQuestion.comment
+  } else if (fireDoorsClosedBlock) {
+    pdfExtractedData.fireDoorsHeldOpenComment = fireDoorsClosedBlock
+  } else if (fireDoorsClosedWindow) {
+    pdfExtractedData.fireDoorsHeldOpenComment = fireDoorsClosedWindow
   }
   const fireDoorsBlockedMatch = originalText.match(
     /\b(fire door(?:s)?|door(?:s)?)\b[\s\S]{0,60}\b(blocked|obstructed|restricted|impeded|wedged)\b/i
@@ -1927,6 +2118,9 @@ export function extractFraPdfDataFromText(
       }
     }
   }
+  if (!pdfExtractedData.fixedWireTestDate && fixedWiringQuestion.answer === 'yes') {
+    pdfExtractedData.fixedWireTestDate = 'Date not stated in audit text'
+  }
 
   if (originalText.match(/(?:exit sign|signage|fire exit sign).*?(?:good|satisfactory|clear|visible|yes|ok)/i)
     || originalText.match(/(?:signage).*?(?:installed|visible|clearly|in place)/i)
@@ -1981,6 +2175,11 @@ export function extractFraPdfDataFromText(
       { maxChars: 520 }
     )
   )
+  const compartmentationBlock = sanitizeCompartmentationText(
+    fireSafetyText.match(
+      /structure\s+found\s+to\s+be\s+in\s+a\s+good\s+condition[\s\S]{0,220}?(?:ceiling\s+tiles?|gaps?\s+from\s+area\s+to\s+area)\s*\?([\s\S]{0,260}?)(?=fire\s+exit\s+routes\s+clear\s+and\s+unobstructed\s*\?)/i
+    )?.[1] || null
+  )
 
   const anchoredCompartmentationNarrative =
     sanitizeCompartmentationText(extractCompartmentationNarrativeFromAnchor(cleanedAuditText))
@@ -1998,6 +2197,8 @@ export function extractFraPdfDataFromText(
 
   if (compartmentationByLabelWindow) {
     pdfExtractedData.compartmentationStatus = compartmentationByLabelWindow
+  } else if (compartmentationBlock) {
+    pdfExtractedData.compartmentationStatus = compartmentationBlock
   } else if (anchoredCompartmentationNarrative) {
     pdfExtractedData.compartmentationStatus = anchoredCompartmentationNarrative
   } else if (anchoredCompartmentationComment && !isQuestionFragmentOnly) {
@@ -2081,14 +2282,91 @@ export function extractFraPdfDataFromText(
           : 'N/A'
   }
 
+  if (!pdfExtractedData.combustibleStorageEscapeCompromise) {
+    const combustibleFallbackRaw =
+      cleanedAuditText.match(
+        /combustible\s+materials\s+are\s+stored\s+correctly\s*\?([\s\S]{0,360}?)(?=fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?)/i
+      )?.[1]
+      || originalText.match(
+        /combustible\s+materials\s+are\s+stored\s+correctly\s*\?([\s\S]{0,360}?)(?=fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?)/i
+      )?.[1]
+      || null
+    const combustibleFallback = sanitizeAnchoredValue(
+      combustibleFallbackRaw?.replace(/^\s*(?:yes|no|n\/a|na)\b[:\-\s]*/i, '')
+    )
+    if (combustibleFallback) {
+      pdfExtractedData.combustibleStorageEscapeCompromise = combustibleFallback
+    }
+    if (!pdfExtractedData.combustibleStorageEscapeCompromiseFlag) {
+      const combustibleFallbackAnswer = extractLeadingOrTrailingAnswer(combustibleFallbackRaw)
+      if (combustibleFallbackAnswer) {
+        pdfExtractedData.combustibleStorageEscapeCompromiseFlag =
+          combustibleFallbackAnswer === 'no' ? 'yes' : 'no'
+      }
+    }
+  }
+
+  if (
+    !pdfExtractedData.fireDoorsCondition
+    || !pdfExtractedData.fireDoorsHeldOpenComment
+    || !pdfExtractedData.fireDoorsHeldOpen
+  ) {
+    const fireDoorsFallbackRaw =
+      cleanedAuditText.match(
+        /fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?([\s\S]{0,320}?)(?=fire\s+doors\s+in\s+a\s+good\s+condition\s*\?)/i
+      )?.[1]
+      || originalText.match(
+        /fire\s+doors?\s+(?:are\s+kept\s+shut|kept\s+shut|closed)\s+and\s+not\s+held\s+open\s*\?([\s\S]{0,320}?)(?=fire\s+doors\s+in\s+a\s+good\s+condition\s*\?)/i
+      )?.[1]
+      || null
+    const fireDoorsFallback = sanitizeAnchoredValue(fireDoorsFallbackRaw)
+    const fireDoorsFallbackAnswer = extractLeadingOrTrailingAnswer(fireDoorsFallbackRaw)
+    if (!pdfExtractedData.fireDoorsCondition && fireDoorsFallback) {
+      pdfExtractedData.fireDoorsCondition = fireDoorsFallback
+    }
+    if (!pdfExtractedData.fireDoorsHeldOpenComment && fireDoorsFallback) {
+      pdfExtractedData.fireDoorsHeldOpenComment = fireDoorsFallback
+    }
+    if (!pdfExtractedData.fireDoorsHeldOpen && fireDoorsFallbackAnswer) {
+      pdfExtractedData.fireDoorsHeldOpen = fireDoorsFallbackAnswer === 'no' ? 'yes' : 'no'
+    }
+  }
+
+  const compartmentationLooksContaminated =
+    !!pdfExtractedData.compartmentationStatus
+    && /fire\s+exits?\s+were\s+clear|fire\s+extinguishers?\s+were\s+all\s+clear|call\s+points?\s+were\s+clear|weekly\s+fire\s+tests?\s+make\s+up/i.test(pdfExtractedData.compartmentationStatus)
+
+  if (!pdfExtractedData.compartmentationStatus || compartmentationLooksContaminated) {
+    const compartmentationFallbackRaw =
+      cleanedAuditText.match(
+        /structure\s+found\s+to\s+be\s+in\s+a\s+good\s+condition[\s\S]{0,220}?(?:ceiling\s+tiles?|gaps?\s+from\s+area\s+to\s+area)\s*\?([\s\S]{0,260}?)(?=fire\s+exit\s+routes\s+clear\s+and\s+unobstructed\s*\?)/i
+      )?.[1]
+      || originalText.match(
+        /structure\s+found\s+to\s+be\s+in\s+a\s+good\s+condition[\s\S]{0,220}?(?:ceiling\s+tiles?|gaps?\s+from\s+area\s+to\s+area)\s*\?([\s\S]{0,260}?)(?=fire\s+exit\s+routes\s+clear\s+and\s+unobstructed\s*\?)/i
+      )?.[1]
+      || null
+    const compartmentationFallback = sanitizeCompartmentationText(compartmentationFallbackRaw)
+    const compartmentationFallbackAnswer = extractLeadingOrTrailingAnswer(compartmentationFallbackRaw)
+    if (compartmentationFallback && !/^(yes|no|n\/a|na)$/i.test(compartmentationFallback)) {
+      pdfExtractedData.compartmentationStatus = compartmentationFallback
+    } else if (compartmentationFallbackAnswer === 'yes') {
+      pdfExtractedData.compartmentationStatus = 'No breaches identified'
+    } else if (compartmentationFallbackAnswer === 'no') {
+      pdfExtractedData.compartmentationStatus = 'Compartmentation concern identified'
+    }
+  }
+
   pdfExtractedData.firePanelLocation = sanitizeAnchoredValue(pdfExtractedData.firePanelLocation, { asLocation: true })
   pdfExtractedData.emergencyLightingSwitch = sanitizeAnchoredValue(pdfExtractedData.emergencyLightingSwitch, { asLocation: true })
   pdfExtractedData.firePanelFaults = sanitizeAnchoredValue(pdfExtractedData.firePanelFaults)
   pdfExtractedData.escapeRoutesEvidence = sanitizeAnchoredValue(pdfExtractedData.escapeRoutesEvidence)
+  pdfExtractedData.combustibleStorageEscapeCompromise = sanitizeAnchoredValue(pdfExtractedData.combustibleStorageEscapeCompromise)
+  pdfExtractedData.fireSafetyTrainingNarrative = sanitizeAnchoredValue(pdfExtractedData.fireSafetyTrainingNarrative)
   pdfExtractedData.fireDoorsCondition = sanitizeAnchoredValue(pdfExtractedData.fireDoorsCondition)
   pdfExtractedData.fireDoorsHeldOpenComment = sanitizeAnchoredValue(pdfExtractedData.fireDoorsHeldOpenComment)
   pdfExtractedData.weeklyFireTests = sanitizeAnchoredValue(pdfExtractedData.weeklyFireTests)
   pdfExtractedData.emergencyLightingMonthlyTest = sanitizeAnchoredValue(pdfExtractedData.emergencyLightingMonthlyTest)
+  pdfExtractedData.fireExtinguisherService = sanitizeAnchoredValue(pdfExtractedData.fireExtinguisherService)
   pdfExtractedData.callPointAccessibility = sanitizeAnchoredValue(pdfExtractedData.callPointAccessibility)
   pdfExtractedData.compartmentationStatus = sanitizeCompartmentationText(pdfExtractedData.compartmentationStatus)
 
