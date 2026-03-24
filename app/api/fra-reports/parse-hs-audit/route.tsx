@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 })
     }
 
-    // Parse PDF to extract text - use the same robust parsing logic as audit-import
-    // If parsing fails, we'll still upload the PDF and use database H&S audit
+    // Parse PDF to extract text. Prefer pdfjs-dist first so the extracted text layout
+    // is stable across Mac, Windows, and Linux before the FRA parser runs.
     let pdfText = ''
     let parseError: string | null = null
     
@@ -100,10 +100,41 @@ export async function POST(request: NextRequest) {
         throw new Error('No valid pdf parser function found')
       }
 
+      const extractWithPdfJs = async (input: Buffer): Promise<string> => {
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+        const loadingTask = (pdfjs as any).getDocument({
+          data: new Uint8Array(input),
+          disableWorker: true,
+        })
+        const pdf = await loadingTask.promise
+        const numPages = pdf.numPages
+        const pageLimit = Math.min(numPages, 50)
+        const pages: string[] = []
+        for (let i = 1; i <= pageLimit; i += 1) {
+          const page = await pdf.getPage(i)
+          const content = await page.getTextContent()
+          const strings = (content.items as { str?: string }[]).map((item) => item.str ?? '')
+          pages.push(strings.join(' '))
+        }
+        return pages.join('\n\n')
+      }
+
       let parser: any = null
 
-      // Production: use require() first so we always get a callable (avoids "t is not a function" from ESM bundle).
-      if (process.env.NODE_ENV === 'production') {
+      try {
+        console.log('[PARSE] Trying pdfjs-dist first for stable cross-platform extraction...')
+        pdfText = await extractWithPdfJs(buffer)
+        if (pdfText.trim().length > 0) {
+          console.log('[PARSE] ✓ pdfjs-dist extracted text length:', pdfText.length)
+          parseError = null
+        }
+      } catch (pdfjsError: any) {
+        console.error('[PARSE] pdfjs-dist primary extraction failed:', pdfjsError?.message)
+        parseError = pdfjsError?.message || 'PDF text extraction failed'
+      }
+
+      // Fallback: try pdf-parse when pdfjs-dist fails or returns empty text.
+      if ((!pdfText || pdfText.trim().length === 0) && process.env.NODE_ENV === 'production') {
         try {
           const { createRequire } = await import('module')
           const requireMod = createRequire(process.cwd() + '/package.json')
@@ -119,8 +150,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Dev (or prod if require failed): dynamic import
-      if (!parser) {
+      if ((!pdfText || pdfText.trim().length === 0) && !parser) {
         try {
           const mod = await import('pdf-parse/node')
           parser = resolveParser(mod)
@@ -143,7 +173,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (parser) {
+      if ((!pdfText || pdfText.trim().length === 0) && parser) {
         console.log('[PARSE] Calling runParser with buffer length:', buffer.length)
         try {
           const parsed = await runParser(parser, buffer)
@@ -154,36 +184,6 @@ export async function POST(request: NextRequest) {
           console.error('[PARSE] runParser failed:', runError.message, runError.stack)
           parseError = `Parser execution failed: ${runError.message}`
           parser = null
-        }
-      }
-
-      // Fallback: use pdfjs-dist (pure JS, works on Windows when pdf-parse fails)
-      if ((!pdfText || pdfText.trim().length === 0) && buffer && buffer.length > 0) {
-        try {
-          console.log('[PARSE] Trying pdfjs-dist fallback (cross-platform)...')
-          const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-          const loadingTask = (pdfjs as any).getDocument({
-            data: new Uint8Array(buffer),
-            disableWorker: true,
-          })
-          const pdf = await loadingTask.promise
-          const numPages = pdf.numPages
-          const pageLimit = Math.min(numPages, 50)
-          const pages: string[] = []
-          for (let i = 1; i <= pageLimit; i += 1) {
-            const page = await pdf.getPage(i)
-            const content = await page.getTextContent()
-            const strings = (content.items as { str?: string }[]).map((item) => item.str ?? '')
-            pages.push(strings.join(' '))
-          }
-          pdfText = pages.join('\n\n')
-          if (pdfText.trim().length > 0) {
-            console.log('[PARSE] ✓ pdfjs-dist extracted text length:', pdfText.length, 'pages:', pageLimit)
-            parseError = null
-          }
-        } catch (pdfjsError: any) {
-          console.error('[PARSE] pdfjs-dist fallback failed:', pdfjsError?.message)
-          if (!parseError) parseError = pdfjsError?.message || 'PDF text extraction failed'
         }
       }
     } catch (error: any) {
