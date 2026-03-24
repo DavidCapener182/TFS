@@ -1385,7 +1385,33 @@ function AuditFormView({
       
       // For FRA templates, open the review/report flow and wait for explicit Save + Complete.
       if (template?.category === 'fire_risk_assessment') {
-        if (hsAuditPdfFile) {
+        if (hsAuditPastedText.trim()) {
+          setUploadingHSAudit(true)
+          try {
+            console.log('[AUDIT-LAB] Storing pasted H&S audit text...')
+            const res = await fetch('/api/fra-reports/store-hs-audit-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ instanceId: instance.id, text: hsAuditPastedText.trim() })
+            })
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ error: 'Failed to store text' }))
+              throw new Error(err.error || 'Failed to store pasted text')
+            }
+            const result = await res.json()
+            console.log('[AUDIT-LAB] Pasted H&S audit text stored:', { textLength: result.textLength, hasText: result.hasText })
+            console.log('[AUDIT-LAB] Waiting 2 seconds for text to be stored in database...')
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          } catch (pasteError: any) {
+            console.error('[AUDIT-LAB] Store pasted text error:', pasteError?.message || pasteError)
+            alert(`Failed to store pasted text: ${pasteError?.message || 'Unknown error'}`)
+            setUploadingHSAudit(false)
+            setStartingAudit(false)
+            return
+          } finally {
+            setUploadingHSAudit(false)
+          }
+        } else if (hsAuditPdfFile) {
           setUploadingHSAudit(true)
           try {
             console.log('[AUDIT-LAB] Uploading H&S audit PDF for server-side extraction...')
@@ -1424,34 +1450,8 @@ function AuditFormView({
           } finally {
             setUploadingHSAudit(false)
           }
-        } else if (hsAuditPastedText.trim()) {
-          setUploadingHSAudit(true)
-          try {
-            console.log('[AUDIT-LAB] Storing pasted H&S audit text...')
-            const res = await fetch('/api/fra-reports/store-hs-audit-text', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ instanceId: instance.id, text: hsAuditPastedText.trim() })
-            })
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({ error: 'Failed to store text' }))
-              throw new Error(err.error || 'Failed to store pasted text')
-            }
-            const result = await res.json()
-            console.log('[AUDIT-LAB] Pasted H&S audit text stored:', { textLength: result.textLength, hasText: result.hasText })
-            console.log('[AUDIT-LAB] Waiting 2 seconds for text to be stored in database...')
-            await new Promise(resolve => setTimeout(resolve, 2000))
-          } catch (pasteError: any) {
-            console.error('[AUDIT-LAB] Store pasted text error:', pasteError?.message || pasteError)
-            alert(`Failed to store pasted text: ${pasteError?.message || 'Unknown error'}`)
-            setUploadingHSAudit(false)
-            setStartingAudit(false)
-            return
-          } finally {
-            setUploadingHSAudit(false)
-          }
         } else {
-          console.log('[AUDIT-LAB] No pasted H&S audit text provided - will use database audit only')
+          console.log('[AUDIT-LAB] No pasted H&S audit text or PDF provided - will use database audit only')
         }
         
         // Do not auto-complete FRA here.
@@ -1644,10 +1644,10 @@ function AuditFormView({
             <div className="pt-4 border-t space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Upload H&S Audit PDF (Recommended)
+                  Upload H&S Audit PDF (Optional Fallback)
                 </label>
                 <p className="text-xs text-slate-500 mb-2">
-                  Use the original PDF where possible. This avoids browser copy and paste differences between Safari and Chrome.
+                  If pasted text is also provided, the text will be used first and this PDF will be ignored.
                 </p>
                 <input
                   type="file"
@@ -1665,10 +1665,10 @@ function AuditFormView({
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Paste H&S Audit Text (Optional Fallback)
+                  Paste H&S Audit Text (Preferred)
                 </label>
                 <p className="text-xs text-slate-500 mb-2">
-                  Paste the full H&S audit text to populate the FRA report. Use this only if you cannot upload the PDF. If both are provided, the PDF is used.
+                  Paste the full H&S audit text to populate the FRA report. If both text and a PDF are provided, the text is used.
                 </p>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">H&S audit text</label>
