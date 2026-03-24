@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 })
     }
 
-    // Parse PDF to extract text. Prefer pdfjs-dist first so the extracted text layout
-    // is stable across Mac, Windows, and Linux before the FRA parser runs.
+    // Parse PDF to extract text on the server.
+    // Use the Node parser path first; browser-style worker bootstrapping is brittle on Vercel.
     let pdfText = ''
     let parseError: string | null = null
     
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
               const instance = new parser({ data: input })
               if (typeof instance.getText === 'function') {
                 const result = await instance.getText()
+                await instance.destroy?.()
                 return result // { text: string, ... }
               }
             }
@@ -93,7 +94,9 @@ export async function POST(request: NextRequest) {
         if (parser && typeof parser.PDFParse === 'function') {
           const instance = new parser.PDFParse({ data: input })
           if (typeof instance.getText === 'function') {
-            return await instance.getText()
+            const result = await instance.getText()
+            await instance.destroy?.()
+            return result
           }
           throw new Error('PDFParse instance has no getText method')
         }
@@ -101,7 +104,17 @@ export async function POST(request: NextRequest) {
       }
 
       const extractWithPdfJs = async (input: Buffer): Promise<string> => {
+        const { createRequire } = await import('module')
+        const requireMod = createRequire(process.cwd() + '/package.json')
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+        try {
+          const workerSrc = requireMod.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
+          if ((pdfjs as any).GlobalWorkerOptions) {
+            (pdfjs as any).GlobalWorkerOptions.workerSrc = workerSrc
+          }
+        } catch (workerResolveError: any) {
+          console.warn('[PARSE] Could not resolve pdf.worker.mjs for pdfjs-dist:', workerResolveError?.message)
+        }
         const loadingTask = (pdfjs as any).getDocument({
           data: new Uint8Array(input),
           disableWorker: true,
@@ -122,35 +135,16 @@ export async function POST(request: NextRequest) {
       let parser: any = null
 
       try {
-        console.log('[PARSE] Trying pdfjs-dist first for stable cross-platform extraction...')
-        pdfText = await extractWithPdfJs(buffer)
-        if (pdfText.trim().length > 0) {
-          console.log('[PARSE] ✓ pdfjs-dist extracted text length:', pdfText.length)
-          parseError = null
+        const { createRequire } = await import('module')
+        const requireMod = createRequire(process.cwd() + '/package.json')
+        const mod = requireMod('pdf-parse')
+        parser = resolveParser(mod)
+        if (!parser) {
+          throw new Error(`pdf-parse export not callable. Keys: ${Object.keys(mod || {}).join(', ')}`)
         }
-      } catch (pdfjsError: any) {
-        console.error('[PARSE] pdfjs-dist primary extraction failed:', pdfjsError?.message)
-        parseError = pdfjsError?.message || 'PDF text extraction failed'
-      }
-
-      // Fallback: try pdf-parse when pdfjs-dist fails or returns empty text.
-      if ((!pdfText || pdfText.trim().length === 0) && process.env.NODE_ENV === 'production') {
-        try {
-          const { createRequire } = await import('module')
-          const requireMod = createRequire(process.cwd() + '/package.json')
-          const mod = requireMod('pdf-parse')
-          parser = resolveParser(mod)
-          if (parser && typeof parser === 'function') {
-            console.log('[PARSE] pdf-parse loaded via require (production)')
-          } else {
-            parser = null
-          }
-        } catch (e: any) {
-          console.warn('[PARSE] require("pdf-parse") in prod failed:', e?.message)
-        }
-      }
-
-      if ((!pdfText || pdfText.trim().length === 0) && !parser) {
+        console.log('[PARSE] pdf-parse loaded via require')
+      } catch (requireError: any) {
+        console.warn('[PARSE] require(\"pdf-parse\") failed:', requireError?.message)
         try {
           const mod = await import('pdf-parse/node')
           parser = resolveParser(mod)
@@ -184,6 +178,20 @@ export async function POST(request: NextRequest) {
           console.error('[PARSE] runParser failed:', runError.message, runError.stack)
           parseError = `Parser execution failed: ${runError.message}`
           parser = null
+        }
+      }
+
+      if (!pdfText || pdfText.trim().length === 0) {
+        try {
+          console.log('[PARSE] Trying pdfjs-dist fallback...')
+          pdfText = await extractWithPdfJs(buffer)
+          if (pdfText.trim().length > 0) {
+            console.log('[PARSE] ✓ pdfjs-dist extracted text length:', pdfText.length)
+            parseError = null
+          }
+        } catch (pdfjsError: any) {
+          console.error('[PARSE] pdfjs-dist fallback extraction failed:', pdfjsError?.message)
+          parseError = pdfjsError?.message || parseError || 'PDF text extraction failed'
         }
       }
     } catch (error: any) {
