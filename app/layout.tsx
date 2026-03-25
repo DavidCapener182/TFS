@@ -19,10 +19,12 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: [
-      { url: "/tfs-pwa-icon.svg", sizes: "any", type: "image/svg+xml" },
-    ],
+    icon: [{ url: "/tfs-pwa-icon.svg", sizes: "any", type: "image/svg+xml" }],
+    shortcut: [{ url: "/tfs-pwa-icon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/tfs-pwa-icon.svg", sizes: "any", type: "image/svg+xml" }],
+    other: [
+      { rel: "mask-icon", url: "/tfs-pwa-icon-maskable.svg", color: "#232154" },
+    ],
   },
   other: {
     "apple-mobile-web-app-capable": "yes",

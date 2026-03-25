@@ -19,6 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/tfs-pwa-icon.svg",
         sizes: "any",
         type: "image/svg+xml",
+        purpose: "any",
       },
       {
         src: "/tfs-pwa-icon-maskable.svg",
