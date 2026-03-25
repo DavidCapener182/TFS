@@ -595,6 +595,22 @@
   .fra-print-table td { display: table-cell !important; }
 }
 
+@media (max-width: 767px) {
+  [data-table-wrapper] {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fra-report-print-content .overflow-x-auto {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fra-print-table {
+    min-width: 640px;
+  }
+}
+
 /* Print preview mode – show header/footer on screen (class on report wrapper) */
 .fra-report-print-wrapper.fra-print-preview-mode .fra-report-print-header,
 .fra-report-print-wrapper.fra-print-preview-mode .fra-report-print-footer {
