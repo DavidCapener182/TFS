@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">The Fragrance Shop PWA maskable icon</title>
+  <desc id="desc">TFS monogram icon with extra safe-space for circular masking.</desc>
+  <rect width="512" height="512" fill="#232154" />
+  <rect x="42" y="42" width="428" height="428" fill="#232154" rx="84" ry="84" />
+  <text
+    x="256"
+    y="239"
+    text-anchor="middle"
+    font-family="Montserrat, 'Avenir Next', 'Segoe UI', Arial, sans-serif"
+    font-size="148"
+    font-weight="500"
+    letter-spacing="4"
+    fill="#FFFFFF"
+  >
+    TFS
+  </text>
+  <line x1="130" y1="276" x2="382" y2="276" stroke="#7C75A5" stroke-width="8" stroke-linecap="round" />
+  <text
+    x="256"
+    y="336"
+    text-anchor="middle"
+    font-family="Montserrat, 'Avenir Next', 'Segoe UI', Arial, sans-serif"
+    font-size="40"
+    font-weight="500"
+    fill="#E9E6F5"
+  >
+    The Fragrance Shop
+  </text>
+</svg>
