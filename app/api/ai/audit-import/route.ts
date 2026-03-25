@@ -764,7 +764,7 @@ export async function POST(request: NextRequest) {
     )
 
     const prompt = `
-You are importing a legacy safety audit into our SafeHub system.
+You are importing a legacy safety audit into our compliance system.
 
 Extract answers from the audit text and map them to the template questions.
 Return ONLY valid JSON with this shape:

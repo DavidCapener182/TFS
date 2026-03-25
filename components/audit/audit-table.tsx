@@ -51,6 +51,7 @@ interface DeleteAuditPdfState {
 
 const HS_AUDIT_INTERVAL_MONTHS = 6
 const PREVISIT_ACTION_FLAG_DAYS = 14
+const ENABLE_AUDIT_CREATION = false
 
 // Temporary debug preview to show how the pre-visit flag will look in advance.
 const ENABLE_PREVISIT_FLAG_DEBUG_PREVIEW = false
@@ -1107,7 +1108,7 @@ export function AuditTable({
                             </Button>
                           ) : null}
 
-                          {nextAudit !== null ? (
+                          {ENABLE_AUDIT_CREATION && nextAudit !== null ? (
                             <Button
                               size="sm"
                               onClick={() => handleAddAudit(row)}
@@ -1412,7 +1413,7 @@ export function AuditTable({
                                 </Button>
                               ) : null}
 
-                              {getNextAuditNumber(row) !== null ? (
+                              {ENABLE_AUDIT_CREATION && getNextAuditNumber(row) !== null ? (
                                 <Button
                                   size="sm"
                                   variant="default"
@@ -1459,8 +1460,9 @@ export function AuditTable({
 
       {/* Add Audit Dialog */}
       <Dialog
-        open={addAuditDialogOpen}
+        open={ENABLE_AUDIT_CREATION && addAuditDialogOpen}
         onOpenChange={(open) => {
+          if (!ENABLE_AUDIT_CREATION) return
           setAddAuditDialogOpen(open)
           if (!open) {
             setAddAuditState(null)

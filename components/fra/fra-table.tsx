@@ -40,6 +40,8 @@ interface DeleteFRAPdfState {
   row: FRARow
 }
 
+const ENABLE_FRA_CREATION = false
+
 export function FRATable({ 
   rows, 
   userRole, 
@@ -570,7 +572,7 @@ export function FRATable({
                           </div>
 
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={handleSaveFRA} disabled={saving} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">
+                            <Button size="sm" onClick={handleSaveFRA} disabled={saving || !ENABLE_FRA_CREATION} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">
                               {saving ? 'Saving...' : 'Save'}
                             </Button>
                             <Button size="sm" variant="outline" onClick={handleCancelEdit} disabled={saving} className="flex-1 border-slate-300 bg-white">
@@ -580,9 +582,11 @@ export function FRATable({
                         </div>
                       ) : (
                         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/80 pt-3">
-                          <Button size="sm" onClick={() => handleAddFRA(row)} className="w-full bg-slate-900 text-white hover:bg-slate-800">
-                            {row.fire_risk_assessment_date ? 'Edit FRA' : 'Add FRA'}
-                          </Button>
+                          {ENABLE_FRA_CREATION ? (
+                            <Button size="sm" onClick={() => handleAddFRA(row)} className="w-full bg-slate-900 text-white hover:bg-slate-800">
+                              {row.fire_risk_assessment_date ? 'Edit FRA' : 'Add FRA'}
+                            </Button>
+                          ) : null}
                           {row.fire_risk_assessment_pdf_path ? (
                             <>
                               <Button
@@ -810,7 +814,7 @@ export function FRATable({
                                       size="sm"
                                       variant="default"
                                       onClick={handleSaveFRA}
-                                      disabled={saving}
+                                      disabled={saving || !ENABLE_FRA_CREATION}
                                       className="h-7 bg-slate-900 px-2 text-xs text-white whitespace-nowrap hover:bg-slate-800"
                                     >
                                       {saving ? 'Saving...' : 'Save'}
@@ -819,7 +823,7 @@ export function FRATable({
                                       size="sm"
                                       variant="outline"
                                       onClick={handleCancelEdit}
-                                      disabled={saving}
+                                      disabled={saving || !ENABLE_FRA_CREATION}
                                       className="h-7 border-slate-300 bg-white px-2 text-xs whitespace-nowrap hover:bg-slate-50"
                                     >
                                       Cancel
@@ -854,14 +858,18 @@ export function FRATable({
                                 </div>
                               ) : (
                                 // In Required tab, all stores need FRA and haven't completed it, so always show button
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => handleAddFRA(row)}
-                                  className="h-7 bg-slate-900 px-2 text-xs text-white whitespace-nowrap hover:bg-slate-800"
-                                >
-                                  {row.fire_risk_assessment_date ? 'Edit FRA' : 'Add FRA'}
-                                </Button>
+                                ENABLE_FRA_CREATION ? (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleAddFRA(row)}
+                                    className="h-7 bg-slate-900 px-2 text-xs text-white whitespace-nowrap hover:bg-slate-800"
+                                  >
+                                    {row.fire_risk_assessment_date ? 'Edit FRA' : 'Add FRA'}
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-slate-400">Creation disabled</span>
+                                )
                               )}
                             </TableCell>
                           </TableRow>
