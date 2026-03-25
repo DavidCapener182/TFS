@@ -342,7 +342,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
   if (fraInstanceId) {
     // Get the FRA instance to find its template_id
     const { data: fraInstance } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select('template_id')
       .eq('id', fraInstanceId)
       .single()
@@ -351,7 +351,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
       // Try to get parsed PDF text from the FRA instance's response_json
       // First, try normal first section/question
       const { data: sections } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .select('id, title')
         .eq('template_id', fraInstance.template_id)
         .order('order_index', { ascending: true })
@@ -364,7 +364,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
       if (sections && sections.length > 0) {
         for (const section of sections) {
           const { data: questions } = await supabase
-            .from('fa_audit_template_questions')
+            .from('tfs_audit_template_questions')
             .select('id')
             .eq('section_id', section.id)
             .order('order_index', { ascending: true })
@@ -373,7 +373,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
             // Check each question for PDF text
             for (const question of questions) {
               const { data: response } = await supabase
-                .from('fa_audit_responses')
+                .from('tfs_audit_responses')
                 .select('response_json')
                 .eq('audit_instance_id', fraInstanceId)
                 .eq('question_id', question.id)
@@ -397,7 +397,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
 
         if (firstSection) {
           const { data: firstQuestion } = await supabase
-            .from('fa_audit_template_questions')
+            .from('tfs_audit_template_questions')
             .select('id')
             .eq('section_id', firstSection.id)
             .order('order_index', { ascending: true })
@@ -409,7 +409,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
           
           // First, check if ANY response exists for this instance/question
           const { data: allResponses, error: checkError } = await supabase
-            .from('fa_audit_responses')
+            .from('tfs_audit_responses')
             .select('id, question_id, response_json')
             .eq('audit_instance_id', fraInstanceId)
           
@@ -419,7 +419,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
           }
           
           const { data: response, error: responseError } = await supabase
-            .from('fa_audit_responses')
+            .from('tfs_audit_responses')
             .select('response_json')
             .eq('audit_instance_id', fraInstanceId)
             .eq('question_id', firstQuestion.id)
@@ -448,7 +448,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
             // Try to find ANY response with fra_pdf_text - search all responses for this instance
             console.log('[FRA] Searching all responses for this instance to find fra_pdf_text...')
             const { data: allResponsesForInstance } = await supabase
-              .from('fa_audit_responses')
+              .from('tfs_audit_responses')
               .select('question_id, response_json')
               .eq('audit_instance_id', fraInstanceId)
             
@@ -487,7 +487,7 @@ export async function getLatestHSAuditForStore(storeId: string, fraInstanceId?: 
       if (!pdfText) {
         console.log('[FRA] Searching all responses for this instance to find fra_pdf_text...')
         const { data: allResponsesForInstance } = await supabase
-          .from('fa_audit_responses')
+          .from('tfs_audit_responses')
           .select('question_id, response_json')
           .eq('audit_instance_id', fraInstanceId)
         
@@ -541,16 +541,16 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   // Get the FRA audit instance
   const fraInstance = await getAuditInstance(fraInstanceId)
   
-  if (!fraInstance || (fraInstance.fa_audit_templates as any)?.category !== 'fire_risk_assessment') {
+  if (!fraInstance || (fraInstance.tfs_audit_templates as any)?.category !== 'fire_risk_assessment') {
     throw new Error('Invalid FRA audit instance')
   }
 
-  const store = fraInstance.fa_stores as any
+  const store = fraInstance.tfs_stores as any
   const storeId = store.id
 
   // Check for saved custom data and edited extracted data (from review page)
   const { data: sections } = await supabase
-    .from('fa_audit_template_sections')
+    .from('tfs_audit_template_sections')
     .select('id')
     .eq('template_id', fraInstance.template_id)
     .order('order_index', { ascending: true })
@@ -561,7 +561,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   if (sections && sections.length > 0) {
     const firstSection = sections[0]
     const { data: firstQuestion } = await supabase
-      .from('fa_audit_template_questions')
+      .from('tfs_audit_template_questions')
       .select('id')
       .eq('section_id', firstSection.id)
       .order('order_index', { ascending: true })
@@ -570,7 +570,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
 
     if (firstQuestion) {
       const { data: customResponses } = await supabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .select('response_json, created_at')
         .eq('audit_instance_id', fraInstanceId)
         .eq('question_id', firstQuestion.id)
@@ -595,7 +595,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   // template's first question.
   if (!customData || !editedExtractedData) {
     const { data: allResponses } = await supabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .select('response_json, created_at')
       .eq('audit_instance_id', fraInstanceId)
       .order('created_at', { ascending: false })
@@ -651,7 +651,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
     console.log('[FRA] H&S Audit ID:', (hsAudit as any).id)
     console.log('[FRA] H&S Audit conducted_at:', (hsAudit as any).conducted_at)
     console.log('[FRA] H&S Audit template_id:', (hsAudit as any).template_id)
-    console.log('[FRA] H&S Audit template (nested):', (hsAudit as any).fa_audit_templates)
+    console.log('[FRA] H&S Audit template (nested):', (hsAudit as any).tfs_audit_templates)
     console.log('[FRA] H&S Audit responses count:', (hsAudit as any)?.responses?.length ?? 0)
   } else {
     console.log('[FRA] No H&S audit found for store:', storeId)
@@ -687,13 +687,13 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   // If we have an H&S audit, get its template
   let hsTemplateData = null
   if (hsAudit) {
-    const templateId = (hsAudit as any).template_id || (hsAudit as any).fa_audit_templates?.id
+    const templateId = (hsAudit as any).template_id || (hsAudit as any).tfs_audit_templates?.id
     if (templateId) {
       const { data: sections } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .select(`
           *,
-          fa_audit_template_questions (*)
+          tfs_audit_template_questions (*)
         `)
         .eq('template_id', templateId)
         .order('order_index', { ascending: true })
@@ -701,7 +701,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
       if (sections) {
         hsTemplateData = { sections }
         console.log('[FRA] Template sections loaded:', sections.length)
-        const totalQuestions = sections.reduce((sum, s) => sum + ((s as any).fa_audit_template_questions?.length || 0), 0)
+        const totalQuestions = sections.reduce((sum, s) => sum + ((s as any).tfs_audit_template_questions?.length || 0), 0)
         console.log('[FRA] Total questions in template:', totalQuestions)
       } else {
         console.log('[FRA] No sections found for template:', templateId)
@@ -726,7 +726,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
     
     // Find question matching pattern - try exact match first, then partial
     for (const section of hsTemplateData.sections) {
-      const questions = (section as any).fa_audit_template_questions || []
+      const questions = (section as any).tfs_audit_template_questions || []
       for (const question of questions) {
         const questionText = question.question_text?.toLowerCase() || ''
         
@@ -917,7 +917,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
 
   // Load persisted store metadata when available.
   const { data: persistedStoreData } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select('*')
     .eq('id', storeId)
     .maybeSingle()
@@ -1258,7 +1258,7 @@ export async function mapHSAuditToFRAData(fraInstanceId: string) {
   }
   if (Object.keys(discoveredStoreFields).length > 0) {
     const { error: storeUpdateError } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .update(discoveredStoreFields)
       .eq('id', storeId)
     if (storeUpdateError) {

@@ -40,12 +40,12 @@ export async function exportIncidentsCSV() {
   }
 
   const { data: incidents, error } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .select(`
       *,
-      fa_stores(store_name, store_code),
-      reporter:fa_profiles!fa_incidents_reported_by_user_id_fkey(full_name),
-      investigator:fa_profiles!fa_incidents_assigned_investigator_user_id_fkey(full_name)
+      tfs_stores:tfs_stores(store_name, store_code),
+      reporter:fa_profiles!tfs_incidents_reported_by_user_id_fkey(full_name),
+      investigator:fa_profiles!tfs_incidents_assigned_investigator_user_id_fkey(full_name)
     `)
     .order('occurred_at', { ascending: false })
 
@@ -71,8 +71,8 @@ export async function exportIncidentsCSV() {
 
   const rows = incidents?.map((incident: any) => [
     incident.reference_no,
-    incident.fa_stores?.store_name || '',
-    incident.fa_stores?.store_code || '',
+    incident.tfs_stores?.store_name || '',
+    incident.tfs_stores?.store_code || '',
     incident.incident_category,
     incident.severity,
     incident.status,
@@ -107,11 +107,11 @@ export async function exportActionsCSV() {
   }
 
   const { data: actions, error } = await supabase
-    .from('fa_actions')
+    .from('tfs_actions')
     .select(`
       *,
-      assigned_to:fa_profiles!fa_actions_assigned_to_user_id_fkey(full_name),
-      incident:fa_incidents!fa_actions_incident_id_fkey(reference_no)
+      assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(full_name),
+      incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
     `)
     .order('due_date', { ascending: true })
 

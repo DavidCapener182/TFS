@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
   // Use ilike with or() for multiple field search
   const { data: stores, error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select(
       [
         'id',
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
   }
 
   const { data: allStoresForMerge } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select('id, store_name, store_code, address_line_1, city, postcode, latitude, longitude')
 
   const mergeContext = buildStoreMergeContext(allStoresForMerge || [])
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     visibleStores.map(async (s: any) => {
       const storeIdsForCount = getStoreIdsIncludingAliases(s.id, mergeContext)
       const { count } = await supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('id', { count: 'exact', head: true })
         .in('store_id', storeIdsForCount)
         .neq('status', 'closed')

@@ -37,7 +37,7 @@ const mockSupabase = {
     getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }),
   },
   from: vi.fn((table: string) => {
-    if (table === 'fa_audit_instances') {
+    if (table === 'tfs_audit_instances') {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
@@ -50,7 +50,7 @@ const mockSupabase = {
       }
     }
 
-    if (table === 'fa_audit_template_sections') {
+    if (table === 'tfs_audit_template_sections') {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
@@ -63,13 +63,13 @@ const mockSupabase = {
       }
     }
 
-    if (table === 'fa_audit_responses') {
+    if (table === 'tfs_audit_responses') {
       return {
         select: vi.fn((selectArg: string) => makeResponsesChain(selectArg)),
       }
     }
 
-    if (table === 'fa_stores') {
+    if (table === 'tfs_stores') {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
@@ -100,8 +100,8 @@ vi.mock('@/app/actions/safehub', () => ({
     conducted_by_user_id: null,
     conducted_at: '2026-02-18T00:00:00.000Z',
     created_at: '2026-02-18T00:00:00.000Z',
-    fa_audit_templates: { category: 'fire_risk_assessment' },
-    fa_stores: {
+    tfs_audit_templates: { category: 'fire_risk_assessment' },
+    tfs_stores: {
       id: 'store-1',
       store_name: 'Bullring Mega',
       address_line_1: 'St Martins Market',

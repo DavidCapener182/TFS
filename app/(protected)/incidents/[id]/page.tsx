@@ -27,11 +27,12 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { formatStoreName } from '@/lib/store-display'
 
 async function getIncident(id: string) {
   const supabase = createClient()
   const { data: openIncident } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .select('*')
     .eq('id', id)
     .maybeSingle()
@@ -39,7 +40,7 @@ async function getIncident(id: string) {
   const { data: closedIncident } = openIncident
     ? ({ data: null } as any)
     : await supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .select('*')
         .eq('id', id)
         .maybeSingle()
@@ -48,12 +49,12 @@ async function getIncident(id: string) {
   if (!incident) {
     return null
   }
-  const sourceTable = openIncident ? 'fa_incidents' : 'fa_closed_incidents'
+  const sourceTable = openIncident ? 'tfs_incidents' : 'tfs_closed_incidents'
 
   const [storeResult, reporterResult, investigatorResult] = await Promise.all([
     incident.store_id
       ? supabase
-          .from('fa_stores')
+          .from('tfs_stores')
           .select('*')
           .eq('id', incident.store_id)
           .maybeSingle()
@@ -77,7 +78,7 @@ async function getIncident(id: string) {
   return {
     ...incident,
     _source_table: sourceTable,
-    fa_stores: storeResult.data || null,
+    tfs_stores: storeResult.data || null,
     reporter: reporterResult.data || null,
     investigator: investigatorResult.data || null,
   }
@@ -86,10 +87,10 @@ async function getIncident(id: string) {
 async function getInvestigation(incidentId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .select(`
       *,
-      lead_investigator:fa_profiles!fa_investigations_lead_investigator_user_id_fkey(*)
+      lead_investigator:fa_profiles!tfs_investigations_lead_investigator_user_id_fkey(*)
     `)
     .eq('incident_id', incidentId)
     .single()
@@ -100,10 +101,10 @@ async function getInvestigation(incidentId: string) {
 async function getActions(incidentId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_actions')
+    .from('tfs_actions')
     .select(`
       *,
-      assigned_to:fa_profiles!fa_actions_assigned_to_user_id_fkey(*)
+      assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(*)
     `)
     .eq('incident_id', incidentId)
     .order('created_at', { ascending: false })
@@ -114,10 +115,10 @@ async function getActions(incidentId: string) {
 async function getAttachments(entityType: string, entityId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_attachments')
+    .from('tfs_attachments')
     .select(`
       *,
-      uploaded_by:fa_profiles!fa_attachments_uploaded_by_user_id_fkey(*)
+      uploaded_by:fa_profiles!tfs_attachments_uploaded_by_user_id_fkey(*)
     `)
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
@@ -129,10 +130,10 @@ async function getAttachments(entityType: string, entityId: string) {
 async function getActivityLog(entityType: string, entityId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_activity_log')
+    .from('tfs_activity_log')
     .select(`
       *,
-      performed_by:fa_profiles!fa_activity_log_performed_by_user_id_fkey(*)
+      performed_by:fa_profiles!tfs_activity_log_performed_by_user_id_fkey(*)
     `)
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
@@ -322,7 +323,7 @@ export default async function IncidentDetailPage({
   if (!incident) {
     notFound()
   }
-  const isArchivedClosedIncident = incident._source_table === 'fa_closed_incidents'
+  const isArchivedClosedIncident = incident._source_table === 'tfs_closed_incidents'
 
   const supabase = createClient()
   const { data: profiles } = await supabase
@@ -489,10 +490,10 @@ export default async function IncidentDetailPage({
           <div>
             <p className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">Location</p>
             <p className="text-base font-bold text-slate-900">
-              {incident.fa_stores?.store_name || 'Unknown Store'}
+              {formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}
             </p>
             <p className="mt-0.5 text-xs font-mono text-slate-500">
-              Store Code: {incident.fa_stores?.store_code || '—'}
+              Store Code: {incident.tfs_stores?.store_code || '—'}
             </p>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">

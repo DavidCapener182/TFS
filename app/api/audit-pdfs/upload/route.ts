@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       : 'compliance_audit_2_pdf_path'
 
     const { error: updateError } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .update({ [pdfColumn]: filePath })
       .eq('id', storeId)
 

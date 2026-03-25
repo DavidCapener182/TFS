@@ -168,7 +168,7 @@ export function StoreActionsModal({
       try {
         const supabase = createClient()
         const { data, error } = await supabase
-          .from('fa_store_actions')
+          .from('tfs_store_actions')
           .select('id, title, source_flagged_item, description, priority, status, due_date')
           .eq('store_id', row.id)
           .order('due_date', { ascending: true })

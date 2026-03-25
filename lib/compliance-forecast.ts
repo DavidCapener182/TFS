@@ -1,3 +1,5 @@
+import { formatStoreName } from '@/lib/store-display'
+
 export type FRAStatus = 'up_to_date' | 'due' | 'overdue' | 'required'
 
 export interface ForecastStoreInput {
@@ -255,7 +257,7 @@ export function computeComplianceForecast(
 
     return {
       storeId: store.id,
-      storeName: store.store_name,
+      storeName: formatStoreName(store.store_name),
       storeCode: store.store_code,
       region: store.region,
       riskScore: boundedRisk,

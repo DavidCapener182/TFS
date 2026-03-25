@@ -55,7 +55,7 @@ export async function uploadAuditPDF(
     : 'compliance_audit_2_pdf_path'
 
   const { error: updateError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({ [pdfColumn]: filePath })
     .eq('id', storeId)
 
@@ -119,7 +119,7 @@ export async function deleteAuditPDF(
     : 'compliance_audit_2_pdf_path'
 
   const { data: store, error: fetchError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select(pdfColumn)
     .eq('id', storeId)
     .single()
@@ -145,7 +145,7 @@ export async function deleteAuditPDF(
 
   // Update store record to remove PDF path
   const { error: updateError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({ [pdfColumn]: null })
     .eq('id', storeId)
 

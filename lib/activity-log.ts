@@ -21,7 +21,7 @@ export async function logActivity(
   }
 
   const { error } = await supabase
-    .from('fa_activity_log')
+    .from('tfs_activity_log')
     .insert({
       entity_type: entityType,
       entity_id: entityId,

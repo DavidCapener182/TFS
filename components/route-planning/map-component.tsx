@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useMemo } from 'react'
-import { getInternalAreaDisplayName } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
+import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -19,6 +20,8 @@ interface Store {
   id: string
   store_code: string | null
   store_name: string
+  city?: string | null
+  postcode?: string | null
   latitude: number
   longitude: number
   region: string | null
@@ -39,24 +42,28 @@ interface MapComponentProps {
   filteredArea: string | null
 }
 
-// Color mapping for different areas
+// Color mapping for higher-level store groups.
 const areaColors: Record<string, string> = {
-  'A1': 'blue',
-  'A2': 'red',
-  'A3': 'green',
-  'A4': 'orange',
-  'A5': 'gold',  // Changed from purple to gold to differentiate from A2
-  'A6': 'yellow',
-  'A7': 'violet',
-  'A8': 'grey',
-  'WHSE 1': 'black',
-  'WHSE 2': 'darkblue',
-  'Photo': 'pink',
-  'SEVEN': 'darkgreen',
+  Scotland: 'blue',
+  'North East': 'red',
+  Manchester: 'green',
+  Liverpool: 'orange',
+  Birmingham: 'gold',
+  Yorkshire: 'violet',
+  Wales: 'yellow',
+  London: 'grey',
+  'West Midlands': 'darkblue',
+  'East Midlands': 'darkgreen',
+  'South East': 'black',
+  'South West': 'pink',
+  'East of England': 'blue',
+  Ireland: 'red',
+  Other: 'grey',
 }
 
-function getAreaIcon(area: string | null, isSelected: boolean) {
-  const color = area ? (areaColors[area] || 'blue') : 'blue'
+function getAreaIcon(area: string | null, storeName: string, city: string | null | undefined, postcode: string | null | undefined, isSelected: boolean) {
+  const group = getStoreRegionGroup(area, storeName, city, postcode)
+  const color = areaColors[group] || 'blue'
   
   // If selected, use a larger icon with a border effect
   if (isSelected) {
@@ -139,7 +146,7 @@ export default function MapComponent({ stores, managerHome, selectedStores, onSt
     
     // First filter by area if filter is set
     if (filteredArea) {
-      filtered = filtered.filter(s => s.region === filteredArea)
+      filtered = filtered.filter((s) => getStoreRegionGroup(s.region, s.store_name, s.city, s.postcode) === filteredArea)
     }
     
     // If there are selected stores, only show those
@@ -220,7 +227,7 @@ export default function MapComponent({ stores, managerHome, selectedStores, onSt
         const hasPlannedDate = store.compliance_audit_2_planned_date !== null
         const isSelected = selectedStores.has(store.id)
         // Use selected icon if store is selected
-        const icon = getAreaIcon(store.region, isSelected)
+        const icon = getAreaIcon(store.region, store.store_name, store.city, store.postcode, isSelected)
         
         return (
           <Marker
@@ -232,12 +239,12 @@ export default function MapComponent({ stores, managerHome, selectedStores, onSt
             }}
           >
             <Popup>
-              <div className="font-semibold">{store.store_name}</div>
+              <div className="font-semibold">{formatStoreName(store.store_name)}</div>
               {getDisplayStoreCode(store.store_code) && (
                 <div className="text-sm text-slate-600">Code: {getDisplayStoreCode(store.store_code)}</div>
               )}
               {store.region && (
-                <div className="text-sm text-slate-500">Area: {getInternalAreaDisplayName(store.region, { fallback: 'All Areas' })}</div>
+                <div className="text-sm text-slate-500">Group: {getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode)}</div>
               )}
               {isSelected && (
                 <div className="text-sm text-blue-600 font-medium mt-1">

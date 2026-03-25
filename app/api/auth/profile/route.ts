@@ -23,7 +23,7 @@ export async function POST() {
 
   // Create profile with role from metadata or default to pending
   // For invited users, use the intended_role from metadata if it's set
-  // For self-registered users, default to 'pending' unless they're KSS x Footasylum client
+  // For self-registered users, default to pending unless an intended role is provided
   const intendedRole = user.user_metadata?.intended_role
   let defaultRole: string = 'pending'
   
@@ -56,5 +56,4 @@ export async function POST() {
 
   return NextResponse.json({ profile })
 }
-
 

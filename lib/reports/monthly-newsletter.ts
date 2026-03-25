@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { endOfMonth, format, isValid, parse, startOfMonth } from 'date-fns'
 import {
   computeRevisitRiskForecast,
@@ -11,6 +10,7 @@ import {
   getReportingAreaDisplayName,
   normalizeReportingAreaCode,
 } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
 import { isExtStoreCode, shouldHideStore } from '@/lib/store-normalization'
 import { resolveStoreActionPriorityTheme } from '@/lib/store-action-titles'
 import type {
@@ -57,7 +57,7 @@ interface HSAuditInstanceRow {
   store_id: string | null
   conducted_at: string | null
   overall_score: number | null
-  fa_audit_templates:
+  tfs_audit_templates:
     | {
         id: string
         title: string | null
@@ -446,10 +446,10 @@ function buildRevisitRiskNarrative(report: {
           ? ` ${report.storesWithOpenIncidentsAtRiskCount} at-risk store${report.storesWithOpenIncidentsAtRiskCount !== 1 ? 's also have' : ' also has'} open incidents, which increases volatility heading into End-of-Year audits.`
           : ''
 
-      return `Footasylum Management: ${report.alreadyBelowThresholdCount} store${report.alreadyBelowThresholdCount !== 1 ? 's are' : ' is'} already below 80% and in mandatory revisit status${highlightedText}. ${closureText}${incidentText}`
+      return `The Fragrance Shop Management: ${report.alreadyBelowThresholdCount} store${report.alreadyBelowThresholdCount !== 1 ? 's are' : ' is'} already below 80% and in mandatory revisit status${highlightedText}. ${closureText}${incidentText}`
     }
 
-    return 'Footasylum Management: No stores are currently in the 80-84% Start-of-Year watch band. Keep open compliance actions, training gaps and other priority issues closed out to prevent revisit exposure.'
+    return 'The Fragrance Shop Management: No stores are currently in the 80-84% Start-of-Year watch band. Keep open compliance actions, training gaps and other priority issues closed out to prevent revisit exposure.'
   }
 
   const predictedText =
@@ -475,7 +475,7 @@ function buildRevisitRiskNarrative(report: {
         ? `Based on unresolved compliance actions, training gaps and open incidents, ${report.predictedRevisitCount} of the 80-84% stores${predictedText} are forecast to drop below 80% in the End-of-Year cycle.`
         : 'None of the current 80-84% watch-band stores are forecast to drop below 80% in the End-of-Year cycle at this point.'
 
-    return `Footasylum Management: You currently have ${report.borderlineStoreCount} stores sitting between 80-84% from their Start-of-Year audits and ${report.alreadyBelowThresholdCount} stores already below 80% in mandatory revisit status${alreadyBelowText}. ${forecastSentence} ${immediateText} ${forecastText}${incidentText}`
+    return `The Fragrance Shop Management: You currently have ${report.borderlineStoreCount} stores sitting between 80-84% from their Start-of-Year visits and ${report.alreadyBelowThresholdCount} stores already below 80% in mandatory revisit status${alreadyBelowText}. ${forecastSentence} ${immediateText} ${forecastText}${incidentText}`
   }
 
   const closureText =
@@ -487,7 +487,7 @@ function buildRevisitRiskNarrative(report: {
       ? `Based on unresolved compliance actions, training gaps and open incidents, ${report.predictedRevisitCount} of these stores${predictedText} are forecast to drop below 80% in the End-of-Year cycle, triggering mandatory revisits.`
       : 'None of these current 80-84% watch-band stores are forecast to drop below 80% in the End-of-Year cycle at this point.'
 
-  return `Footasylum Management: You currently have ${report.borderlineStoreCount} stores sitting between 80-84% from their Start-of-Year audits. ${forecastSentence} ${closureText}`
+  return `The Fragrance Shop Management: You currently have ${report.borderlineStoreCount} stores sitting between 80-84% from their Start-of-Year visits. ${forecastSentence} ${closureText}`
 }
 
 function buildRevisitRiskInputs(
@@ -521,7 +521,7 @@ function buildRevisitRiskInputs(
 
     return {
       storeId: store.id,
-      storeName: store.store_name,
+      storeName: formatStoreName(store.store_name),
       storeCode: sanitizeStoreCodeForDisplay(store.store_code),
       region: store.region,
       startOfYearAuditScore: store.compliance_audit_1_overall_pct,
@@ -633,7 +633,7 @@ function buildNewsletterMarkdown(
   return lines.join('\n')
 }
 
-function getTemplate(value: HSAuditInstanceRow['fa_audit_templates']): {
+function getTemplate(value: HSAuditInstanceRow['tfs_audit_templates']): {
   title: string | null
   category: string | null
 } {
@@ -687,7 +687,7 @@ function isFraNotableStatus(status: FRAStatus): status is 'due' | 'overdue' | 'r
 }
 
 export async function buildMonthlyNewsletterData(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: any,
   rawBody: MonthlyNewsletterRequestBody
 ): Promise<MonthlyNewsletterResponse> {
   const period = resolveMonthPeriod(rawBody.month)
@@ -705,7 +705,7 @@ export async function buildMonthlyNewsletterData(
       : null
 
   const { data: storesRaw, error: storesError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select(`
       id,
       store_name,
@@ -767,7 +767,7 @@ export async function buildMonthlyNewsletterData(
 
     {
       const result = await supabase
-        .from('fa_store_actions')
+        .from('tfs_store_actions')
         .select(selectWithSummary)
         .in('store_id', storeIds)
         .not('status', 'in', '(complete,cancelled)')
@@ -780,7 +780,7 @@ export async function buildMonthlyNewsletterData(
 
     if (storeActionsError && /priority_summary/i.test(storeActionsError.message || '')) {
       const retry = await supabase
-        .from('fa_store_actions')
+        .from('tfs_store_actions')
         .select(selectWithoutSummary)
         .in('store_id', storeIds)
         .not('status', 'in', '(complete,cancelled)')
@@ -811,7 +811,7 @@ export async function buildMonthlyNewsletterData(
 
   if (storeIds.length > 0) {
     const { data: incidentsRaw, error: incidentsError } = await supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('id,store_id,status')
       .in('store_id', storeIds)
       .limit(10000)
@@ -837,13 +837,13 @@ export async function buildMonthlyNewsletterData(
   const monthEndIso = `${period.endIso}T23:59:59.999Z`
 
   const { data: auditsRaw, error: auditsError } = await supabase
-    .from('fa_audit_instances')
+    .from('tfs_audit_instances')
     .select(`
       id,
       store_id,
       conducted_at,
       overall_score,
-      fa_audit_templates (
+      tfs_audit_templates (
         id,
         title,
         category
@@ -861,7 +861,7 @@ export async function buildMonthlyNewsletterData(
 
   const hsAuditInstances = ((auditsRaw || []) as HSAuditInstanceRow[]).filter((audit) => {
     if (!audit.store_id) return false
-    return isHealthSafetyAudit(getTemplate(audit.fa_audit_templates))
+    return isHealthSafetyAudit(getTemplate(audit.tfs_audit_templates))
   })
 
   const hsAuditsByStore = new Map<string, HSAuditInstanceRow[]>()
@@ -926,7 +926,7 @@ export async function buildMonthlyNewsletterData(
           fraStatus === 'required'
 
         return {
-          storeName: store.store_name,
+          storeName: formatStoreName(store.store_name),
           storeCode: sanitizeStoreCodeForDisplay(store.store_code),
           latestAuditScore: latestAudit.score,
           latestAuditDate: latestAudit.date,
@@ -990,7 +990,7 @@ export async function buildMonthlyNewsletterData(
       if (!isFraNotableStatus(status)) return
 
       fraNotableItems.push({
-        storeName: store.store_name,
+        storeName: formatStoreName(store.store_name),
         storeCode: sanitizeStoreCodeForDisplay(store.store_code),
         status,
         fraDate: store.fire_risk_assessment_date,

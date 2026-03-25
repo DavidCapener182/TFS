@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { createIncident } from '@/app/actions/incidents'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { formatStoreName } from '@/lib/store-display'
 import { shouldHideStore } from '@/lib/store-normalization'
 
 const incidentSchema = z.object({
@@ -41,7 +42,7 @@ export function NewIncidentDialog({ open, onOpenChange }: NewIncidentDialogProps
     async function fetchStores() {
       const supabase = createClient()
       const { data } = await supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .select('id, store_name, store_code')
         .eq('is_active', true)
         .order('store_name')
@@ -116,7 +117,7 @@ export function NewIncidentDialog({ open, onOpenChange }: NewIncidentDialogProps
                     <SelectContent>
                       {stores.map((store) => (
                         <SelectItem key={store.id} value={store.id}>
-                          {store.store_name} {store.store_code && `(${store.store_code})`}
+                          {formatStoreName(store.store_name)} {store.store_code && `(${store.store_code})`}
                         </SelectItem>
                       ))}
                     </SelectContent>

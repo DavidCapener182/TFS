@@ -1147,7 +1147,7 @@ export function MonthlyNewsletterPDF({
         </View>
 
         <Text style={styles.footer}>
-          KSS NW Monthly Area Newsletter For Footasylum | {report.areaLabel} | {periodLabel}
+          The Fragrance Shop Monthly Area Newsletter | {report.areaLabel} | {periodLabel}
         </Text>
       </Page>
 

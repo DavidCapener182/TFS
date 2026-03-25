@@ -41,7 +41,7 @@ const POLICY_ROWS: PolicyRow[] = [
   },
   {
     dataPoint: 'User activity/audit trail',
-    fields: 'fa_activity_log.performed_by_user_id, timestamps, action metadata',
+    fields: 'tfs_activity_log.performed_by_user_id, timestamps, action metadata',
     pages: 'Dashboard/Activity/Admin oversight',
     purpose: 'Operational audit trail, traceability, and incident review.',
     lawfulBasis: 'Legitimate interests (accountability and security).',
@@ -121,8 +121,8 @@ const POLICY_ROWS: PolicyRow[] = [
   },
   {
     dataPoint: 'Store compliance metrics (non-personal)',
-    fields: 'audit percentages, FRA status, planned dates',
-    pages: 'Dashboard, Audit Tracker, FRA, Route Planning, Reports',
+    fields: 'visit status, planned dates, completion dates',
+    pages: 'Dashboard, Visit Tracker, Route Planning, Reports',
     purpose: 'Operational compliance monitoring and planning.',
     lawfulBasis: 'Not personal data in most cases; operational processing basis applies.',
     access: 'Role-scoped by page and policy.',
@@ -135,7 +135,7 @@ const FULL_POLICY: PolicySection[] = [
   {
     title: '1. Purpose and Scope',
     paragraphs: [
-      'This GDPR Policy defines how personal data is processed within the KSS compliance platform used for safety, audit, incident, route-planning, and governance operations.',
+      'This GDPR Policy defines how personal data is processed within The Fragrance Shop platform used for safety, visits, incidents, route-planning, and governance operations.',
       'This policy applies to all protected platform areas, all user roles, all personal data processed through the platform, and all exports/reports generated from platform data.',
       'The data-point matrix above forms the operational schedule of processing and should be read as part of this policy.',
     ],
@@ -171,7 +171,7 @@ const FULL_POLICY: PolicySection[] = [
     ],
     bullets: [
       'Admin: full governance and user-access control.',
-      'Ops: operational processing for incidents, actions, audits, FRA, and routes.',
+      'Ops: operational processing for incidents, actions, visits, and routes.',
       'Readonly: restricted operational visibility per role policy.',
       'Client: limited view scope under approved policy and RLS constraints.',
     ],

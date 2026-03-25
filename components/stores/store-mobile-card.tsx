@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/ui/card'
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, ClipboardList, ArrowUpRight, Navigation } from 'lucide-react'
+import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -22,7 +23,7 @@ export function StoreMobileCard({ store }: StoreMobileCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Store Record</p>
-            <p className="mt-1 truncate text-[1.02rem] font-semibold tracking-[-0.01em] text-slate-900">{store.store_name}</p>
+            <p className="mt-1 truncate text-[1.02rem] font-semibold tracking-[-0.01em] text-slate-900">{formatStoreName(store.store_name)}</p>
           </div>
           {getDisplayStoreCode(store.store_code) ? (
             <span className="inline-flex rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600 shadow-sm">

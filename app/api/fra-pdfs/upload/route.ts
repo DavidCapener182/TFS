@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Update the store record with the PDF path
     const { error: updateError } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .update({ fire_risk_assessment_pdf_path: filePath })
       .eq('id', storeId)
 

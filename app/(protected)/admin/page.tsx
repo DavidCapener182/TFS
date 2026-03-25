@@ -83,18 +83,6 @@ export default async function AdminPage() {
           </a>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-lg sm:border-blue-200 sm:bg-blue-50 sm:p-4 sm:shadow-none">
-          <h2 className="mb-2 text-base font-semibold text-slate-900 sm:text-lg sm:text-blue-900">SafeHub</h2>
-          <p className="mb-4 text-sm text-slate-600 sm:mb-3 sm:text-blue-700">
-            Safety Culture-style audit pages for templates, execution, and compliance tracking.
-          </p>
-          <a
-            href="/audit-lab"
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:min-h-0 sm:w-auto sm:rounded-md sm:bg-blue-600 sm:px-4 sm:py-2 sm:hover:bg-blue-700"
-          >
-            Open SafeHub
-          </a>
-        </div>
       </div>
 
       <AdminClient />

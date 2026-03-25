@@ -10,7 +10,7 @@ async function getMetadataQuestionId(
   templateId: string
 ): Promise<string | null> {
   const { data: firstSection } = await supabase
-    .from('fa_audit_template_sections')
+    .from('tfs_audit_template_sections')
     .select('id')
     .eq('template_id', templateId)
     .order('order_index', { ascending: true })
@@ -20,7 +20,7 @@ async function getMetadataQuestionId(
   if (!firstSection?.id) return null
 
   const { data: firstQuestion } = await supabase
-    .from('fa_audit_template_questions')
+    .from('tfs_audit_template_questions')
     .select('id')
     .eq('section_id', firstSection.id)
     .order('order_index', { ascending: true })
@@ -36,7 +36,7 @@ async function persistFraRiskRatingOnInstance(
   rating: FRAOverallRisk
 ): Promise<boolean> {
   const { error } = await supabase
-    .from('fa_audit_instances')
+    .from('tfs_audit_instances')
     .update({ fra_overall_risk_rating: rating })
     .eq('id', instanceId)
 
@@ -73,7 +73,7 @@ export async function persistFraRiskRatingForInstance(params: {
   if (!questionId) return rating
 
   const { data: existingRows, error: readError } = await params.supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .select('id, response_value, response_json, created_at')
     .eq('audit_instance_id', params.instanceId)
     .eq('question_id', questionId)
@@ -110,7 +110,7 @@ export async function persistFraRiskRatingForInstance(params: {
 
   if (existing?.id) {
     const { error: updateError } = await params.supabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .update(payload)
       .eq('id', existing.id)
 
@@ -122,7 +122,7 @@ export async function persistFraRiskRatingForInstance(params: {
   }
 
   const { error: insertError } = await params.supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .insert({
       audit_instance_id: params.instanceId,
       question_id: questionId,

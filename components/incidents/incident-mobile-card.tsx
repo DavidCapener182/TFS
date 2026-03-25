@@ -8,6 +8,7 @@ import { DeleteIncidentButton } from '@/components/shared/delete-incident-button
 import { Eye, MapPin } from 'lucide-react'
 import { format } from 'date-fns'
 import { Card } from '@/components/ui/card'
+import { formatStoreName } from '@/lib/store-display'
 
 interface IncidentMobileCardProps {
   incident: any
@@ -45,7 +46,7 @@ export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
                <MapPin className="h-3 w-3 flex-shrink-0 text-slate-400" />
                <span className="truncate font-medium text-slate-700">
-                 {incident.fa_stores?.store_name || 'Unknown Store'}
+                 {formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}
                </span>
             </div>
           </div>

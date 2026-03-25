@@ -28,14 +28,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: template, error: templateError } = await supabase
-      .from('fa_audit_templates')
+      .from('tfs_audit_templates')
       .select(`
         id,
         title,
-        fa_audit_template_sections (
+        tfs_audit_template_sections (
           id,
           title,
-          fa_audit_template_questions (
+          tfs_audit_template_questions (
             id,
             question_text,
             question_type,
@@ -151,9 +151,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const questions = template.fa_audit_template_sections
+    const questions = template.tfs_audit_template_sections
       ?.flatMap((section: any) =>
-        (section.fa_audit_template_questions || []).map((q: any) => ({
+        (section.tfs_audit_template_questions || []).map((q: any) => ({
           id: q.id,
           text: q.question_text,
           type: q.question_type,

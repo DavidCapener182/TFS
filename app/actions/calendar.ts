@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { startOfMonth, endOfMonth, format } from 'date-fns'
+import { formatStoreName } from '@/lib/store-display'
 
 export interface PlannedRoute {
   key: string
@@ -49,7 +50,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
 
   // Fetch planned routes for the month
   const { data: plannedRoutesRaw, error: plannedError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select(`
       id,
       store_name,
@@ -57,7 +58,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
       region,
       compliance_audit_2_planned_date,
       compliance_audit_2_assigned_manager_user_id,
-      assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+      assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
         id,
         full_name
       )
@@ -74,7 +75,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
   // Fetch completed stores (with audit/FRA data) for the month
   // We need to fetch all stores and filter in memory since Supabase OR queries are complex
   const { data: completedStoresRaw, error: completedError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select(`
       id,
       store_name,
@@ -86,7 +87,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
       fire_risk_assessment_date,
       fire_risk_assessment_pct,
       compliance_audit_2_assigned_manager_user_id,
-      assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+      assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
         id,
         full_name
       )
@@ -129,7 +130,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
       route.storeCount++
       route.stores.push({
         id: store.id,
-        name: store.store_name,
+        name: formatStoreName(store.store_name),
         store_code: store.store_code
       })
     })
@@ -157,7 +158,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
 
       const storeData: CompletedStore = {
         id: store.id,
-        storeName: store.store_name,
+        storeName: formatStoreName(store.store_name),
         storeCode: store.store_code,
         audit1Date: store.compliance_audit_1_date || null,
         audit1Pct: store.compliance_audit_1_overall_pct || null,

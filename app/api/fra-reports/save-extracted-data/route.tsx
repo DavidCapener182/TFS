@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Get the FRA instance and find a response row to store fra_extracted_data
     const { data: fraInstance } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select('template_id')
       .eq('id', instanceId)
       .single()
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Find any existing response for this instance (e.g. the one that has fra_pdf_text)
     const { data: existingResponses } = await supabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .select('id, question_id, response_json')
       .eq('audit_instance_id', instanceId)
 
@@ -42,14 +42,14 @@ export async function POST(request: NextRequest) {
     if (!targetResponse && fraInstance.template_id) {
       // No response yet - get first section/question so we can create one
       const { data: sections } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .select('id')
         .eq('template_id', fraInstance.template_id)
         .order('order_index', { ascending: true })
       const firstSection = sections?.[0]
       if (firstSection) {
         const { data: firstQuestion } = await supabase
-          .from('fa_audit_template_questions')
+          .from('tfs_audit_template_questions')
           .select('id')
           .eq('section_id', firstSection.id)
           .order('order_index', { ascending: true })
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         if (firstQuestion) {
           // Insert new response with only fra_extracted_data (no fra_pdf_text here)
           const { data: inserted } = await supabase
-            .from('fa_audit_responses')
+            .from('tfs_audit_responses')
             .insert({
               audit_instance_id: instanceId,
               question_id: firstQuestion.id,
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error: updateError } = await supabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .update({ response_json: updatedJson })
       .eq('id', targetResponse!.id)
 

@@ -11,7 +11,7 @@ export async function updateComplianceAudit2Tracking(
   const supabase = createClient()
 
   const { error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({
       compliance_audit_2_assigned_manager_user_id: assignedManagerUserId || null,
       compliance_audit_2_planned_date: plannedDate || null,
@@ -52,7 +52,7 @@ export async function updateFRA(
   }
 
   const { error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update(updateData)
     .eq('id', storeId)
 
@@ -60,8 +60,7 @@ export async function updateFRA(
     throw new Error(`Failed to update FRA: ${error.message}`)
   }
 
-  revalidatePath('/fire-risk-assessment')
+  revalidatePath('/stores')
   return { success: true }
 }
-
 

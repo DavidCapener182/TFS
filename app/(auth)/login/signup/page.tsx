@@ -84,7 +84,7 @@ export default function SignUpPage() {
       if (data.session) {
         // User is immediately signed in (email confirmation disabled)
         // Create profile now with intended role
-        // KSS x Footasylum clients get 'client' role, others need admin approval ('pending')
+        // Head office users get client access, others need admin approval ('pending')
         const finalRole = isFootAsylumClient ? 'client' : 'pending'
         
         const { error: profileError } = await supabase
@@ -136,7 +136,7 @@ export default function SignUpPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6">
-              <Button asChild className="w-full bg-[#0e1925] text-white hover:bg-[#1a2f3f]">
+              <Button asChild className="w-full bg-[#232154] text-white hover:bg-[#1c0259]">
                 <Link href="/login">
                   Back to login
                 </Link>
@@ -155,7 +155,7 @@ export default function SignUpPage() {
               Create an account
             </CardTitle>
             <CardDescription className="mx-auto max-w-sm text-sm text-slate-600 sm:text-base">
-              Sign up to access the KSS x Footasylum Assurance Platform
+              Sign up to access The Fragrance Shop Platform
             </CardDescription>
           </CardHeader>
           <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6">
@@ -220,10 +220,10 @@ export default function SignUpPage() {
                   id="isFootAsylumClient"
                   checked={isFootAsylumClient}
                   onChange={(e) => setIsFootAsylumClient(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-[#0e1925] focus:ring-[#0e1925]"
+                  className="h-4 w-4 rounded border-gray-300 text-[#232154] focus:ring-[#232154]"
                 />
                 <Label htmlFor="isFootAsylumClient" className="cursor-pointer text-sm font-medium text-slate-700">
-                  Footasylum Head Office
+                  The Fragrance Shop Head Office
                 </Label>
               </div>
               {error && (
@@ -231,7 +231,7 @@ export default function SignUpPage() {
                   {error}
                 </div>
               )}
-              <Button type="submit" className="w-full bg-[#0e1925] hover:bg-[#1a2f3f] text-white" disabled={loading}>
+              <Button type="submit" className="w-full bg-[#232154] hover:bg-[#1c0259] text-white" disabled={loading}>
                 {loading ? 'Creating account...' : 'Create account'}
               </Button>
               <Link
@@ -244,7 +244,7 @@ export default function SignUpPage() {
                 Already have an account?{' '}
                 <Link
                   href="/login"
-                  className="font-medium text-[#0e1925] hover:text-[#1a2f3f] hover:underline"
+                  className="font-medium text-[#232154] hover:text-[#1c0259] hover:underline"
                 >
                   Sign in
                 </Link>

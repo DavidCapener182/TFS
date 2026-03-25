@@ -23,7 +23,7 @@ export async function uploadAttachment(
 
   // Upload to storage
   const { error: uploadError } = await supabase.storage
-    .from('fa-attachments')
+    .from('tfs-attachments')
     .upload(filePath, file)
 
   if (uploadError) {
@@ -32,7 +32,7 @@ export async function uploadAttachment(
 
   // Create attachment record
   const { data: attachment, error: dbError } = await supabase
-    .from('fa_attachments')
+    .from('tfs_attachments')
     .insert({
       entity_type: entityType,
       entity_id: entityId,
@@ -47,7 +47,7 @@ export async function uploadAttachment(
 
   if (dbError) {
     // Clean up uploaded file if DB insert fails
-    await supabase.storage.from('fa-attachments').remove([filePath])
+    await supabase.storage.from('tfs-attachments').remove([filePath])
     throw new Error(`Failed to create attachment record: ${dbError.message}`)
   }
 
@@ -69,7 +69,7 @@ export async function getAttachmentDownloadUrl(attachmentId: string) {
   }
 
   const { data: attachment, error } = await supabase
-    .from('fa_attachments')
+    .from('tfs_attachments')
     .select('file_path')
     .eq('id', attachmentId)
     .single()
@@ -79,7 +79,7 @@ export async function getAttachmentDownloadUrl(attachmentId: string) {
   }
 
   const { data } = await supabase.storage
-    .from('fa-attachments')
+    .from('tfs-attachments')
     .createSignedUrl(attachment.file_path, 3600) // 1 hour expiry
 
   if (!data) {

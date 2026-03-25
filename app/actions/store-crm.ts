@@ -105,7 +105,7 @@ export async function createStoreContact(input: CreateStoreContactInput) {
 
   if (isPrimary) {
     const { error: clearPrimaryError } = await supabase
-      .from('fa_store_contacts')
+      .from('tfs_store_contacts')
       .update({ is_primary: false })
       .eq('store_id', storeId)
       .eq('is_primary', true)
@@ -116,7 +116,7 @@ export async function createStoreContact(input: CreateStoreContactInput) {
   }
 
   const { data, error } = await supabase
-    .from('fa_store_contacts')
+    .from('tfs_store_contacts')
     .insert({
       store_id: storeId,
       contact_name: contactName,
@@ -159,7 +159,7 @@ export async function deleteStoreContact(storeId: string, contactId: string) {
   const { supabase } = await getWritableContext()
 
   const { error } = await supabase
-    .from('fa_store_contacts')
+    .from('tfs_store_contacts')
     .delete()
     .eq('id', normalizedContactId)
     .eq('store_id', normalizedStoreId)
@@ -200,7 +200,7 @@ export async function createStoreNote(input: CreateStoreNoteInput) {
   const { supabase, userId } = await getWritableContext()
 
   const { data, error } = await supabase
-    .from('fa_store_notes')
+    .from('tfs_store_notes')
     .insert({
       store_id: storeId,
       note_type: noteType,
@@ -239,7 +239,7 @@ export async function deleteStoreNote(storeId: string, noteId: string) {
   const { supabase } = await getWritableContext()
 
   const { error } = await supabase
-    .from('fa_store_notes')
+    .from('tfs_store_notes')
     .delete()
     .eq('id', normalizedNoteId)
     .eq('store_id', normalizedStoreId)
@@ -291,7 +291,7 @@ export async function createStoreContactTrackerEntry(input: CreateStoreContactTr
 
   if (contactId) {
     const { data: contact, error: contactError } = await supabase
-      .from('fa_store_contacts')
+      .from('tfs_store_contacts')
       .select('id')
       .eq('id', contactId)
       .eq('store_id', storeId)
@@ -310,7 +310,7 @@ export async function createStoreContactTrackerEntry(input: CreateStoreContactTr
   }
 
   const { data, error } = await supabase
-    .from('fa_store_contact_tracker')
+    .from('tfs_store_contact_tracker')
     .insert({
       store_id: storeId,
       contact_id: contactId,
@@ -354,7 +354,7 @@ export async function deleteStoreContactTrackerEntry(storeId: string, entryId: s
   const { supabase } = await getWritableContext()
 
   const { error } = await supabase
-    .from('fa_store_contact_tracker')
+    .from('tfs_store_contact_tracker')
     .delete()
     .eq('id', normalizedEntryId)
     .eq('store_id', normalizedStoreId)

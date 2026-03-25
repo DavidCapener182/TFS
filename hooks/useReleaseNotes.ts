@@ -32,7 +32,7 @@ export function useReleaseNotes() {
       }
 
       const { data: release } = await supabase
-        .from('fa_release_notes')
+        .from('tfs_release_notes')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -45,7 +45,7 @@ export function useReleaseNotes() {
       }
 
       const { data: viewed } = await supabase
-        .from('fa_user_release_views')
+        .from('tfs_user_release_views')
         .select('id')
         .eq('user_id', user.id)
         .eq('release_id', release.id)
@@ -67,7 +67,7 @@ export function useReleaseNotes() {
       if (!user) return
 
       await supabase
-        .from('fa_user_release_views')
+        .from('tfs_user_release_views')
         .insert({ user_id: user.id, release_id: latestRelease.id })
 
       setShouldShow(false)

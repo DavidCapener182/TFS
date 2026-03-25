@@ -41,34 +41,34 @@ export async function GET(request: NextRequest) {
       { count: activityEventsThisWeek },
     ] = await Promise.all([
       supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('*', { count: 'exact', head: true })
         .in('status', ['open', 'under_investigation', 'actions_in_progress']),
       supabase
-        .from('fa_incidents')
-        .select('store_id, severity, fa_stores(store_name, store_code)')
+        .from('tfs_incidents')
+        .select('store_id, tfs_stores:tfs_stores(store_name, store_code)')
         .gte('occurred_at', weekStartIso)
         .lte('occurred_at', weekEndIso),
       supabase
-        .from('fa_actions')
+        .from('tfs_actions')
         .select('*', { count: 'exact', head: true })
         .lt('due_date', today)
         .not('status', 'in', '(complete,cancelled)'),
       supabase
-        .from('fa_actions')
+        .from('tfs_actions')
         .select('*', { count: 'exact', head: true })
         .not('completed_at', 'is', null)
         .gte('completed_at', weekStartIso)
         .lte('completed_at', weekEndIso),
       supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .select('id, store_name, store_code, region, reporting_area, compliance_audit_2_planned_date, compliance_audit_2_assigned_manager_user_id')
         .not('compliance_audit_2_planned_date', 'is', null)
         .gte('compliance_audit_2_planned_date', startDate)
         .lte('compliance_audit_2_planned_date', endDate)
         .eq('is_active', true),
       supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .select(`
           id,
           store_name,
@@ -83,22 +83,22 @@ export async function GET(request: NextRequest) {
         `)
         .eq('is_active', true),
       supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('store_id')
         .in('status', ['open', 'under_investigation', 'actions_in_progress']),
       supabase
-        .from('fa_actions')
+        .from('tfs_actions')
         .select(`
           status,
           due_date,
-          incident:fa_incidents!fa_actions_incident_id_fkey(
+          incident:tfs_incidents!tfs_actions_incident_id_fkey(
             store_id
           )
         `)
         .lt('due_date', today)
         .not('status', 'in', '(complete,cancelled)'),
       supabase
-        .from('fa_activity_log')
+        .from('tfs_activity_log')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', weekStartIso)
         .lte('created_at', weekEndIso),

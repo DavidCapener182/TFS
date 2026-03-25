@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 
     // Fetch all stores assigned to this manager (audit 2 assignment), with all audit dates
     const { data: allStores } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select(
         'id, store_name, store_code, compliance_audit_2_planned_date, compliance_audit_1_date, compliance_audit_2_date, compliance_audit_3_date'
       )

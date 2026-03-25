@@ -14,7 +14,7 @@ const mockSupabase = {
     getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }),
   },
   from: vi.fn((table: string) => {
-    if (table === 'fa_audit_responses') {
+    if (table === 'tfs_audit_responses') {
       return {
         select: vi.fn(() => ({
           eq: vi.fn().mockResolvedValue({
@@ -41,8 +41,8 @@ vi.mock('@/app/actions/fra-reports', () => ({
 
 vi.mock('@/app/actions/safehub', () => ({
   getAuditInstance: vi.fn().mockResolvedValue({
-    fa_audit_templates: { category: 'fire_risk_assessment' },
-    fa_stores: {
+    tfs_audit_templates: { category: 'fire_risk_assessment' },
+    tfs_stores: {
       id: 'store-1',
       store_name: 'Bullring Mega',
       address_line_1: 'St Martins Market',

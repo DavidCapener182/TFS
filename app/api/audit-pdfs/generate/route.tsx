@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       <InspectionReportPDF
         template={template}
         instance={instance}
-        store={instance.fa_stores}
+        store={instance.tfs_stores}
         responses={instance.responses || []}
         media={instance.media || []}
         overallScore={Math.round(overallScore)}

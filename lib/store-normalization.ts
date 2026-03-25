@@ -34,12 +34,6 @@ const UNKNOWN_IMPORTED_STORE_NAMES = new Set([
   'unknown location (imported)',
 ])
 
-// Closed stores that should be hidden from operational views.
-const CLOSED_STORE_NAMES = new Set([
-  'romford',
-  'bristol',
-])
-
 const ALWAYS_INCLUDE_STORE_CODE_MATCHERS = [
   's0900',
   'wh003',
@@ -146,10 +140,6 @@ export function isUnknownImportedStore(storeName: string | null | undefined): bo
   return UNKNOWN_IMPORTED_STORE_NAMES.has(normalizeStoreName(storeName))
 }
 
-export function isClosedStoreName(storeName: string | null | undefined): boolean {
-  return CLOSED_STORE_NAMES.has(normalizeStoreName(storeName))
-}
-
 function hasLocationFieldsInShape(store: StoreNormalizationInput): boolean {
   return ['address_line_1', 'city', 'postcode', 'latitude', 'longitude']
     .some((key) => Object.prototype.hasOwnProperty.call(store, key))
@@ -182,7 +172,6 @@ export function shouldHideStore(store: StoreNormalizationInput): boolean {
   if (shouldAlwaysIncludeStore(store)) return false
   if (isExtStoreCode(store.store_code)) return true
   if (isUnknownImportedStore(store.store_name)) return true
-  if (isClosedStoreName(store.store_name)) return true
   if (hasLocationFieldsInShape(store) && !hasStoreLocationData(store)) return true
   return false
 }

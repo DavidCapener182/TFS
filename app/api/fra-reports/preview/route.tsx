@@ -50,11 +50,11 @@ export async function GET(request: NextRequest) {
     // Get the FRA audit instance
     const fraInstance = await getAuditInstance(instanceId)
     
-    if (!fraInstance || (fraInstance.fa_audit_templates as any)?.category !== 'fire_risk_assessment') {
+    if (!fraInstance || (fraInstance.tfs_audit_templates as any)?.category !== 'fire_risk_assessment') {
       return NextResponse.json({ error: 'Invalid FRA audit instance' }, { status: 400 })
     }
 
-    const store = fraInstance.fa_stores as any
+    const store = fraInstance.tfs_stores as any
     const storeId = store.id
 
     // Get the most recent H&S audit for this store (check for uploaded PDFs too)
@@ -116,13 +116,13 @@ export async function GET(request: NextRequest) {
     // Get template data for database extraction
     let hsTemplateData = null
     if (hsAudit) {
-      const templateId = (hsAudit as any).template_id || (hsAudit as any).fa_audit_templates?.id
+      const templateId = (hsAudit as any).template_id || (hsAudit as any).tfs_audit_templates?.id
       if (templateId) {
         const { data: sections } = await supabase
-          .from('fa_audit_template_sections')
+          .from('tfs_audit_template_sections')
           .select(`
             *,
-            fa_audit_template_questions (*)
+            tfs_audit_template_questions (*)
           `)
           .eq('template_id', templateId)
           .order('order_index', { ascending: true })
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
       const normalizedPattern = questionPattern.toLowerCase().trim()
       
       for (const section of hsTemplateData.sections) {
-        const questions = (section as any).fa_audit_template_questions || []
+        const questions = (section as any).tfs_audit_template_questions || []
         for (const question of questions) {
           const questionText = question.question_text?.toLowerCase() || ''
           

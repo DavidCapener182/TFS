@@ -34,9 +34,9 @@ import { updateRoutePlannedDate, updateManagerHomeAddress, getRouteOperationalIt
 import { format } from 'date-fns'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RouteDirectionsModal } from './route-directions-modal'
-import { getInternalAreaDisplayName, MULTI_AREA_REGION } from '@/lib/areas'
+import { getStoreRegionGroup } from '@/lib/store-region-groups'
+import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
-
 // Dynamically import the map component to avoid SSR issues
 const MapComponent = dynamic(() => import('./map-component'), { ssr: false })
 
@@ -94,8 +94,17 @@ function getRouteRegion(stores: Store[]): string | null {
     new Set(stores.map((store) => store.region).filter((region): region is string => Boolean(region)))
   )
   if (uniqueRegions.length === 1) return uniqueRegions[0]
-  if (uniqueRegions.length > 1) return MULTI_AREA_REGION
+  if (uniqueRegions.length > 1) return 'MULTI'
   return null
+}
+
+function getRouteGroupLabel(stores: Store[]): string {
+  const uniqueGroups = Array.from(
+    new Set(stores.map((store) => getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode)))
+  )
+  if (uniqueGroups.length === 1) return uniqueGroups[0]
+  if (uniqueGroups.length > 1) return 'Multi-Group Route'
+  return 'Other'
 }
 
 export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
@@ -170,12 +179,12 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
     }
   }, [selectedManager, profiles])
 
-  // Get unique areas for filter
-  const uniqueAreas = useMemo<string[]>(() => {
-    const areas = new Set<string>(
-      (stores.map(s => s.region || '').filter(Boolean) as string[])
+  // Get unique region groups for filtering.
+  const uniqueGroups = useMemo<string[]>(() => {
+    const groups = new Set<string>(
+      stores.map((s) => getStoreRegionGroup(s.region, s.store_name, s.city, s.postcode))
     )
-    return Array.from(areas).sort()
+    return Array.from(groups).sort()
   }, [stores])
 
   // Filter stores available for planning (not planned, not completed within 6 months, not completed today)
@@ -247,30 +256,30 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
       }))
   }, [storesAvailableForPlanning])
 
-  // Get stores in the selected area (or all areas) for route building table.
+  // Get stores in the selected group (or all groups) for route building table.
   const storesInRouteArea = useMemo(() => {
     const candidateStores = routeArea
-      ? storesAvailableForPlanning.filter((s) => s.region === routeArea)
+      ? storesAvailableForPlanning.filter((s) => getStoreRegionGroup(s.region, s.store_name, s.city, s.postcode) === routeArea)
       : storesAvailableForPlanning
 
     return [...candidateStores].sort((a, b) => {
-      const areaA = a.region || 'ZZZ'
-      const areaB = b.region || 'ZZZ'
-      if (areaA !== areaB) return areaA.localeCompare(areaB)
-      return a.store_name.localeCompare(b.store_name)
+      const groupA = getStoreRegionGroup(a.region, a.store_name, a.city, a.postcode)
+      const groupB = getStoreRegionGroup(b.region, b.store_name, b.city, b.postcode)
+      if (groupA !== groupB) return groupA.localeCompare(groupB)
+      return formatStoreName(a.store_name).localeCompare(formatStoreName(b.store_name))
     })
   }, [routeArea, storesAvailableForPlanning])
 
   const storesInRouteAreaWithLocations = useMemo(() => {
     const candidateStores = routeArea
-      ? storesWithLocations.filter((s) => s.region === routeArea)
+      ? storesWithLocations.filter((s) => getStoreRegionGroup(s.region, s.store_name, s.city, s.postcode) === routeArea)
       : storesWithLocations
 
     return [...candidateStores].sort((a, b) => {
-      const areaA = a.region || 'ZZZ'
-      const areaB = b.region || 'ZZZ'
-      if (areaA !== areaB) return areaA.localeCompare(areaB)
-      return a.store_name.localeCompare(b.store_name)
+      const groupA = getStoreRegionGroup(a.region, a.store_name, a.city, a.postcode)
+      const groupB = getStoreRegionGroup(b.region, b.store_name, b.city, b.postcode)
+      if (groupA !== groupB) return groupA.localeCompare(groupB)
+      return formatStoreName(a.store_name).localeCompare(formatStoreName(b.store_name))
     })
   }, [routeArea, storesWithLocations])
 
@@ -302,6 +311,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
     // Convert to array and sort by date, then apply custom ordering
     return Object.entries(grouped).map(([key, group]) => {
       const region = getRouteRegion(group.stores)
+      const regionGroupLabel = getRouteGroupLabel(group.stores)
       // If we have a custom order for this route, apply it
       if (routeStoreOrder[key] && routeStoreOrder[key].length === group.stores.length) {
         const orderedStores = routeStoreOrder[key]
@@ -313,6 +323,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
         return {
           ...group,
           region,
+          regionGroupLabel,
           _groupKey: key, // Store the stable key
           stores: [...orderedStores, ...remainingStores]
         }
@@ -329,6 +340,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
       return {
         ...group,
         region,
+        regionGroupLabel,
         _groupKey: key, // Store the stable key
         stores: sortedStores
       }
@@ -357,7 +369,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
   }
 
   const handleDeleteRouteGroup = (group: { stores: Store[] }) => {
-    const storeNames = group.stores.map(s => s.store_name).join(', ')
+    const storeNames = group.stores.map((s) => formatStoreName(s.store_name)).join(', ')
     setStoreToDelete({ id: group.stores[0].id, name: storeNames })
     setDeleteConfirmOpen(true)
   }
@@ -859,7 +871,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
               </div>
               <h1 className="mb-1 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Route Planning</h1>
               <p className="max-w-2xl text-xs leading-snug text-slate-400 sm:text-sm">
-                Build daily compliance routes, optimize store selection, and track planned rounds by area and manager.
+                Build daily compliance routes, optimize store selection, and track planned rounds by group and manager.
               </p>
             </div>
             <button className="flex min-h-[44px] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-700 sm:text-sm md:rounded-lg md:px-4 md:py-2">
@@ -950,17 +962,17 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             <div className="space-y-2">
               <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <Filter className="h-4 w-4" />
-                Area
+                Group
               </label>
               <Select value={routeArea || 'all'} onValueChange={(value) => handleRouteAreaSelect(value === 'all' ? null : value)}>
                 <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50 font-medium text-slate-700">
-                  <SelectValue placeholder="Select area..." />
+                  <SelectValue placeholder="Select group..." />
                 </SelectTrigger>
                 <SelectContent className="z-[9999]">
-                  <SelectItem value="all">All Areas</SelectItem>
-                  {uniqueAreas.map((area) => (
-                    <SelectItem key={area} value={area}>
-                      {getInternalAreaDisplayName(area, { fallback: 'All Areas' })}
+                  <SelectItem value="all">All Groups</SelectItem>
+                  {uniqueGroups.map((group) => (
+                    <SelectItem key={group} value={group}>
+                      {group}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1190,7 +1202,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
               <div className="mb-3 flex flex-col gap-3 border-b border-slate-100 pb-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">
-                    Stores in {getInternalAreaDisplayName(routeArea, { fallback: 'All Areas' })} ({storesInRouteArea.length} stores)
+                    Stores in {routeArea || 'All Groups'} ({storesInRouteArea.length} stores)
                   </h3>
                   {storesInRouteAreaMissingCoordsCount > 0 && (
                     <p className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500">
@@ -1277,7 +1289,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-slate-900 flex items-center gap-2">
-                          {store.store_name}
+                          {formatStoreName(store.store_name)}
                           {/* Show (Revisit) flag if store has completed Audit 1 with score < 80% */}
                           {store.compliance_audit_1_date && 
                            store.compliance_audit_1_overall_pct !== null && 
@@ -1290,7 +1302,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                         {(getDisplayStoreCode(store.store_code) || store.region) && (
                           <div className="mt-0.5 text-xs font-medium text-slate-500">
                             {getDisplayStoreCode(store.store_code) || ''}
-                            {store.region ? `${getDisplayStoreCode(store.store_code) ? ' • ' : ''}${getInternalAreaDisplayName(store.region, { fallback: 'All Areas' })}` : ''}
+                            {store.region ? `${getDisplayStoreCode(store.store_code) ? ' • ' : ''}${getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode)}` : ''}
                           </div>
                         )}
                         {!hasCoords && (
@@ -1353,7 +1365,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             <p className="text-sm font-semibold text-slate-800">Store Locations Map</p>
             <p className="text-xs text-slate-500">
               {routeArea
-                ? storesWithLocations.filter((store) => store.region === routeArea).length
+                ? storesWithLocations.filter((store) => getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode) === routeArea).length
                 : storesWithLocations.length}{' '}
               stores with locations
             </p>
@@ -1397,7 +1409,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             Store Locations Map
             <span className="ml-auto rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               ({routeArea
-                ? storesWithLocations.filter((store) => store.region === routeArea).length
+                ? storesWithLocations.filter((store) => getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode) === routeArea).length
                 : storesWithLocations.length}{' '}
               stores with locations)
             </span>
@@ -1475,7 +1487,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                              {group.region ? getInternalAreaDisplayName(group.region, { fallback: 'Planned route' }) : 'Planned route'}
+                              {(group as any).regionGroupLabel || 'Planned route'}
                             </p>
                             <h3 className="mt-1 text-base font-semibold text-slate-900">
                               {group.assignedManager?.full_name || 'Unassigned manager'}
@@ -1539,7 +1551,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-sm font-semibold text-slate-900">
-                                    {store.store_name}
+                                    {formatStoreName(store.store_name)}
                                   </p>
                                   {getDisplayStoreCode(store.store_code) && (
                                     <p className="mt-1 text-xs text-slate-500">
@@ -1743,7 +1755,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                                       </>
                                     )}
                                     <span>
-                                      {store.store_name}
+                                      {formatStoreName(store.store_name)}
                                       {getDisplayStoreCode(store.store_code) && (
                                         <span className="text-gray-500 text-xs ml-2">({getDisplayStoreCode(store.store_code)})</span>
                                       )}
@@ -1753,7 +1765,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                               })}
                             </div>
                           </TableCell>
-                          <TableCell>{group.region ? getInternalAreaDisplayName(group.region, { fallback: '-' }) : '-'}</TableCell>
+                          <TableCell>{(group as any).regionGroupLabel || '-'}</TableCell>
                           <TableCell>
                             {group.assignedManager?.full_name || '-'}
                           </TableCell>

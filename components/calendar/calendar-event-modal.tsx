@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge'
 import { User, MapPin, Store, CheckCircle2, FileText } from 'lucide-react'
 import { getInternalAreaDisplayName } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
 import { cn, formatPercent } from '@/lib/utils'
 import type { PlannedRoute, CompletedStore } from '@/app/actions/calendar'
 
@@ -73,7 +74,7 @@ export function CalendarEventModal({ event, onClose }: CalendarEventModalProps) 
                       key={store.id}
                       className="p-2 bg-white border border-slate-200 rounded text-sm"
                     >
-                      <div className="font-medium text-slate-900">{store.name}</div>
+                      <div className="font-medium text-slate-900">{formatStoreName(store.name)}</div>
                       {store.store_code && (
                         <div className="text-xs text-slate-500">Code: {store.store_code}</div>
                       )}
@@ -131,7 +132,7 @@ export function CalendarEventModal({ event, onClose }: CalendarEventModalProps) 
             <Store className="h-4 w-4 text-slate-600" />
             <div>
               <div className="text-sm font-semibold text-slate-900">Store</div>
-              <div className="text-sm text-slate-700">{store.storeName}</div>
+              <div className="text-sm text-slate-700">{formatStoreName(store.storeName)}</div>
               {store.storeCode && (
                 <div className="text-xs text-slate-500">Code: {store.storeCode}</div>
               )}
@@ -271,70 +272,6 @@ export function CalendarEventModal({ event, onClose }: CalendarEventModalProps) 
                       : "text-blue-600"
                   )}>
                     Date: {format(parseISO(store.audit2Date), 'MMM d, yyyy')}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Fire Risk Assessment */}
-          {hasFRA && (
-            <div className={cn(
-              "p-3 rounded-lg border",
-              store.fraPct !== null && store.fraPct < 80
-                ? "bg-red-50 border-red-200"
-                : "bg-orange-50 border-orange-200"
-            )}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <FileText className={cn(
-                    "h-4 w-4",
-                    store.fraPct !== null && store.fraPct < 80
-                      ? "text-red-600"
-                      : "text-orange-600"
-                  )} />
-                  <div className={cn(
-                    "text-sm font-semibold",
-                    store.fraPct !== null && store.fraPct < 80
-                      ? "text-red-900"
-                      : "text-orange-900"
-                  )}>
-                    Fire Risk Assessment
-                    {store.fraPct !== null && store.fraPct < 80 && (
-                      <span className="ml-2 text-red-600">⚠ Failed</span>
-                    )}
-                  </div>
-                </div>
-                {isFRADate && (
-                  <Badge variant="default" className={cn(
-                    store.fraPct !== null && store.fraPct < 80
-                      ? "bg-red-600 text-white"
-                      : "bg-orange-600 text-white"
-                  )}>
-                    Completed on this date
-                  </Badge>
-                )}
-              </div>
-              <div className="space-y-1">
-                <div className={cn(
-                  "text-sm",
-                  store.fraPct !== null && store.fraPct < 80
-                    ? "text-red-700"
-                    : "text-orange-700"
-                )}>
-                  <span className="font-medium">Score:</span> {formatPercent(store.fraPct)}
-                  {store.fraPct !== null && store.fraPct < 80 && (
-                    <span className="ml-2 font-semibold">(Revisit Required)</span>
-                  )}
-                </div>
-                {store.fraDate && (
-                  <div className={cn(
-                    "text-xs",
-                    store.fraPct !== null && store.fraPct < 80
-                      ? "text-red-600"
-                      : "text-orange-600"
-                  )}>
-                    Date: {format(parseISO(store.fraDate), 'MMM d, yyyy')}
                   </div>
                 )}
               </div>

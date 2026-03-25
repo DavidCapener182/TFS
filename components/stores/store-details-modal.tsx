@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { getStoreActionListTitle } from '@/components/shared/store-action-title'
 import { getInternalAreaDisplayName, getReportingAreaDisplayName } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
 import { formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 interface StoreDetailsModalProps {
@@ -92,7 +93,7 @@ export function StoreDetailsModal({ store, incidents, actions, open, onOpenChang
         <DialogHeader className="p-4 md:p-6 bg-white border-b sticky top-0 z-10 relative safe-top">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0 pr-10 md:pr-0">
-              <DialogTitle className="text-xl md:text-2xl font-bold text-slate-900 text-center md:text-left break-words">{store.store_name}</DialogTitle>
+              <DialogTitle className="text-xl md:text-2xl font-bold text-slate-900 text-center md:text-left break-words">{formatStoreName(store.store_name)}</DialogTitle>
               <DialogDescription className="mt-1 flex items-center justify-center md:justify-start gap-2 flex-wrap">
                 <Badge variant="outline" className="font-mono text-xs bg-slate-50">
                   {getDisplayStoreCode(store.store_code) || '—'}

@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
     // Store parsed text in the FRA instance's first question response_json for later retrieval
     // Get the FRA instance first to get template_id
     const { data: fraInstance } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select('template_id')
       .eq('id', fraInstanceId)
       .single()
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
       // Get the first question of the FRA template
       // First check if ANY sections exist
       const { data: allSectionsCheck, error: sectionsCheckError } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .select('id, title, order_index')
         .eq('template_id', fraInstance.template_id)
         .order('order_index', { ascending: true })
@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
         
         // Create a section for PDF storage
         const { data: storageSection, error: sectionError } = await supabase
-          .from('fa_audit_template_sections')
+          .from('tfs_audit_template_sections')
           .insert({
             template_id: fraInstance.template_id,
             title: 'PDF Storage',
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
           
           // Create a question for PDF storage
           const { data: storageQuestion, error: questionError } = await supabase
-            .from('fa_audit_template_questions')
+            .from('tfs_audit_template_questions')
             .insert({
               section_id: storageSection.id,
               question_text: 'H&S Audit PDF Text Storage',
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
             // Now store the PDF text in this question
             // Check if response exists first
             const { data: existingFallbackResponse } = await supabase
-              .from('fa_audit_responses')
+              .from('tfs_audit_responses')
               .select('id')
               .eq('audit_instance_id', fraInstanceId)
               .eq('question_id', storageQuestion.id)
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
             if (existingFallbackResponse) {
               // Update existing response
               const { error: updateError } = await supabase
-                .from('fa_audit_responses')
+                .from('tfs_audit_responses')
                 .update({
                   response_json: storageData
                 })
@@ -336,7 +336,7 @@ export async function POST(request: NextRequest) {
             } else {
               // Insert new response
               const { error: insertError } = await supabase
-                .from('fa_audit_responses')
+                .from('tfs_audit_responses')
                 .insert({
                   audit_instance_id: fraInstanceId,
                   question_id: storageQuestion.id,
@@ -358,7 +358,7 @@ export async function POST(request: NextRequest) {
       
       // Now try normal path with first section (either existing or newly created)
       const { data: sections } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .select('id, title, order_index')
         .eq('template_id', fraInstance.template_id)
         .order('order_index', { ascending: true })
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest) {
       if (firstSection) {
         console.log('[PARSE] First section found:', firstSection.id, 'title:', firstSection.title)
         const { data: firstQuestion } = await supabase
-          .from('fa_audit_template_questions')
+          .from('tfs_audit_template_questions')
           .select('id')
           .eq('section_id', firstSection.id)
           .order('order_index', { ascending: true })
@@ -381,7 +381,7 @@ export async function POST(request: NextRequest) {
           
           // Get existing response to preserve other data
           const { data: existingResponse, error: existingError } = await supabase
-            .from('fa_audit_responses')
+            .from('tfs_audit_responses')
             .select('response_json, id')
             .eq('audit_instance_id', fraInstanceId)
             .eq('question_id', firstQuestion.id)
@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
           // Store the parsed PDF text in the response_json
           // Check if response exists first (no unique constraint on audit_instance_id,question_id)
           const { data: existingResponseForUpdate } = await supabase
-            .from('fa_audit_responses')
+            .from('tfs_audit_responses')
             .select('id')
             .eq('audit_instance_id', fraInstanceId)
             .eq('question_id', firstQuestion.id)
@@ -427,7 +427,7 @@ export async function POST(request: NextRequest) {
           if (existingResponseForUpdate) {
             // Update existing response
             const { error: updateError, data: updateData } = await supabase
-              .from('fa_audit_responses')
+              .from('tfs_audit_responses')
               .update({
                 response_json: responseJsonData
               })
@@ -439,7 +439,7 @@ export async function POST(request: NextRequest) {
           } else {
             // Insert new response
             const { error: insertError, data: insertData } = await supabase
-              .from('fa_audit_responses')
+              .from('tfs_audit_responses')
               .insert({
                 audit_instance_id: fraInstanceId,
                 question_id: firstQuestion.id,
@@ -484,7 +484,7 @@ export async function POST(request: NextRequest) {
             let verified = false
             for (let attempt = 0; attempt < 3; attempt++) {
               const { data: verifyResponse, error: verifyError } = await supabase
-                .from('fa_audit_responses')
+                .from('tfs_audit_responses')
                 .select('response_json')
                 .eq('audit_instance_id', fraInstanceId)
                 .eq('question_id', firstQuestion.id)
@@ -514,7 +514,7 @@ export async function POST(request: NextRequest) {
           console.warn('[PARSE] No first question found for template section:', firstSection.id)
           // Check if ANY questions exist for this section
           const { data: allQuestions } = await supabase
-            .from('fa_audit_template_questions')
+            .from('tfs_audit_template_questions')
             .select('id, question_text, order_index')
             .eq('section_id', firstSection.id)
             .order('order_index', { ascending: true })
@@ -524,7 +524,7 @@ export async function POST(request: NextRequest) {
         console.warn('[PARSE] No first section found for template:', fraInstance.template_id)
         // Check if ANY sections exist for this template
         const { data: allSections } = await supabase
-          .from('fa_audit_template_sections')
+          .from('tfs_audit_template_sections')
           .select('id, title, order_index')
           .eq('template_id', fraInstance.template_id)
           .order('order_index', { ascending: true })
@@ -542,14 +542,14 @@ export async function POST(request: NextRequest) {
           // OR we can store it in a special way that doesn't require a question
           
           // Actually, let's check if we can just store it without a question_id
-          // But that won't work because question_id is required in fa_audit_responses
+          // But that won't work because question_id is required in tfs_audit_responses
           
           // Better approach: Create a minimal section and question for PDF storage if they don't exist
           console.log('[PARSE] Attempting to create storage section/question for PDF text...')
           
           // Create a section for PDF storage
           const { data: storageSection, error: sectionError } = await supabase
-            .from('fa_audit_template_sections')
+            .from('tfs_audit_template_sections')
             .insert({
               template_id: fraInstance.template_id,
               title: 'PDF Storage',
@@ -565,7 +565,7 @@ export async function POST(request: NextRequest) {
             
             // Create a question for PDF storage
             const { data: storageQuestion, error: questionError } = await supabase
-              .from('fa_audit_template_questions')
+              .from('tfs_audit_template_questions')
               .insert({
                 section_id: storageSection.id,
                 question_text: 'H&S Audit PDF Text Storage',
@@ -584,7 +584,7 @@ export async function POST(request: NextRequest) {
               // Now store the PDF text
               // Check if response exists first (no unique constraint)
               const { data: existingStorageResponse } = await supabase
-                .from('fa_audit_responses')
+                .from('tfs_audit_responses')
                 .select('id')
                 .eq('audit_instance_id', fraInstanceId)
                 .eq('question_id', storageQuestion.id)
@@ -601,7 +601,7 @@ export async function POST(request: NextRequest) {
               if (existingStorageResponse) {
                 // Update existing response
                 const { error: updateError } = await supabase
-                  .from('fa_audit_responses')
+                  .from('tfs_audit_responses')
                   .update({
                     response_json: storageData
                   })
@@ -611,7 +611,7 @@ export async function POST(request: NextRequest) {
               } else {
                 // Insert new response
                 const { error: insertError } = await supabase
-                  .from('fa_audit_responses')
+                  .from('tfs_audit_responses')
                   .insert({
                     audit_instance_id: fraInstanceId,
                     question_id: storageQuestion.id,
@@ -646,7 +646,7 @@ export async function POST(request: NextRequest) {
       // Do one final check to see if storage worked
       try {
         const { data: finalCheck } = await supabase
-          .from('fa_audit_template_sections')
+          .from('tfs_audit_template_sections')
           .select('id')
           .eq('template_id', fraInstance.template_id)
           .order('order_index', { ascending: true })
@@ -655,7 +655,7 @@ export async function POST(request: NextRequest) {
         
         if (finalCheck) {
           const { data: finalQuestion } = await supabase
-            .from('fa_audit_template_questions')
+            .from('tfs_audit_template_questions')
             .select('id')
             .eq('section_id', finalCheck.id)
             .order('order_index', { ascending: true })
@@ -664,7 +664,7 @@ export async function POST(request: NextRequest) {
           
           if (finalQuestion) {
             const { data: finalResponse } = await supabase
-              .from('fa_audit_responses')
+              .from('tfs_audit_responses')
               .select('response_json')
               .eq('audit_instance_id', fraInstanceId)
               .eq('question_id', finalQuestion.id)

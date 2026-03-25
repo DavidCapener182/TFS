@@ -30,9 +30,9 @@ export function AuditTrackerClient({ stores, userRole }: AuditTrackerClientProps
                 <ClipboardCheck size={14} />
                 Compliance Monitoring
               </div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Audit Tracker</h1>
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Visit Tracker</h1>
               <p className="mt-1 max-w-2xl text-xs leading-snug text-slate-400 sm:text-sm">
-                Track compliance scores, view audit history, and monitor network performance across all regions.
+                Track visit progress, review recent history, and monitor network activity across all regions.
               </p>
             </div>
             <button
@@ -55,8 +55,8 @@ export function AuditTrackerClient({ stores, userRole }: AuditTrackerClientProps
           <div className="border-b border-slate-100 p-4 md:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-1">
-                <h2 className="text-lg font-bold text-slate-800 md:text-xl">Detailed Audit Reports</h2>
-                <p className="text-sm text-slate-500">Switch between grouped area cards and a ranked league table.</p>
+                <h2 className="text-lg font-bold text-slate-800 md:text-xl">Detailed Visit Reports</h2>
+                <p className="text-sm text-slate-500">Switch between grouped area cards and a ranked network table.</p>
               </div>
               <TabsList className="grid w-full grid-cols-2 rounded-2xl bg-slate-100 p-1 lg:w-auto lg:min-w-[320px] lg:rounded-xl">
                 <TabsTrigger

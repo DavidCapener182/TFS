@@ -19,7 +19,7 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const passwordReset = searchParams.get('password_reset')
+    const passwordReset = searchParams?.get('password_reset')
     if (passwordReset === 'success') {
       setSuccess('Your password has been reset successfully. Please sign in with your new password.')
     }
@@ -59,16 +59,17 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0e1925] via-[#1a2f3f] to-[#0e1925] relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0e1925]/90 via-[#1a2f3f]/80 to-[#0e1925]/90"></div>
+    <div className="min-h-screen relative overflow-hidden bg-[linear-gradient(140deg,#1c0259_0%,#232154_52%,#312d73_100%)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_42%)]"></div>
+      <div className="absolute inset-x-0 bottom-0 h-64 bg-[radial-gradient(circle_at_bottom,rgba(42,135,66,0.26),transparent_58%)]"></div>
 
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4">
         <div className="mb-8 flex justify-center">
           <Image
-            src="/fa-logo.png"
-            alt="KSS x Footasylum Logo"
-            width={200}
-            height={100}
+            src="/tfs-logo.svg"
+            alt="The Fragrance Shop"
+            width={240}
+            height={70}
             className="h-auto w-auto object-contain"
             priority
           />
@@ -77,10 +78,10 @@ function LoginContent() {
         <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm shadow-2xl border-0">
           <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 text-center">
             <CardTitle className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-              KSS x Footasylum Audit Platform
+              The Fragrance Shop Platform
             </CardTitle>
             <CardDescription className="text-sm sm:text-base text-slate-600">
-              KSS Internal - Sign in to your account
+              Sign in to access operations, incidents, visits, and route planning.
             </CardDescription>
           </CardHeader>
           <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
@@ -120,13 +121,13 @@ function LoginContent() {
                   {success}
                 </div>
               )}
-              <Button type="submit" className="w-full bg-[#0e1925] text-white hover:bg-[#1a2f3f]" disabled={loading}>
+              <Button type="submit" className="w-full bg-[#232154] text-white hover:bg-[#1c0259]" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign in'}
               </Button>
               <div className="space-y-2 text-center">
                 <a
                   href="/login/forgot-password"
-                  className="text-sm text-[#0e1925] hover:text-[#1a2f3f] hover:underline block font-medium"
+                  className="text-sm text-[#232154] hover:text-[#1c0259] hover:underline block font-medium"
                 >
                   Forgot your password?
                 </a>
@@ -134,7 +135,7 @@ function LoginContent() {
                   Don&apos;t have an account?{' '}
                   <a
                     href="/login/signup"
-                    className="text-[#0e1925] hover:text-[#1a2f3f] hover:underline font-medium"
+                    className="text-[#232154] hover:text-[#1c0259] hover:underline font-medium"
                   >
                     Sign up
                   </a>
@@ -151,7 +152,7 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-[#0e1925] via-[#1a2f3f] to-[#0e1925] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[linear-gradient(140deg,#1c0259_0%,#232154_52%,#312d73_100%)] flex items-center justify-center p-4">
         <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">

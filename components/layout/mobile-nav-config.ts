@@ -19,7 +19,7 @@ const defaultMobileTabItems: MobileTabItem[] = [
 const opsMobileTabItems: MobileTabItem[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/calendar', label: 'Calendar', icon: Calendar },
-  { href: '/audit-tracker', label: 'Audit', icon: ClipboardList },
+  { href: '/visit-tracker', label: 'Visits', icon: ClipboardList },
   { href: '/route-planning', label: 'Routes', icon: Route },
 ]
 
@@ -28,9 +28,7 @@ const mobilePageTitles: Array<{ href: string; title: string }> = [
   { href: '/incidents', title: 'Incidents' },
   { href: '/actions', title: 'Actions' },
   { href: '/stores', title: 'Stores' },
-  { href: '/audit-tracker', title: 'Audit Tracker' },
-  { href: '/audit-lab', title: 'SafeHub' },
-  { href: '/fire-risk-assessment', title: 'Fire Risk' },
+  { href: '/visit-tracker', title: 'Visit Tracker' },
   { href: '/route-planning', title: 'Route Planning' },
   { href: '/calendar', title: 'Calendar' },
   { href: '/reports', title: 'Reports' },

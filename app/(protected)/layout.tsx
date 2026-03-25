@@ -1,4 +1,4 @@
-import { requireAuth, getUserProfile } from '@/lib/auth'
+import { requireAuth, isSupabaseConfigured, type UserRole } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
@@ -13,14 +13,21 @@ export default async function ProtectedLayout({
   children: React.ReactNode
 }) {
   const session = await requireAuth()
-  const supabase = createClient()
+  const supabaseEnabled = isSupabaseConfigured()
+  const supabase = supabaseEnabled ? createClient() : null
+  let profile: { id?: string; role?: UserRole | null } | null = supabaseEnabled
+    ? null
+    : { id: 'mock-user-id', role: 'admin' }
   
   // Ensure profile exists and check role
-  const { data: profile } = await supabase
-    .from('fa_profiles')
-    .select('id, role')
-    .eq('id', session.user.id)
-    .single()
+  if (supabase) {
+    const { data } = await supabase
+      .from('fa_profiles')
+      .select('id, role')
+      .eq('id', session.user.id)
+      .single()
+    profile = data
+  }
 
   // Block access for pending users and readonly users (treat readonly as pending)
   if (profile && (profile.role === 'pending' || profile.role === 'readonly')) {
@@ -40,12 +47,12 @@ export default async function ProtectedLayout({
     )
   }
 
-  if (!profile && session.user) {
+  if (supabase && !profile && session.user) {
     // Get intended role from user metadata (set during sign-up or invitation)
     const intendedRole = session.user.user_metadata?.intended_role
     
     // For invited users, use the intended_role from metadata if it's set
-    // For self-registered users, default to 'pending' unless they're KSS x Footasylum client
+    // For self-registered users, default to pending unless an intended role is provided
     // Always default to 'pending' if no intended_role is set (safety first)
     let defaultRole: string = 'pending'
     
@@ -76,11 +83,11 @@ export default async function ProtectedLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-[100dvh] bg-[#071321] md:h-screen-zoom md:min-h-0 md:overflow-hidden">
+      <div className="flex min-h-[100dvh] bg-[#1c0259] md:h-screen-zoom md:min-h-0 md:overflow-hidden">
         <Sidebar />
-        <div className="flex min-h-[100dvh] flex-1 flex-col bg-[#0e1925] md:ml-64 md:min-h-0 md:overflow-hidden">
+        <div className="flex min-h-[100dvh] flex-1 flex-col bg-[#232154] md:ml-64 md:min-h-0 md:overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-x-hidden bg-[#edf2f7] px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:bg-[#0e1925] md:p-0 md:[-webkit-overflow-scrolling:touch]">
+          <main className="flex-1 overflow-x-hidden bg-[#f7f4fb] px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:bg-[#232154] md:p-0 md:[-webkit-overflow-scrolling:touch]">
             <div className="max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:min-h-full md:rounded-tl-[8px] md:rounded-tr-[0px] md:rounded-bl-[0px] md:rounded-br-[0px] md:bg-white md:p-6 md:shadow-soft lg:p-8 main-content-wrapper">
               {children}
             </div>

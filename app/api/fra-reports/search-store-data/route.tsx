@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       if (buildDate) updatePayload.build_date = buildDate
       if (Object.keys(updatePayload).length > 0) {
         await supabase
-          .from('fa_stores')
+          .from('tfs_stores')
           .update(updatePayload)
           .eq('id', storeId)
       }

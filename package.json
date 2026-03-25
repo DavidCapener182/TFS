@@ -1,5 +1,5 @@
 {
-  "name": "foot-asylum-kss",
+  "name": "tfs-kss",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "generate:tfs-stores-seed": "node scripts/generate-tfs-stores-seed.mjs",
     "seed-fra-template": "node scripts/seed-fra-template.js"
   },
   "dependencies": {

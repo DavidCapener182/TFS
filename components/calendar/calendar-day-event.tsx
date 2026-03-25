@@ -1,6 +1,7 @@
 'use client'
 
 import { AlertTriangle, CheckCircle2, Navigation, Users } from 'lucide-react'
+import { formatStoreName } from '@/lib/store-display'
 import { cn, formatPercent } from '@/lib/utils'
 import type { CompletedStore, PlannedRoute } from '@/app/actions/calendar'
 
@@ -85,6 +86,7 @@ export function CalendarDayEvent({ type, data, date, onClick, isMobile = false }
   ) : (
     <CheckCircle2 size={12} className="text-emerald-600" />
   )
+  const displayStoreName = formatStoreName(store.storeName)
 
   if (isMobile) {
     return (
@@ -97,12 +99,12 @@ export function CalendarDayEvent({ type, data, date, onClick, isMobile = false }
           bgClass,
           hasFailedAudit ? 'hover:bg-red-100' : 'hover:bg-emerald-100'
         )}
-        title={`${store.storeName}${score ? ` - ${score}` : ''}${hasFailedAudit ? ' - Revisit needed' : ''}`}
+        title={`${displayStoreName}${score ? ` - ${score}` : ''}${hasFailedAudit ? ' - Revisit needed' : ''}`}
       >
         <span className="mt-0.5">{icon}</span>
         <span className="flex-1">
           <span className="mb-1 flex items-start justify-between gap-2">
-            <span className={cn('text-sm font-bold', textClass)}>{store.storeName}</span>
+            <span className={cn('text-sm font-bold', textClass)}>{displayStoreName}</span>
             {score ? (
               <span className={cn('rounded bg-white/60 px-1.5 py-0.5 text-xs font-bold', textClass)}>{score}</span>
             ) : null}
@@ -130,10 +132,10 @@ export function CalendarDayEvent({ type, data, date, onClick, isMobile = false }
         bgClass,
         borderClass
       )}
-      title={`${store.storeName}${score ? ` - ${score}` : ''}${hasFailedAudit ? ' - Revisit needed' : ''}`}
+      title={`${displayStoreName}${score ? ` - ${score}` : ''}${hasFailedAudit ? ' - Revisit needed' : ''}`}
     >
       <span className="mb-0.5 flex items-start justify-between">
-        <span className={cn('truncate pr-1 text-[10px] font-bold', textClass)}>{store.storeName}</span>
+        <span className={cn('truncate pr-1 text-[10px] font-bold', textClass)}>{displayStoreName}</span>
         <span className="mt-0.5 shrink-0">{icon}</span>
       </span>
       <span className={cn('block truncate text-[9px] font-medium opacity-80', textClass)}>

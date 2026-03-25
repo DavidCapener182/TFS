@@ -70,17 +70,17 @@ async function getRecentActivity() {
     { data: closedIncidents, error: closedIncidentError },
   ] = await Promise.all([
     supabase
-      .from('fa_activity_log')
-      .select(`*, performed_by:fa_profiles!fa_activity_log_performed_by_user_id_fkey(full_name)`)
+      .from('tfs_activity_log')
+      .select(`*, performed_by:fa_profiles!tfs_activity_log_performed_by_user_id_fkey(full_name)`)
       .order('created_at', { ascending: false })
       .limit(180),
     supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id, persons_involved')
       .order('created_at', { ascending: false })
       .limit(180),
     supabase
-      .from('fa_closed_incidents')
+      .from('tfs_closed_incidents')
       .select('id, status, reported_at, created_at, occurred_at, closed_at, updated_at, reported_by_user_id, assigned_investigator_user_id, persons_involved')
       .order('closed_at', { ascending: false })
       .limit(180),
@@ -171,8 +171,8 @@ async function getRecentActivity() {
   const incidentActorOverrides = new Map<string, string>()
   if (incidentIds.length > 0) {
     const [{ data: openIncidentActors }, { data: closedIncidentActors }] = await Promise.all([
-      supabase.from('fa_incidents').select('id, persons_involved').in('id', incidentIds),
-      supabase.from('fa_closed_incidents').select('id, persons_involved').in('id', incidentIds),
+      supabase.from('tfs_incidents').select('id, persons_involved').in('id', incidentIds),
+      supabase.from('tfs_closed_incidents').select('id, persons_involved').in('id', incidentIds),
     ])
 
     ;[...(openIncidentActors || []), ...(closedIncidentActors || [])].forEach((incident: any) => {
@@ -362,11 +362,11 @@ async function getEntityDisplayNames(activities: any[]): Promise<Map<string, str
   if (byType.incident?.length) {
     const [openIncidents, closedIncidents] = await Promise.all([
       supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('id, reference_no, summary')
         .in('id', byType.incident),
       supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .select('id, reference_no, summary')
         .in('id', byType.incident)
     ])
@@ -387,7 +387,7 @@ async function getEntityDisplayNames(activities: any[]): Promise<Map<string, str
   // Batch fetch stores
   if (byType.store?.length) {
     const { data: stores } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select('id, store_name, store_code')
       .in('id', byType.store)
     
@@ -401,7 +401,7 @@ async function getEntityDisplayNames(activities: any[]): Promise<Map<string, str
   // Batch fetch actions
   if (byType.action?.length) {
     const { data: actions } = await supabase
-      .from('fa_actions')
+      .from('tfs_actions')
       .select('id, title')
       .in('id', byType.action)
     

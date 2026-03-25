@@ -13,9 +13,16 @@ import {
 } from '@/components/stores/store-crm-panel'
 import { StoreActionsModal } from '@/components/audit/store-actions-modal'
 import { AuditRow } from '@/components/audit/audit-table-helpers'
+import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
 import { getInternalAreaDisplayName, getReportingAreaDisplayName } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
+import {
+  getStoreVisitActivityLabel,
+  getStoreVisitNeedLevelLabel,
+  getStoreVisitTypeLabel,
+} from '@/lib/visit-needs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,6 +40,9 @@ interface StoreDetailWorkspaceProps {
   store: any
   incidents: any[]
   actions: any[]
+  loggedVisits: VisitHistoryEntry[]
+  visitsAvailable: boolean
+  visitsUnavailableMessage: string | null
   userRole: UserRole
   crmData: {
     contacts: StoreCrmContact[]
@@ -87,7 +97,35 @@ function getActionPriorityTone(priority: string | null | undefined): string {
   return 'border-slate-200 bg-slate-100 text-slate-700'
 }
 
-export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmData, canEdit }: StoreDetailWorkspaceProps) {
+function getVisitNeedTone(level: string | null | undefined): string {
+  const normalized = String(level || '').toLowerCase()
+  if (normalized === 'urgent') return 'border-rose-200 bg-rose-50 text-rose-700'
+  if (normalized === 'needed') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (normalized === 'monitor') return 'border-sky-200 bg-sky-50 text-sky-700'
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+
+function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: string | null): string | null {
+  if (!plannedDate) return null
+  if (!lastVisitDate) return plannedDate
+
+  const plannedTime = new Date(plannedDate).getTime()
+  const lastVisitTime = new Date(lastVisitDate).getTime()
+  if (Number.isNaN(plannedTime) || Number.isNaN(lastVisitTime)) return plannedDate
+  return lastVisitTime >= plannedTime ? null : plannedDate
+}
+
+export function StoreDetailWorkspace({
+  store,
+  incidents,
+  actions,
+  loggedVisits,
+  visitsAvailable,
+  visitsUnavailableMessage,
+  userRole,
+  crmData,
+  canEdit,
+}: StoreDetailWorkspaceProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('store crm')
   const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
@@ -158,6 +196,11 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
   }, [store])
 
   const latestAuditScore = auditEntries[0]?.score ?? averageCompliance ?? null
+  const latestVisitDate = loggedVisits[0]?.visitedAt || null
+  const plannedVisitDate = getActivePlannedVisitDate(
+    store.compliance_audit_2_planned_date || null,
+    latestVisitDate
+  )
 
   const fullAddress = [store.address_line_1, store.city, store.postcode].filter(Boolean).join(', ')
   const mapsSearchUrl = fullAddress
@@ -244,7 +287,7 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
           Stores / CRM
         </Link>
         <ChevronRight size={14} />
-        <span className="font-medium text-slate-900">{store.store_name}</span>
+        <span className="font-medium text-slate-900">{formatStoreName(store.store_name)}</span>
       </nav>
 
       <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
@@ -254,7 +297,7 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
           </div>
           <div>
             <div className="mb-1 flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">{store.store_name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{formatStoreName(store.store_name)}</h1>
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                   store.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
@@ -291,16 +334,16 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
             <p className="text-2xl font-bold text-blue-600">{actions.length}</p>
           </div>
           <div className="flex-1 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Audit</p>
+            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Latest Visit</p>
             <p className="text-2xl font-bold text-slate-900">
-              {typeof latestAuditScore === 'number' ? `${latestAuditScore.toFixed(2)}%` : '—'}
+              {latestVisitDate ? format(new Date(latestVisitDate), 'dd MMM') : '—'}
             </p>
           </div>
         </div>
       </div>
 
       <div className="no-scrollbar flex gap-8 overflow-x-auto border-b border-slate-200">
-        {['Store CRM', 'Store Actions', 'Operational Data', 'Incidents & Safety', 'Audit History'].map((tab) => {
+        {['Store CRM', 'Store Actions', 'Operational Data', 'Incidents & Safety', 'Visit History'].map((tab) => {
           const value = tab.toLowerCase()
           const isActive = activeTab === value
 
@@ -454,7 +497,7 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                   className="h-full w-full"
-                  title={`${store.store_name} map`}
+                  title={`${formatStoreName(store.store_name)} map`}
                 />
               ) : (
                 <div className="absolute inset-0 opacity-40 [background-size:20px_20px] bg-[radial-gradient(#94a3b8_1px,transparent_1px)]" />
@@ -464,30 +507,30 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
 
           <div className="space-y-6 md:col-span-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-lg font-bold">Audit Performance</h3>
+              <h3 className="mb-4 text-lg font-bold">Visit Activity</h3>
               <div className="rounded-2xl border border-green-100 bg-green-50 p-4 text-center">
-                <p className="mb-1 text-xs font-bold uppercase tracking-widest text-green-600">Latest Audit Score</p>
-                <p className={`text-5xl font-black ${typeof latestAuditScore === 'number' ? getScoreColor(latestAuditScore) : 'text-slate-700'}`}>
-                  {typeof latestAuditScore === 'number' ? `${latestAuditScore.toFixed(2)}%` : '—'}
+                <p className="mb-1 text-xs font-bold uppercase tracking-widest text-green-600">Latest Visit</p>
+                <p className="text-4xl font-black text-slate-800">
+                  {latestVisitDate ? format(new Date(latestVisitDate), 'dd MMM yyyy') : '—'}
                 </p>
-                {auditEntries[0]?.date ? (
+                {plannedVisitDate ? (
                   <div className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-green-600">
-                    <Calendar size={14} /> {format(new Date(auditEntries[0].date), 'MMM d, yyyy')}
+                    <Calendar size={14} /> Planned {format(new Date(plannedVisitDate), 'MMM d, yyyy')}
                   </div>
                 ) : null}
               </div>
 
               <div className="mt-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <span className="text-sm text-slate-500">Historical Average</span>
+                  <span className="text-sm text-slate-500">Visit Coverage</span>
                   <span className="text-sm font-bold">
-                    {typeof averageCompliance === 'number' ? `${averageCompliance.toFixed(2)}%` : '—'}
+                    {loggedVisits.length > 0 ? `${loggedVisits.length} logged` : 'No visits logged'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Audit Completion</span>
+                  <span className="text-sm text-slate-500">Visit Status</span>
                   <span className="text-sm font-bold text-blue-600">
-                    {auditEntries.length > 0 ? 'On Schedule' : 'No Audits Logged'}
+                    {plannedVisitDate ? 'Planned' : latestVisitDate ? 'Recently visited' : 'No current plan'}
                   </span>
                 </div>
               </div>
@@ -562,25 +605,59 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
         </div>
       ) : null}
 
-      {activeTab === 'audit history' ? (
+      {activeTab === 'visit history' ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-bold">Audit Timeline</h3>
+            <h3 className="mb-4 text-lg font-bold">Visit Timeline</h3>
             <div className="space-y-3">
-              {auditEntries.length === 0 ? (
-                <p className="text-sm text-slate-500">No audit rounds logged yet.</p>
+              {!visitsAvailable && visitsUnavailableMessage ? (
+                <p className="text-sm text-amber-700">{visitsUnavailableMessage}</p>
+              ) : loggedVisits.length === 0 ? (
+                <p className="text-sm text-slate-500">No LP visits logged yet.</p>
               ) : (
-                auditEntries.map((audit) => (
-                  <div key={audit.auditNumber} className="rounded-xl border border-slate-100 p-4">
+                loggedVisits.map((visit) => (
+                  <div key={visit.id} className="rounded-xl border border-slate-100 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-slate-900">Audit {audit.auditNumber}</p>
-                      <p className={`text-lg font-bold ${getScoreColor(audit.score || 0)}`}>
-                        {typeof audit.score === 'number' ? `${audit.score.toFixed(2)}%` : '—'}
-                      </p>
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {visit.visitType === 'route_completion'
+                            ? 'Planned route visit'
+                            : getStoreVisitTypeLabel(visit.visitType)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {visit.createdByName || 'Unknown officer'}
+                        </p>
+                      </div>
+                      {visit.needLevelSnapshot ? (
+                        <Badge variant="outline" className={getVisitNeedTone(visit.needLevelSnapshot)}>
+                          {getStoreVisitNeedLevelLabel(visit.needLevelSnapshot)}
+                          {typeof visit.needScoreSnapshot === 'number' ? ` (${visit.needScoreSnapshot})` : ''}
+                        </Badge>
+                      ) : (
+                        <p className="text-sm font-semibold text-[#4b3a78]">Completed</p>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      {audit.date ? format(new Date(audit.date), 'dd MMM yyyy') : 'No date recorded'}
+                      {format(new Date(visit.visitedAt), 'dd MMM yyyy HH:mm')}
                     </p>
+                    {visit.completedActivityKeys.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {visit.completedActivityKeys.map((key) => (
+                          <Badge
+                            key={key}
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                          >
+                            {getStoreVisitActivityLabel(key)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    {visit.notes ? (
+                      <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                        {visit.notes}
+                      </p>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -588,19 +665,15 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-bold">Compliance Snapshot</h3>
+            <h3 className="mb-4 text-lg font-bold">Visit Snapshot</h3>
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Fire Risk Assessment</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Next Planned Visit</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">
-                  {typeof store.fire_risk_assessment_pct === 'number'
-                    ? `${store.fire_risk_assessment_pct.toFixed(2)}%`
-                    : '—'}
+                  {plannedVisitDate ? format(new Date(plannedVisitDate), 'dd MMM yyyy') : '—'}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {store.fire_risk_assessment_date
-                    ? format(new Date(store.fire_risk_assessment_date), 'dd MMM yyyy')
-                    : 'No FRA date logged'}
+                  {plannedVisitDate ? 'Scheduled visit date' : 'No visit scheduled'}
                 </p>
               </div>
 
@@ -617,6 +690,14 @@ export function StoreDetailWorkspace({ store, incidents, actions, userRole, crmD
                 <p className="mt-1 text-2xl font-bold text-slate-900">{incidents.length}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {ongoingIncidents.length} open • {completedIncidents.length} closed
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Logged Visits</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{loggedVisits.length}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {latestVisitDate ? `Latest on ${format(new Date(latestVisitDate), 'dd MMM yyyy')}` : 'No recent visit logged'}
                 </p>
               </div>
             </div>

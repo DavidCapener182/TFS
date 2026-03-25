@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
 
     // Verify the instance exists and user has access
     const { data: instance, error: instanceError } = await writeSupabase
-      .from('fa_audit_instances')
-      .select('id, template_id, fa_audit_templates!inner(category)')
+      .from('tfs_audit_instances')
+      .select('id, template_id, tfs_audit_templates!inner(category)')
       .eq('id', instanceId)
       .single()
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify it's an FRA template
-    if ((instance.fa_audit_templates as any)?.category !== 'fire_risk_assessment') {
+    if ((instance.tfs_audit_templates as any)?.category !== 'fire_risk_assessment') {
       return NextResponse.json({ error: 'This endpoint is only for FRA audits' }, { status: 400 })
     }
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // We'll use the template's first question as a placeholder for metadata storage
     // Get the first question from the template
     const { data: firstSection } = await writeSupabase
-      .from('fa_audit_template_sections')
+      .from('tfs_audit_template_sections')
       .select('id')
       .eq('template_id', instance.template_id)
       .order('order_index', { ascending: true })
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     
     if (firstSection) {
       const { data: firstQuestion } = await writeSupabase
-        .from('fa_audit_template_questions')
+        .from('tfs_audit_template_questions')
         .select('id')
         .eq('section_id', firstSection.id)
         .order('order_index', { ascending: true })
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Multiple rows can exist for the same question (no unique constraint),
     // so always use the latest row deterministically instead of maybeSingle().
     const { data: existingResponses, error: existingResponseError } = await writeSupabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .select('id, response_value, response_json, created_at')
       .eq('audit_instance_id', instanceId)
       .eq('question_id', questionIdForMetadata)
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     if (existingResponse?.id) {
       // Update existing response, preserving other data
       const { data: updatedRow, error: updateError } = await writeSupabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .update(metadataResponse)
         .eq('id', existingResponse.id)
         .select('id')
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new response with metadata
       const { data: insertedRow, error: insertError } = await writeSupabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .insert({
           audit_instance_id: instanceId,
           question_id: questionIdForMetadata,

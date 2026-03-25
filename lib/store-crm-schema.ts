@@ -1,7 +1,7 @@
 export const STORE_CRM_TABLES = [
-  'fa_store_contacts',
-  'fa_store_notes',
-  'fa_store_contact_tracker',
+  'tfs_store_contacts',
+  'tfs_store_notes',
+  'tfs_store_contact_tracker',
 ] as const
 
 export type StoreCrmTableName = (typeof STORE_CRM_TABLES)[number]

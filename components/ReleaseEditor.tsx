@@ -67,7 +67,7 @@ export function ReleaseEditor() {
     setLoading(true)
     const supabase = createClient()
     const { data, error } = await supabase
-      .from('fa_release_notes')
+      .from('tfs_release_notes')
       .select('*')
       .order('created_at', { ascending: false })
 
@@ -125,7 +125,7 @@ export function ReleaseEditor() {
 
     let resolved: { type: string; title: string }[] | null = null
     const { data: sinceRelease } = await supabase
-      .from('fa_user_feedback')
+      .from('tfs_user_feedback')
       .select('type, title')
       .eq('status', 'resolved')
       .gte('resolved_at', sinceLastRelease)
@@ -135,7 +135,7 @@ export function ReleaseEditor() {
     if (!resolved || resolved.length === 0) {
       const backFillDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const { data: backFilled } = await supabase
-        .from('fa_user_feedback')
+        .from('tfs_user_feedback')
         .select('type, title')
         .eq('status', 'resolved')
         .gte('resolved_at', backFillDate)
@@ -219,7 +219,7 @@ export function ReleaseEditor() {
 
     if (editingId) {
       const { error } = await supabase
-        .from('fa_release_notes')
+        .from('tfs_release_notes')
         .update(payload)
         .eq('id', editingId)
 
@@ -231,7 +231,7 @@ export function ReleaseEditor() {
       toast({ title: 'Updated', description: 'Release notes updated.', variant: 'success' })
     } else {
       const { error } = await supabase
-        .from('fa_release_notes')
+        .from('tfs_release_notes')
         .insert(payload)
 
       if (error) {
@@ -250,7 +250,7 @@ export function ReleaseEditor() {
   async function toggleActive(id: string, currentActive: boolean) {
     const supabase = createClient()
     const { error } = await supabase
-      .from('fa_release_notes')
+      .from('tfs_release_notes')
       .update({ is_active: !currentActive })
       .eq('id', id)
 
@@ -265,7 +265,7 @@ export function ReleaseEditor() {
   async function deleteRelease(id: string) {
     const supabase = createClient()
     const { error } = await supabase
-      .from('fa_release_notes')
+      .from('tfs_release_notes')
       .delete()
       .eq('id', id)
 

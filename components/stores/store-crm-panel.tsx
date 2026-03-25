@@ -880,9 +880,9 @@ export function StoreCrmPanel({
           <div className="space-y-2">
             {[
               { label: 'Generate Store Report', href: '/reports' },
-              { label: 'Schedule Inspection', href: '/calendar' },
-              { label: 'Audit Questionnaire', href: '/audit-tracker' },
-              { label: 'Fire Risk Assessment', href: '/fire-risk-assessment' },
+              { label: 'Schedule Visit', href: '/calendar' },
+              { label: 'Visit Tracker', href: '/visit-tracker' },
+              { label: 'Route Planning', href: '/route-planning' },
             ].map((action) => (
               <Link
                 key={action.label}

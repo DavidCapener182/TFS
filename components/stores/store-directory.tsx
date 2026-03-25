@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { StoreMobileCard } from '@/components/stores/store-mobile-card'
 import { Search, Store, MapPin, CheckCircle2, XCircle, Layers3 } from 'lucide-react'
-import { getInternalAreaDisplayName } from '@/lib/areas'
+import { formatStoreName } from '@/lib/store-display'
+import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { getDisplayStoreCode } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -23,11 +24,11 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
 
     const query = searchQuery.toLowerCase().trim()
     return stores.filter((store) => {
-      const storeName = String(store.store_name || '').toLowerCase()
+      const storeName = formatStoreName(store.store_name).toLowerCase()
       const storeCode = String(store.store_code || '').toLowerCase()
       const city = String(store.city || '').toLowerCase()
       const region = String(store.region || '').toLowerCase()
-      const regionDisplay = getInternalAreaDisplayName(store.region, { fallback: '' }).toLowerCase()
+      const regionGroup = getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode).toLowerCase()
       const address = String(store.address_line_1 || '').toLowerCase()
       const postcode = String(store.postcode || '').toLowerCase()
 
@@ -36,7 +37,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
         storeCode.includes(query) ||
         city.includes(query) ||
         region.includes(query) ||
-        regionDisplay.includes(query) ||
+        regionGroup.includes(query) ||
         address.includes(query) ||
         postcode.includes(query)
       )
@@ -47,30 +48,29 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
     const groups = new Map<string, any[]>()
 
     filteredStores.forEach((store) => {
-      const rawArea = String(store.region || store.area || '').trim()
-      const area = rawArea || 'Unassigned'
-      if (!groups.has(area)) groups.set(area, [])
-      groups.get(area)!.push(store)
+      const group = getStoreRegionGroup(store.region, store.store_name, store.city, store.postcode)
+      if (!groups.has(group)) groups.set(group, [])
+      groups.get(group)!.push(store)
     })
 
     return Array.from(groups.entries())
-      .map(([area, areaStores]) => ({
-        area,
-        stores: [...areaStores].sort((a, b) =>
-          String(a.store_name || '').localeCompare(String(b.store_name || ''), undefined, {
+      .map(([group, groupStores]) => ({
+        group,
+        stores: [...groupStores].sort((a, b) =>
+          formatStoreName(a.store_name).localeCompare(formatStoreName(b.store_name), undefined, {
             numeric: true,
             sensitivity: 'base',
           })
         ),
       }))
       .sort((a, b) => {
-        if (a.area === 'Unassigned') return 1
-        if (b.area === 'Unassigned') return -1
-        return a.area.localeCompare(b.area, undefined, { numeric: true, sensitivity: 'base' })
+        if (a.group === 'Other') return 1
+        if (b.group === 'Other') return -1
+        return a.group.localeCompare(b.group, undefined, { numeric: true, sensitivity: 'base' })
       })
   }, [filteredStores])
 
-  const areaCount = groupedStores.length
+  const groupCount = groupedStores.length
 
   return (
     <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
@@ -85,7 +85,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
             </div>
             <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
               <Layers3 className="h-3 w-3" />
-              {areaCount} {areaCount === 1 ? 'area' : 'areas'}
+              {groupCount} {groupCount === 1 ? 'group' : 'groups'}
             </div>
           </div>
 
@@ -93,7 +93,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               type="text"
-              placeholder="Search by name, code, city, area, postcode"
+                placeholder="Search by name, code, city, group, postcode"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-11 w-full rounded-2xl border-slate-200 bg-white pl-10 pr-4 text-base focus-visible:ring-2 focus-visible:ring-indigo-500 sm:h-10 sm:rounded-xl sm:text-sm"
@@ -117,12 +117,10 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
             </div>
           ) : (
             groupedStores.map((group) => (
-              <section key={group.area} className="space-y-2.5">
+              <section key={group.group} className="space-y-2.5">
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    {group.area === 'Unassigned'
-                      ? group.area
-                      : getInternalAreaDisplayName(group.area, { fallback: group.area })}
+                    {group.group}
                   </p>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                     {group.stores.length} stores
@@ -167,15 +165,13 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
                   </TableRow>
                 ) : (
                   groupedStores.map((group) => (
-                    <Fragment key={group.area}>
+                    <Fragment key={group.group}>
                       <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                         <TableCell colSpan={4} className="py-2.5">
                           <div className="flex items-center justify-between">
                             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                               <Layers3 className="h-3 w-3" />
-                              {group.area === 'Unassigned'
-                                ? group.area
-                                : getInternalAreaDisplayName(group.area, { fallback: group.area })}
+                              {group.group}
                             </span>
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                               {group.stores.length} stores
@@ -193,7 +189,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
                                 prefetch={false}
                                 className="font-semibold text-indigo-600 transition-colors hover:text-indigo-800 hover:underline"
                               >
-                                {store.store_name}
+                                {formatStoreName(store.store_name)}
                               </Link>
                               <p className="text-[11px] text-slate-500">
                                 {(store.incidents?.length || 0)} incidents • {(store.actions?.length || 0)} actions

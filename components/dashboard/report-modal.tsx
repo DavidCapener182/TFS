@@ -89,8 +89,8 @@ function toCombinedTrendData(snapshot: any) {
 function ReportAnalyticsPanel({ snapshot }: { snapshot: any }) {
   const incidents = snapshot?.incidentsPage || {}
   const actions = snapshot?.actionsPage || {}
-  const fra = snapshot?.fraTracking || {}
   const risk = snapshot?.predictiveRisk || {}
+  const complianceTracking = snapshot?.complianceTracking || {}
 
   const metrics = [
     {
@@ -114,9 +114,9 @@ function ReportAnalyticsPanel({ snapshot }: { snapshot: any }) {
       classes: 'border-amber-200 bg-amber-50 text-amber-800',
     },
     {
-      label: 'FRA Overdue',
-      value: Number(fra.overdue ?? 0),
-      classes: 'border-rose-200 bg-rose-50 text-rose-800',
+      label: 'Planned Visits',
+      value: Number(complianceTracking.secondAuditPlannedCount ?? 0),
+      classes: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     },
     {
       label: 'High Risk Stores',
@@ -349,4 +349,3 @@ export function ReportModal({
     </>
   )
 }
-

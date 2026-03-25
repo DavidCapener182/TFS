@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type FRAParserVariant = 'default' | 'andy_duplicate'
 
@@ -2374,11 +2373,11 @@ export function extractFraPdfDataFromText(
 }
 
 async function loadAllFraResponseRows(
-  supabase: SupabaseClient<any>,
+  supabase: any,
   instanceId: string
 ): Promise<FraResponseRow[]> {
   const { data } = await supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .select('id, question_id, response_json, created_at')
     .eq('audit_instance_id', instanceId)
     .order('created_at', { ascending: false })
@@ -2397,14 +2396,14 @@ export function getLockedFraParserVariantFromResponses(
 }
 
 async function ensureFraMetadataResponseRow(
-  supabase: SupabaseClient<any>,
+  supabase: any,
   instanceId: string,
   existingResponses: FraResponseRow[]
 ): Promise<FraResponseRow | null> {
   if (existingResponses[0]) return existingResponses[0]
 
   const { data: fraInstance } = await supabase
-    .from('fa_audit_instances')
+    .from('tfs_audit_instances')
     .select('template_id')
     .eq('id', instanceId)
     .single()
@@ -2412,7 +2411,7 @@ async function ensureFraMetadataResponseRow(
   if (!fraInstance?.template_id) return null
 
   const { data: sections } = await supabase
-    .from('fa_audit_template_sections')
+    .from('tfs_audit_template_sections')
     .select('id')
     .eq('template_id', fraInstance.template_id)
     .order('order_index', { ascending: true })
@@ -2421,7 +2420,7 @@ async function ensureFraMetadataResponseRow(
   if (!firstSection?.id) return null
 
   const { data: firstQuestion } = await supabase
-    .from('fa_audit_template_questions')
+    .from('tfs_audit_template_questions')
     .select('id')
     .eq('section_id', firstSection.id)
     .order('order_index', { ascending: true })
@@ -2432,7 +2431,7 @@ async function ensureFraMetadataResponseRow(
 
   const now = new Date().toISOString()
   const { data: inserted } = await supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .insert({
       audit_instance_id: instanceId,
       question_id: firstQuestion.id,
@@ -2446,7 +2445,7 @@ async function ensureFraMetadataResponseRow(
 }
 
 export async function ensureLockedFraParserVariant(params: {
-  supabase: SupabaseClient<any>
+  supabase: any
   instanceId: string
   userId: string
   userFullName?: string | null
@@ -2485,7 +2484,7 @@ export async function ensureLockedFraParserVariant(params: {
       : new Date().toISOString()
 
   await supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .update({
       response_json: {
         ...existingJson,

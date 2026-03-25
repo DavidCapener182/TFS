@@ -3,16 +3,16 @@ import type { MetadataRoute } from "next"
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Footasylum KSS",
-    short_name: "KSS",
-    description: "KSS Internal - Incident Management System",
+    name: "The Fragrance Shop Platform",
+    short_name: "TFS Platform",
+    description: "Internal operations platform for The Fragrance Shop.",
     start_url: "/",
     scope: "/",
     display: "standalone",
     display_override: ["standalone"],
     orientation: "portrait",
-    background_color: "#f3f6fb",
-    theme_color: "#0b132b",
+    background_color: "#f7f4fb",
+    theme_color: "#232154",
     prefer_related_applications: false,
     icons: [
       {

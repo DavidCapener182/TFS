@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { getInternalAreaDisplayName } from '@/lib/areas'
+import { formatStoreName, formatUkPostcode } from '@/lib/store-display'
 import { cn, formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 type StoreSearchResult = {
@@ -72,7 +73,7 @@ function formatPct(pct: number | null): string {
 }
 
 function buildAddress(store: StoreSearchResult): string {
-  return [store.address_line_1, store.city, store.postcode].filter(Boolean).join(', ')
+  return [store.address_line_1, store.city, formatUkPostcode(store.postcode)].filter(Boolean).join(', ')
 }
 
 export function StoreSearch() {
@@ -422,7 +423,7 @@ function StoreDropdownItem({ store, onSelect }: { store: StoreSearchResult; onSe
   const fraDate = safeDate(store.fire_risk_assessment_date)
   const fraPct = store.fire_risk_assessment_pct
 
-  const mapsQuery = encodeURIComponent(address || store.store_name)
+  const mapsQuery = encodeURIComponent(address || formatStoreName(store.store_name))
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
   const appleMapsUrl = `https://maps.apple.com/?q=${mapsQuery}`
 
@@ -436,7 +437,7 @@ function StoreDropdownItem({ store, onSelect }: { store: StoreSearchResult; onSe
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-base font-semibold text-white truncate">{store.store_name}</div>
+            <div className="text-base font-semibold text-white truncate">{formatStoreName(store.store_name)}</div>
             <div className="text-xs text-white/60 mt-0.5">
               {getDisplayStoreCode(store.store_code) || '—'}{store.region ? ` • ${getInternalAreaDisplayName(store.region, { fallback: store.region })}` : ''}
             </div>
@@ -509,18 +510,18 @@ function StoreDropdownItem({ store, onSelect }: { store: StoreSearchResult; onSe
           </div>
         )}
 
-        {/* Audit & FRA in grid */}
+        {/* Visit summary grid */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Latest Audit */}
+          {/* Latest Visit */}
           <div className="space-y-1">
-            <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">Latest Audit</div>
+            <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">Latest Visit</div>
             {latestAudit.date ? (
               <div className="text-xs text-white/90">
                 <div>{format(latestAudit.date, 'dd MMM yyyy')}</div>
-                <div className="font-semibold text-white">{formatPct(latestAudit.pct)}</div>
+                <div className="font-semibold text-white">Completed</div>
               </div>
             ) : (
-              <div className="text-xs text-white/50 italic">No audits yet</div>
+              <div className="text-xs text-white/50 italic">No visits recorded</div>
             )}
             {showPlanned && (
               <div className="text-[10px] text-indigo-300 mt-1">
@@ -529,16 +530,16 @@ function StoreDropdownItem({ store, onSelect }: { store: StoreSearchResult; onSe
             )}
           </div>
 
-          {/* FRA */}
+          {/* Planned Visit */}
           <div className="space-y-1">
-            <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">FRA</div>
-            {fraDate ? (
+            <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">Planned Visit</div>
+            {showPlanned ? (
               <div className="text-xs text-white/90">
-                <div>{format(fraDate, 'dd MMM yyyy')}</div>
-                <div className="font-semibold text-white">{formatPct(fraPct)}</div>
+                <div>{format(planned!, 'dd MMM yyyy')}</div>
+                <div className="font-semibold text-white">Scheduled</div>
               </div>
             ) : (
-              <div className="text-xs text-white/50 italic">No FRA recorded</div>
+              <div className="text-xs text-white/50 italic">No visit planned</div>
             )}
           </div>
         </div>
@@ -600,7 +601,7 @@ function ManagerDropdownItem({ manager }: { manager: ManagerResult }) {
                     {g.items.map((s) => (
                       <li key={s.id} className="text-xs text-white/80 flex items-center justify-between gap-2">
                         <span className="truncate">
-                          {s.store_name} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
+                          {formatStoreName(s.store_name)} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
                         </span>
                       </li>
                     ))}
@@ -624,7 +625,7 @@ function ManagerDropdownItem({ manager }: { manager: ManagerResult }) {
                     {g.items.map((s) => (
                       <li key={s.id} className="text-xs text-white/80 flex items-center justify-between gap-2">
                         <span className="truncate">
-                          {s.store_name} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
+                          {formatStoreName(s.store_name)} {getDisplayStoreCode(s.store_code) && <span className="text-white/50">({getDisplayStoreCode(s.store_code)})</span>}
                         </span>
                       </li>
                     ))}
@@ -651,7 +652,7 @@ function StoreSummary({ store }: { store: StoreSearchResult }) {
   const fraDate = safeDate(store.fire_risk_assessment_date)
   const fraPct = store.fire_risk_assessment_pct
 
-  const mapsQuery = encodeURIComponent(address || store.store_name)
+  const mapsQuery = encodeURIComponent(address || formatStoreName(store.store_name))
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
   const appleMapsUrl = `https://maps.apple.com/?q=${mapsQuery}`
 
@@ -661,7 +662,7 @@ function StoreSummary({ store }: { store: StoreSearchResult }) {
         <div className="flex items-start justify-between gap-3 pr-10">
           <div className="min-w-0">
             <div className="text-lg font-semibold leading-tight truncate">
-              {store.store_name}
+              {formatStoreName(store.store_name)}
             </div>
             <div className="text-sm text-slate-500">
               {getDisplayStoreCode(store.store_code) || '—'}{store.region ? ` • ${getInternalAreaDisplayName(store.region, { fallback: store.region })}` : ''}
@@ -736,34 +737,29 @@ function StoreSummary({ store }: { store: StoreSearchResult }) {
         </section>
 
         <section className="rounded-xl border border-slate-200 p-4">
-          <div className="text-sm font-semibold text-slate-900">Latest audit</div>
+          <div className="text-sm font-semibold text-slate-900">Latest visit</div>
           <div className="mt-2 text-sm text-slate-700">
             {latestAudit.date ? (
               <div className="flex items-center justify-between gap-3">
                 <span>{format(latestAudit.date, 'dd MMM yyyy')}</span>
-                <span className="font-semibold">{formatPct(latestAudit.pct)}</span>
+                <span className="font-semibold text-[#4b3a78]">Completed</span>
               </div>
             ) : (
-              <span className="text-slate-400 italic">No audits yet</span>
+              <span className="text-slate-400 italic">No visits recorded</span>
             )}
           </div>
-          {showPlanned ? (
-            <div className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
-              Visit planned: <span className="font-semibold">{format(planned!, 'dd MMM yyyy')}</span>
-            </div>
-          ) : null}
         </section>
 
         <section className="rounded-xl border border-slate-200 p-4">
-          <div className="text-sm font-semibold text-slate-900">Fire Risk Assessment</div>
+          <div className="text-sm font-semibold text-slate-900">Next planned visit</div>
           <div className="mt-2 text-sm text-slate-700">
-            {fraDate ? (
+            {showPlanned ? (
               <div className="flex items-center justify-between gap-3">
-                <span>{format(fraDate, 'dd MMM yyyy')}</span>
-                <span className="font-semibold">{formatPct(fraPct)}</span>
+                <span>{format(planned!, 'dd MMM yyyy')}</span>
+                <span className="font-semibold text-emerald-700">Planned</span>
               </div>
             ) : (
-              <span className="text-slate-400 italic">No FRA recorded</span>
+              <span className="text-slate-400 italic">No visit planned</span>
             )}
           </div>
         </section>

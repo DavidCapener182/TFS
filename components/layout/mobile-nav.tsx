@@ -11,6 +11,7 @@ import { navItems } from '@/components/layout/nav-items'
 
 export function MobileNav({ userName }: { userName: string }) {
   const pathname = usePathname()
+  const currentPath = pathname ?? '/'
 
   return (
     <Dialog>
@@ -43,7 +44,7 @@ export function MobileNav({ userName }: { userName: string }) {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive =
-                pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))
 
               return (
                 <li key={item.href}>

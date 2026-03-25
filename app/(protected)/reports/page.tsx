@@ -26,6 +26,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { formatStoreName } from '@/lib/store-display'
 import type {
   AreaNewsletterReport,
   MonthlyNewsletterResponse,
@@ -375,7 +376,7 @@ async function buildExactPdfHtmlFromCardElement(cardElement: HTMLElement): Promi
   const pdfFooterMarkup = `
     <section class="pdf-brand-footer">
       <img src="/kss-logo.png" alt="KSS NW Ltd" class="pdf-brand-footer__logo pdf-brand-footer__logo--kss" />
-      <img src="/fa-logo.png" alt="Footasylum" class="pdf-brand-footer__logo pdf-brand-footer__logo--fa" />
+      <img src="/tfs-logo.svg" alt="The Fragrance Shop" class="pdf-brand-footer__logo pdf-brand-footer__logo--fa" />
     </section>
   `
 
@@ -518,7 +519,7 @@ function AreaNewsletterDashboardCard({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-bold text-slate-800">{store.storeName}</p>
+            <p className="truncate text-xs font-bold text-slate-800">{formatStoreName(store.storeName)}</p>
             {store.storeCode ? (
               <p className="text-[10px] font-medium text-slate-400">{store.storeCode}</p>
             ) : null}
@@ -759,7 +760,7 @@ function AreaNewsletterDashboardCard({
                           ? 'Mandatory revisit'
                           : 'Watch list'}{' '}
                         -{' '}
-                        {store.storeName}
+                        {formatStoreName(store.storeName)}
                         {store.storeCode ? ` (${store.storeCode})` : ''} | Revisit risk {store.riskScore}%
                         {typeof store.startOfYearAuditScore === 'number'
                           ? ` | Start-of-year audit ${store.startOfYearAuditScore.toFixed(0)}%`
@@ -1019,11 +1020,11 @@ export default function ReportsPage() {
       .sort((a, b) => b.latestAuditScore - a.latestAuditScore)
 
     const topStore = scoredStores[0]
-      ? `${scoredStores[0].storeName} (${scoredStores[0].latestAuditScore.toFixed(1)}%)`
+      ? `${formatStoreName(scoredStores[0].storeName)} (${scoredStores[0].latestAuditScore.toFixed(1)}%)`
       : 'N/A'
 
     const bottomStore = scoredStores[scoredStores.length - 1]
-      ? `${scoredStores[scoredStores.length - 1].storeName} (${scoredStores[scoredStores.length - 1].latestAuditScore.toFixed(1)}%)`
+      ? `${formatStoreName(scoredStores[scoredStores.length - 1].storeName)} (${scoredStores[scoredStores.length - 1].latestAuditScore.toFixed(1)}%)`
       : 'N/A'
 
     const response = await fetch('/api/reports/monthly-newsletter/ai', {
@@ -1039,7 +1040,7 @@ export default function ReportsPage() {
         topStore,
         bottomStore,
         leaderboard: report.stores.map((store) => ({
-          storeName: store.storeName,
+          storeName: formatStoreName(store.storeName),
           score: store.latestAuditScore,
         })),
         scores: scoredStores.map((store) => store.latestAuditScore),

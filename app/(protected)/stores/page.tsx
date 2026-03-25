@@ -15,7 +15,7 @@ import {
 async function getStores() {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select('*')
     .order('store_name', { ascending: true })
 
@@ -48,11 +48,11 @@ async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMerg
 
   const [incidentsResult, storeActionsResult] = await Promise.all([
     supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('id, reference_no, summary, status, closed_at, occurred_at, store_id')
       .in('store_id', relatedStoreIds),
     supabase
-      .from('fa_store_actions')
+      .from('tfs_store_actions')
       .select('id, title, source_flagged_item, description, priority, status, due_date, created_at, store_id')
       .in('store_id', relatedStoreIds),
   ])
@@ -85,7 +85,7 @@ async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMerg
 
   if (incidentIds.length > 0) {
     const { data, error } = await supabase
-      .from('fa_actions')
+      .from('tfs_actions')
       .select(`
         id,
         title,
@@ -93,7 +93,7 @@ async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMerg
         due_date,
         completed_at,
         incident_id,
-        incident:fa_incidents!fa_actions_incident_id_fkey(reference_no)
+        incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
       `)
       .in('incident_id', incidentIds)
 

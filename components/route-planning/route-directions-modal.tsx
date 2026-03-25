@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Loader2, MapPin, Clock, Home, Download, Edit2, Plus, Trash2, Navigation, AlertTriangle, CheckCircle2, FileText, X, Car, Map as MapIcon, CalendarDays, ChevronDown } from 'lucide-react'
 import { format, addMinutes, addHours } from 'date-fns'
 import dynamic from 'next/dynamic'
+import { formatStoreName } from '@/lib/store-display'
 import { 
   getRouteOperationalItems, 
   saveRouteOperationalItem, 
@@ -168,7 +169,7 @@ function generateICS(schedule: ScheduleItem[], managerName: string, plannedDate:
   // Calendar header
   lines.push('BEGIN:VCALENDAR')
   lines.push('VERSION:2.0')
-  lines.push('PRODID:-//KSS x Footasylum//Route Planning//EN')
+  lines.push('PRODID:-//The Fragrance Shop Platform//Route Planning//EN')
   lines.push('CALSCALE:GREGORIAN')
   lines.push('METHOD:PUBLISH')
   
@@ -480,8 +481,8 @@ export function RouteDirectionsModal({
       
       // Format first store name with postcode
       const toStoreName = firstStore.postcode
-        ? `${firstStore.store_name} (${firstStore.postcode})`
-        : firstStore.store_name
+        ? `${formatStoreName(firstStore.store_name)} (${firstStore.postcode})`
+        : formatStoreName(firstStore.store_name)
       
       segments.push({
         from: managerHome.address,
@@ -536,7 +537,7 @@ export function RouteDirectionsModal({
           time: visitStartTime,
         endTime: visitEndTime,
         action: 'Visit',
-          location: store.store_name,
+          location: formatStoreName(store.store_name),
           storeId: store.id,
           visitTimeId: savedVisitTime?.id
       })
@@ -554,11 +555,11 @@ export function RouteDirectionsModal({
         
         // Format store names with postcodes
         const fromStoreName = store.postcode 
-          ? `${store.store_name} (${store.postcode})`
-          : store.store_name
+          ? `${formatStoreName(store.store_name)} (${store.postcode})`
+          : formatStoreName(store.store_name)
         const toStoreName = nextStore.postcode
-          ? `${nextStore.store_name} (${nextStore.postcode})`
-          : nextStore.store_name
+          ? `${formatStoreName(nextStore.store_name)} (${nextStore.postcode})`
+          : formatStoreName(nextStore.store_name)
 
         segments.push({
           from: fromStoreName,
@@ -610,8 +611,8 @@ export function RouteDirectionsModal({
           
           // Format store name with postcode
           const fromStoreName = store.postcode
-            ? `${store.store_name} (${store.postcode})`
-            : store.store_name
+            ? `${formatStoreName(store.store_name)} (${store.postcode})`
+            : formatStoreName(store.store_name)
           
           segments.push({
             from: fromStoreName,
@@ -874,11 +875,11 @@ export function RouteDirectionsModal({
                   
                   // Update location string
                   const fromStoreName = fromStore.postcode 
-                    ? `${fromStore.store_name} (${fromStore.postcode})`
-                    : fromStore.store_name
+                    ? `${formatStoreName(fromStore.store_name)} (${fromStore.postcode})`
+                    : formatStoreName(fromStore.store_name)
                   const toStoreName = toStore.postcode
-                    ? `${toStore.store_name} (${toStore.postcode})`
-                    : toStore.store_name
+                    ? `${formatStoreName(toStore.store_name)} (${toStore.postcode})`
+                    : formatStoreName(toStore.store_name)
                   item.location = `${fromStoreName} → ${toStoreName}`
                   
                   // Travel starts when origin visit ends
@@ -1231,7 +1232,7 @@ export function RouteDirectionsModal({
         const store = stores.find((candidate) => candidate.id === storeId)
         return {
           storeId,
-          storeName: store?.store_name || 'Unknown Store',
+          storeName: formatStoreName(store?.store_name) || 'Unknown Store',
           briefing: preVisitBriefingsByStore[storeId] || null,
         }
       }),
@@ -1290,7 +1291,7 @@ export function RouteDirectionsModal({
     if (briefingStoreIds.length === 0) return
 
     void loadPreVisitBriefing(briefingStoreIds)
-  }, [isOpen, isCalculating, briefingStoreIdsKey, plannedDate, managerUserId, region])
+  }, [isOpen, isCalculating, briefingStoreIds, briefingStoreIdsKey, plannedDate, managerUserId, region])
 
   const handleMarkVisitComplete = async (storeId: string) => {
     if (!managerUserId || !plannedDate) {
@@ -1711,12 +1712,12 @@ export function RouteDirectionsModal({
                           disabled={!quickActionStoreId}
                           onClick={() => {
                             if (quickActionStoreId) {
-                              window.location.href = `/audit-tracker?storeId=${quickActionStoreId}`
+                              window.location.href = '/visit-tracker'
                             }
                           }}
                         >
                           <FileText className="mr-1 h-3.5 w-3.5" />
-                          Add Evidence
+                          Open Visits
                         </Button>
                         <Button
                           size="sm"
@@ -2042,8 +2043,8 @@ export function RouteDirectionsModal({
                     const travelTime = estimateTravelTime(distance)
                     
                     const toStoreName = firstStore.postcode
-                      ? `${firstStore.store_name} (${firstStore.postcode})`
-                      : firstStore.store_name
+                      ? `${formatStoreName(firstStore.store_name)} (${firstStore.postcode})`
+                      : formatStoreName(firstStore.store_name)
                     
                     segments.push({
                       from: managerHome.address,
@@ -2098,7 +2099,7 @@ export function RouteDirectionsModal({
                       time: visitStartTime,
                       endTime: visitEndTime,
                       action: 'Visit',
-                      location: store.store_name,
+                      location: formatStoreName(store.store_name),
                       storeId: store.id,
                       visitTimeId: savedVisitTime?.id
                     })
@@ -2115,11 +2116,11 @@ export function RouteDirectionsModal({
                       const travelTime = estimateTravelTime(distance)
                       
                       const fromStoreName = store.postcode 
-                        ? `${store.store_name} (${store.postcode})`
-                        : store.store_name
+                        ? `${formatStoreName(store.store_name)} (${store.postcode})`
+                        : formatStoreName(store.store_name)
                       const toStoreName = nextStore.postcode
-                        ? `${nextStore.store_name} (${nextStore.postcode})`
-                        : nextStore.store_name
+                        ? `${formatStoreName(nextStore.store_name)} (${nextStore.postcode})`
+                        : formatStoreName(nextStore.store_name)
 
                       segments.push({
                         from: fromStoreName,
@@ -2164,8 +2165,8 @@ export function RouteDirectionsModal({
                         const travelTime = estimateTravelTime(distance)
                         
                         const fromStoreName = store.postcode
-                          ? `${store.store_name} (${store.postcode})`
-                          : store.store_name
+                          ? `${formatStoreName(store.store_name)} (${store.postcode})`
+                          : formatStoreName(store.store_name)
                         
                         segments.push({
                           from: fromStoreName,
@@ -2418,9 +2419,9 @@ export function RouteDirectionsModal({
                             travelId: item.id,
                             travelLocation: item.location,
                             fromStoreId,
-                            fromStoreName: fromStore.store_name,
+                            fromStoreName: formatStoreName(fromStore.store_name),
                             toStoreId,
-                            toStoreName: toStore.store_name,
+                            toStoreName: formatStoreName(toStore.store_name),
                             fromVisit: fromVisit ? { 
                               storeId: fromVisit.storeId, 
                               location: fromVisit.location,
@@ -2458,11 +2459,11 @@ export function RouteDirectionsModal({
                             
                             // Update location string to match actual stores
                             const fromStoreName = fromStore.postcode 
-                              ? `${fromStore.store_name} (${fromStore.postcode})`
-                              : fromStore.store_name
+                              ? `${formatStoreName(fromStore.store_name)} (${fromStore.postcode})`
+                              : formatStoreName(fromStore.store_name)
                             const toStoreName = toStore.postcode
-                              ? `${toStore.store_name} (${toStore.postcode})`
-                              : toStore.store_name
+                              ? `${formatStoreName(toStore.store_name)} (${toStore.postcode})`
+                              : formatStoreName(toStore.store_name)
                             item.location = `${fromStoreName} → ${toStoreName}`
                             
                             // Find any operational items that come after the origin visit ends

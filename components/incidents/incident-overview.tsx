@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react'
+import { formatStoreName } from '@/lib/store-display'
 
 // --- MOCK COMPONENT (Delete in production) ---
 const StatusBadge = ({ status, type }: { status: string, type: 'severity' | 'incident' }) => {
@@ -113,9 +114,9 @@ export function IncidentOverview({ incident, profiles = [] }: IncidentOverviewPr
                 </div>
                 <div className="min-w-0 flex-1">
                     <span className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide">Location</span>
-                    <p className="text-base md:text-lg font-bold text-slate-900 truncate">{incident.fa_stores?.store_name || 'Unknown Store'}</p>
-                    {incident.fa_stores?.store_code && (
-                        <p className="text-xs md:text-sm text-slate-500">Store Code: <span className="font-mono text-slate-700">{incident.fa_stores.store_code}</span></p>
+                    <p className="text-base md:text-lg font-bold text-slate-900 truncate">{formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}</p>
+                    {incident.tfs_stores?.store_code && (
+                        <p className="text-xs md:text-sm text-slate-500">Store Code: <span className="font-mono text-slate-700">{incident.tfs_stores.store_code}</span></p>
                     )}
                 </div>
             </CardContent>

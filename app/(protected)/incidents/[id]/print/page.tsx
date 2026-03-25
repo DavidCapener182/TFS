@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { formatStoreName } from '@/lib/store-display'
 
 function normalizeJsonObject(value: any): Record<string, any> | null {
   if (!value) return null
@@ -30,7 +31,7 @@ function pickString(source: Record<string, any> | null, keys: string[]) {
 async function getIncident(id: string) {
   const supabase = createClient()
   const { data: openIncident } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .select('*')
     .eq('id', id)
     .maybeSingle()
@@ -38,7 +39,7 @@ async function getIncident(id: string) {
   const { data: closedIncident } = openIncident
     ? ({ data: null } as any)
     : await supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .select('*')
         .eq('id', id)
         .maybeSingle()
@@ -51,7 +52,7 @@ async function getIncident(id: string) {
   const [storeResult, reporterResult, investigatorResult] = await Promise.all([
     incident.store_id
       ? supabase
-          .from('fa_stores')
+          .from('tfs_stores')
           .select('*')
           .eq('id', incident.store_id)
           .maybeSingle()
@@ -74,7 +75,7 @@ async function getIncident(id: string) {
 
   return {
     ...incident,
-    fa_stores: storeResult.data || null,
+    tfs_stores: storeResult.data || null,
     reporter: reporterResult.data || null,
     investigator: investigatorResult.data || null,
   }
@@ -83,10 +84,10 @@ async function getIncident(id: string) {
 async function getInvestigation(incidentId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .select(`
       *,
-      lead_investigator:fa_profiles!fa_investigations_lead_investigator_user_id_fkey(*)
+      lead_investigator:fa_profiles!tfs_investigations_lead_investigator_user_id_fkey(*)
     `)
     .eq('incident_id', incidentId)
     .single()
@@ -97,10 +98,10 @@ async function getInvestigation(incidentId: string) {
 async function getActions(incidentId: string) {
   const supabase = createClient()
   const { data } = await supabase
-    .from('fa_actions')
+    .from('tfs_actions')
     .select(`
       *,
-      assigned_to:fa_profiles!fa_actions_assigned_to_user_id_fkey(*)
+      assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(*)
     `)
     .eq('incident_id', incidentId)
     .order('created_at', { ascending: false })
@@ -151,9 +152,9 @@ export default async function IncidentPrintPage({
           </div>
           <div>
             <div className="text-sm font-medium text-muted-foreground">Store</div>
-            <div className="mt-1">{incident.fa_stores?.store_name}</div>
-            {incident.fa_stores?.store_code && (
-              <div className="text-sm text-muted-foreground">Code: {incident.fa_stores.store_code}</div>
+            <div className="mt-1">{formatStoreName(incident.tfs_stores?.store_name)}</div>
+            {incident.tfs_stores?.store_code && (
+              <div className="text-sm text-muted-foreground">Code: {incident.tfs_stores.store_code}</div>
             )}
           </div>
           <div>

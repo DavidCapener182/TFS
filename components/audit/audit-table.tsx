@@ -179,7 +179,7 @@ export function AuditTable({
     try {
       const supabase = createClient()
       const { data, error } = await supabase
-        .from('fa_store_actions')
+        .from('tfs_store_actions')
         .select('store_id, status')
         .in('store_id', storeIds)
 
@@ -486,7 +486,7 @@ export function AuditTable({
       }
 
       const { data, error } = await supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .update(updateData)
         .eq('id', storeId)
         .select()
@@ -747,7 +747,7 @@ export function AuditTable({
       }
 
       const { data, error } = await supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .update(updateData)
         .eq('id', updateScoreState.storeId)
         .select()

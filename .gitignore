@@ -12,6 +12,10 @@
 /.next/
 /out/
 
+# local debug / scratch artifacts
+.next_stale_*/
+.playwright-cli/
+
 # production
 /build
 

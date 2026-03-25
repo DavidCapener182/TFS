@@ -746,6 +746,7 @@ export const InspectionReportPDF = ({
                     {/* Show signature image if available */}
                     {signatureData && (
                       <View style={styles.signatureContainer}>
+                        {/* eslint-disable-next-line jsx-a11y/alt-text */}
                         <Image src={signatureData} style={styles.signatureImage} />
                       </View>
                     )}

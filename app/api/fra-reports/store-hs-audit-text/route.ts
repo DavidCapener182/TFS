@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: fraInstance, error: instanceError } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select('template_id')
       .eq('id', instanceId)
       .single()
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     let firstQuestion: { id: string } | null = null
 
     const { data: sections } = await supabase
-      .from('fa_audit_template_sections')
+      .from('tfs_audit_template_sections')
       .select('id, title, order_index')
       .eq('template_id', templateId)
       .order('order_index', { ascending: true })
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (sections && sections.length > 0) {
       firstSection = sections[0]
       const { data: questions } = await supabase
-        .from('fa_audit_template_questions')
+        .from('tfs_audit_template_questions')
         .select('id')
         .eq('section_id', firstSection.id)
         .order('order_index', { ascending: true })
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (!firstSection || !firstQuestion) {
       const { data: storageSection, error: sectionError } = await supabase
-        .from('fa_audit_template_sections')
+        .from('tfs_audit_template_sections')
         .insert({
           template_id: templateId,
           title: 'PDF Storage',
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: storageQuestion, error: questionError } = await supabase
-        .from('fa_audit_template_questions')
+        .from('tfs_audit_template_questions')
         .insert({
           section_id: storageSection.id,
           question_text: 'H&S Audit PDF Text Storage',
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: existingResponse } = await supabase
-      .from('fa_audit_responses')
+      .from('tfs_audit_responses')
       .select('id, response_json')
       .eq('audit_instance_id', instanceId)
       .eq('question_id', firstQuestion.id)
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
     if (existingResponse) {
       const { error: updateError } = await supabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .update({ response_json: responseJson })
         .eq('id', existingResponse.id)
       if (updateError) {
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       const { error: insertError } = await supabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .insert({
           audit_instance_id: instanceId,
           question_id: firstQuestion.id,

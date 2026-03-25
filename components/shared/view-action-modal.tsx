@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
+import { formatStoreName } from '@/lib/store-display'
 
 interface ViewActionModalProps {
   action: any
@@ -111,7 +112,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-2">Related Store</h3>
               <p className="text-xs sm:text-sm text-slate-600">
-                {action.store.store_code ? `${action.store.store_code} - ` : ''}{action.store.store_name}
+                {action.store.store_code ? `${action.store.store_code} - ` : ''}{formatStoreName(action.store.store_name)}
               </p>
             </div>
           ) : null}

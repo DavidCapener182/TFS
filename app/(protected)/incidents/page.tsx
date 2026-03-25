@@ -15,6 +15,7 @@ import { LazyIncidentsAnalyticsCharts } from '@/components/incidents/lazy-incide
 import Link from 'next/link'
 import { Search, AlertTriangle, FileText, Eye, CheckCircle2, SlidersHorizontal, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import { formatStoreName } from '@/lib/store-display'
 
 type IncidentFilters = {
   store_id?: string
@@ -162,14 +163,14 @@ function getFiscalYearLabel(fiscalYear: number) {
 async function getIncidents(filters?: IncidentFilters) {
   const supabase = createClient()
   let query = supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .select(`
       *,
-      fa_stores(store_name, store_code),
-      reporter:fa_profiles!fa_incidents_reported_by_user_id_fkey(full_name),
-      investigator:fa_profiles!fa_incidents_assigned_investigator_user_id_fkey(full_name)
+      tfs_stores:tfs_stores(store_name, store_code),
+      reporter:fa_profiles!tfs_incidents_reported_by_user_id_fkey(full_name),
+      investigator:fa_profiles!tfs_incidents_assigned_investigator_user_id_fkey(full_name)
     `)
-    .neq('status', 'closed') // Exclude closed incidents (they're in fa_closed_incidents)
+    .neq('status', 'closed') // Exclude closed incidents (they're in tfs_closed_incidents)
     .order('occurred_at', { ascending: false })
     .limit(100)
 
@@ -243,13 +244,13 @@ async function getClosedIncidents(filters?: IncidentFilters) {
   const [archivedResult, legacyResult] = await Promise.all([
     applyDateFilters(
       supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .select('*')
         .order('occurred_at', { ascending: false })
     ),
     applyDateFilters(
       supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('*')
         .eq('status', 'closed')
         .order('occurred_at', { ascending: false })
@@ -293,7 +294,7 @@ async function getClosedIncidents(filters?: IncidentFilters) {
   const [storesResult, profilesResult] = await Promise.all([
     storeIds.length
       ? supabase
-          .from('fa_stores')
+          .from('tfs_stores')
           .select('id, store_name, store_code')
           .in('id', storeIds)
       : Promise.resolve({ data: [], error: null } as any),
@@ -311,7 +312,7 @@ async function getClosedIncidents(filters?: IncidentFilters) {
   const enriched = incidents
     .map((incident: any) => ({
       ...incident,
-      fa_stores: storeMap.get(incident.store_id) || null,
+      tfs_stores: storeMap.get(incident.store_id) || null,
       reporter: profileMap.get(incident.reported_by_user_id)
         ? { full_name: profileMap.get(incident.reported_by_user_id).full_name }
         : null,
@@ -331,15 +332,15 @@ async function getClosedIncidents(filters?: IncidentFilters) {
 async function getAvailableIncidentYears() {
   const supabase = createClient()
   const [openResult, closedResult] = await Promise.all([
-    supabase.from('fa_incidents').select('occurred_at'),
-    supabase.from('fa_closed_incidents').select('occurred_at'),
+    supabase.from('tfs_incidents').select('occurred_at'),
+    supabase.from('tfs_closed_incidents').select('occurred_at'),
   ])
 
   if (openResult.error) {
-    console.error('Error fetching incident years from fa_incidents:', openResult.error)
+    console.error('Error fetching incident years from tfs_incidents:', openResult.error)
   }
   if (closedResult.error) {
-    console.error('Error fetching incident years from fa_closed_incidents:', closedResult.error)
+    console.error('Error fetching incident years from tfs_closed_incidents:', closedResult.error)
   }
 
   const yearSet = new Set<number>()
@@ -362,7 +363,7 @@ async function getInvestigationSummaries(incidentIds: string[]) {
 
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .select('incident_id, status, root_cause, recommendations, updated_at, created_at')
     .in('incident_id', uniqueIncidentIds)
     .order('updated_at', { ascending: false })
@@ -390,7 +391,7 @@ async function getInvestigationSummaries(incidentIds: string[]) {
 async function getClaims(filters?: IncidentFilters) {
   const supabase = createClient()
   let query = supabase
-    .from('fa_claims')
+    .from('tfs_claims')
     .select('*')
     .order('received_date', { ascending: false })
     .limit(200)
@@ -427,19 +428,19 @@ async function getClaims(filters?: IncidentFilters) {
   const [storesResult, openIncidentResult, closedIncidentResult] = await Promise.all([
     storeIds.length
       ? supabase
-          .from('fa_stores')
+          .from('tfs_stores')
           .select('id, store_name, store_code')
           .in('id', storeIds)
       : Promise.resolve({ data: [], error: null } as any),
     incidentIds.length
       ? supabase
-          .from('fa_incidents')
+          .from('tfs_incidents')
           .select('id, reference_no')
           .in('id', incidentIds)
       : Promise.resolve({ data: [], error: null } as any),
     incidentIds.length
       ? supabase
-          .from('fa_closed_incidents')
+          .from('tfs_closed_incidents')
           .select('id, reference_no')
           .in('id', incidentIds)
       : Promise.resolve({ data: [], error: null } as any),
@@ -458,7 +459,7 @@ async function getClaims(filters?: IncidentFilters) {
 
   let enriched = claims.map((claim: any) => ({
     ...claim,
-    fa_stores: storeMap.get(claim.store_id) || null,
+    tfs_stores: storeMap.get(claim.store_id) || null,
     incident_reference: claim.incident_id ? (incidentRefMap.get(claim.incident_id) || null) : null,
   }))
 
@@ -474,8 +475,8 @@ async function getClaims(filters?: IncidentFilters) {
           claim.next_action,
           claim.owner,
           claim.incident_reference,
-          claim.fa_stores?.store_name,
-          claim.fa_stores?.store_code,
+          claim.tfs_stores?.store_name,
+          claim.tfs_stores?.store_code,
         ]
         return values.some((value) => String(value || '').toLowerCase().includes(q))
       })
@@ -529,8 +530,8 @@ export default async function IncidentsPage({
         incident.summary,
         incident.description,
         incident.incident_category,
-        incident.fa_stores?.store_name,
-        incident.fa_stores?.store_code,
+        incident.tfs_stores?.store_name,
+        incident.tfs_stores?.store_code,
         incident.investigator?.full_name,
         getIncidentPersonType(incident),
         getIncidentRootCause(incident, investigationMap),
@@ -1141,9 +1142,9 @@ export default async function IncidentsPage({
                       <TableCell>
                         <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
                           <div className="flex flex-col">
-                            <span className="font-medium text-slate-900">{incident.fa_stores?.store_name || 'Unknown'}</span>
-                            {incident.fa_stores?.store_code && (
-                              <span className="text-xs text-slate-500">{incident.fa_stores.store_code}</span>
+                            <span className="font-medium text-slate-900">{formatStoreName(incident.tfs_stores?.store_name) || 'Unknown'}</span>
+                            {incident.tfs_stores?.store_code && (
+                              <span className="text-xs text-slate-500">{incident.tfs_stores.store_code}</span>
                             )}
                           </div>
                         </Link>
@@ -1312,9 +1313,9 @@ export default async function IncidentsPage({
                             <TableCell>
                               <Link href={`/incidents/${incident.id}`} className="block hover:text-indigo-600 transition-colors">
                                 <div className="flex flex-col">
-                                  <span className="font-medium text-slate-900">{incident.fa_stores?.store_name || 'Unknown'}</span>
-                                  {incident.fa_stores?.store_code && (
-                                    <span className="text-xs text-slate-500">{incident.fa_stores.store_code}</span>
+                                  <span className="font-medium text-slate-900">{formatStoreName(incident.tfs_stores?.store_name) || 'Unknown'}</span>
+                                  {incident.tfs_stores?.store_code && (
+                                    <span className="text-xs text-slate-500">{incident.tfs_stores.store_code}</span>
                                   )}
                                 </div>
                               </Link>
@@ -1460,7 +1461,7 @@ export default async function IncidentsPage({
                         {safeFormat(incident.occurred_at, 'dd MMM yyyy')}
                       </TableCell>
                       <TableCell className="font-medium text-slate-900">
-                        {incident.fa_stores?.store_name || 'Unknown Store'}
+                        {formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
@@ -1511,7 +1512,7 @@ export default async function IncidentsPage({
                       </Link>
                       <span className="text-xs text-slate-500">{safeFormat(incident.occurred_at, 'dd MMM yyyy')}</span>
                     </div>
-                    <p className="text-sm font-medium text-slate-900">{incident.fa_stores?.store_name || 'Unknown Store'}</p>
+                    <p className="text-sm font-medium text-slate-900">{formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}</p>
                     <p className="text-xs text-slate-700">{incident.summary || incident.description || '—'}</p>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-[10px]">{getIncidentPersonType(incident)}</Badge>
@@ -1582,7 +1583,7 @@ export default async function IncidentsPage({
                           </div>
                         </TableCell>
                         <TableCell className="font-medium text-slate-900">
-                          {claim.fa_stores?.store_name || 'Unknown Store'}
+                          {formatStoreName(claim.tfs_stores?.store_name) || 'Unknown Store'}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">{claim.claimant_type || 'Unknown'}</Badge>
@@ -1651,7 +1652,7 @@ export default async function IncidentsPage({
                           {claim.status || 'Unknown'}
                         </Badge>
                       </div>
-                      <p className="text-sm font-medium text-slate-900">{claim.fa_stores?.store_name || 'Unknown Store'}</p>
+                      <p className="text-sm font-medium text-slate-900">{formatStoreName(claim.tfs_stores?.store_name) || 'Unknown Store'}</p>
                       <p className="text-xs text-slate-700">{claim.allegation || '—'}</p>
                       <div className="flex items-center justify-between">
                         <Badge variant="outline" className="text-[10px]">{claim.claimant_type || 'Unknown'}</Badge>

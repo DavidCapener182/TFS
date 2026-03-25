@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertCircle, CalendarDays, CheckCircle2, CircleDashed, UserRound } from 'lucide-react'
+import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
 
 interface Store {
@@ -105,7 +106,7 @@ export function ComplianceVisitsTracking({ stores }: ComplianceVisitsTrackingPro
               <div key={store.id} className="rounded-xl border border-amber-200/80 bg-white/90 p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">{store.store_name}</p>
+                    <p className="truncate text-sm font-semibold text-slate-900">{formatStoreName(store.store_name)}</p>
                     {getDisplayStoreCode(store.store_code) && <p className="text-xs text-slate-500">#{getDisplayStoreCode(store.store_code)}</p>}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${hasPlan ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-rose-200 bg-rose-50 text-rose-700'}`}>
@@ -145,7 +146,7 @@ export function ComplianceVisitsTracking({ stores }: ComplianceVisitsTrackingPro
                   return (
                     <TableRow key={store.id} className="hover:bg-slate-50/70">
                       <TableCell className="font-medium text-slate-900">
-                        {store.store_name}
+                        {formatStoreName(store.store_name)}
                         {getDisplayStoreCode(store.store_code) && <span className="text-slate-500 text-xs ml-2">#{getDisplayStoreCode(store.store_code)}</span>}
                       </TableCell>
                       <TableCell>

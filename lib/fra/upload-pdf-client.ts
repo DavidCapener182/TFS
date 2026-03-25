@@ -28,7 +28,7 @@ export async function uploadFraPdfFromClient(storeId: string, file: File): Promi
   }
 
   const { error: updateError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({ fire_risk_assessment_pdf_path: filePath })
     .eq('id', storeId)
 

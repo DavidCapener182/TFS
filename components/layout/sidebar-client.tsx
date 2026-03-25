@@ -21,6 +21,7 @@ interface SidebarClientProps {
 
 export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
   const pathname = usePathname()
+  const currentPath = pathname ?? '/'
   const { isOpen, setIsOpen } = useSidebar()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
 
@@ -65,21 +66,20 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
     <>
       <div className="flex items-center justify-between px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:h-20 md:px-6 md:py-0">
         <div className="flex items-center gap-3">
-          <div className="relative h-12 w-24 md:h-20 md:w-48">
+          <div className="relative h-12 w-28 md:h-20 md:w-44">
             <Image
-              src="/fa-logo.png"
-              alt="KSS x Footasylum"
+              src="/tfs-logo.svg"
+              alt="The Fragrance Shop"
               fill
-              sizes="192px"
+              sizes="176px"
               className="object-contain"
-              style={{ top: 4, left: 10 }}
             />
           </div>
           <div className="min-w-0 md:hidden">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">KSS x Footasylum</p>
+            <p className="text-[11px] font-semibold tracking-[0.16em] text-[#4b3a78]">The Fragrance Shop</p>
             <p className="text-sm font-semibold text-slate-900">Navigation</p>
           </div>
-          <span className="sr-only">KSS x Footasylum</span>
+          <span className="sr-only">The Fragrance Shop</span>
         </div>
         <button
           onClick={() => setIsOpen(false)}
@@ -93,7 +93,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
         <ul className="overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_16px_30px_rgba(15,23,42,0.08)] md:space-y-1.5 md:rounded-none md:border-0 md:bg-transparent md:shadow-none">
           {filteredItems.map((item) => {
             const Icon = item.icon
-            const isActive = !item.action && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+            const isActive = !item.action && (currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href)))
 
             if (item.action === 'feedback') {
               return (
@@ -132,7 +132,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
       </nav>
       <div className="p-4 pt-2">
         <div className="flex items-center gap-3 rounded-[28px] border border-slate-200 bg-white/85 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm md:rounded-[24px] md:border-white/10 md:bg-white/10 md:shadow-none">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#143457] md:bg-white/20">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#232154] md:bg-white/16">
             <User className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
@@ -149,7 +149,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
   return (
     <>
       {/* Desktop Sidebar - hidden when printing */}
-      <aside className="no-print hidden md:flex w-64 flex-col h-screen-zoom bg-[#0e1925] fixed left-0 top-0 z-30">
+      <aside className="no-print hidden md:flex w-64 flex-col h-screen-zoom bg-[linear-gradient(180deg,#1c0259_0%,#232154_60%,#2a265f_100%)] fixed left-0 top-0 z-30">
         {sidebarContent}
       </aside>
 

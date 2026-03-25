@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Get store data
     const { data: store, error: storeError } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select('*')
       .eq('id', storeId)
       .single()

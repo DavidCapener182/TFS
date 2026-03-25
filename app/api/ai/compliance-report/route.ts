@@ -137,24 +137,24 @@ export async function POST(request: NextRequest) {
       { data: storeActionsRaw, error: storeActionsError },
     ] = await Promise.all([
       supabase
-        .from('fa_incidents')
+        .from('tfs_incidents')
         .select('id, store_id, status, severity, occurred_at, created_at, closed_at, incident_category, riddor_reportable, persons_involved'),
       supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .select('id, store_id, status, severity, occurred_at, created_at, closed_at, incident_category, riddor_reportable, persons_involved'),
       supabase
-        .from('fa_investigations')
+        .from('tfs_investigations')
         .select('incident_id, root_cause, updated_at')
         .order('updated_at', { ascending: false })
         .limit(2000),
       supabase
-        .from('fa_claims')
+        .from('tfs_claims')
         .select('id, status, received_date, store_id, incident_id'),
       supabase
-        .from('fa_actions')
-        .select('id, status, due_date, priority, incident:fa_incidents!fa_actions_incident_id_fkey(store_id)'),
+        .from('tfs_actions')
+        .select('id, status, due_date, priority, incident:tfs_incidents!tfs_actions_incident_id_fkey(store_id)'),
       supabase
-        .from('fa_store_actions')
+        .from('tfs_store_actions')
         .select('id, status, due_date, priority, store_id')
         .not('status', 'eq', 'cancelled'),
     ])
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
     let storeMap = new Map<string, { name: string; code: string | null }>()
     if (uniqueStoreIds.length > 0) {
       const { data: storesRaw, error: storesError } = await supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .select('id, store_name, store_code')
         .in('id', uniqueStoreIds)
 
@@ -613,7 +613,7 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = `
-      Act as a senior KSS NW compliance intelligence lead creating a concise internal briefing for Footasylum leadership.
+      Act as a senior compliance intelligence lead creating a concise internal briefing for The Fragrance Shop leadership.
 
       IMPORTANT CONTEXT:
       - Current date: ${currentDate}

@@ -148,7 +148,7 @@ export async function createStoreActions(
   }
 
   const { data: existingActiveRows, error: existingError } = await supabase
-    .from('fa_store_actions')
+    .from('tfs_store_actions')
     .select('id, title, status')
     .eq('store_id', storeId)
     .in('status', ['open', 'in_progress'])
@@ -182,7 +182,7 @@ export async function createStoreActions(
   }
 
   let { data, error } = await supabase
-    .from('fa_store_actions')
+    .from('tfs_store_actions')
     .insert(dedupedRowsToInsert)
     .select('id')
 
@@ -193,7 +193,7 @@ export async function createStoreActions(
       return rest
     })
 
-    const retry = await supabase.from('fa_store_actions').insert(rowsWithoutSummary).select('id')
+    const retry = await supabase.from('tfs_store_actions').insert(rowsWithoutSummary).select('id')
     data = retry.data
     error = retry.error
   }
@@ -202,7 +202,7 @@ export async function createStoreActions(
     throw new Error(`Failed to create store actions: ${error.message}`)
   }
 
-  revalidatePath('/audit-tracker')
+  revalidatePath('/visit-tracker')
   revalidatePath('/stores')
   revalidatePath('/actions')
 

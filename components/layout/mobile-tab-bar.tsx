@@ -11,10 +11,11 @@ import { getMobileMoreItems, getMobileTabItems, isPrimaryMobilePath, matchesMobi
 
 export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
   const pathname = usePathname()
+  const currentPath = pathname ?? '/'
   const tabItems = getMobileTabItems(userRole)
   const moreItems = getMobileMoreItems(userRole)
-  const moreActive = !isPrimaryMobilePath(pathname, userRole)
-  const featuredHref = userRole === 'admin' || userRole === 'ops' ? '/audit-tracker' : null
+  const moreActive = !isPrimaryMobilePath(currentPath, userRole)
+  const featuredHref = userRole === 'admin' || userRole === 'ops' ? '/visit-tracker' : null
   const [moreOpen, setMoreOpen] = useState(false)
   const morePanelRef = useRef<HTMLDivElement | null>(null)
 
@@ -54,7 +55,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
           <div className="grid grid-cols-3 gap-2">
             {moreItems.map((item) => {
               const Icon = item.icon
-              const isActive = matchesMobilePath(pathname, item.href)
+              const isActive = matchesMobilePath(currentPath, item.href)
 
               return (
                 <Link
@@ -79,7 +80,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
         <div className="grid grid-cols-5 gap-1 rounded-[32px] border border-slate-200/85 bg-[rgba(248,250,252,0.94)] p-1.5 shadow-[0_16px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[rgba(248,250,252,0.88)]">
           {tabItems.map((item) => {
             const Icon = item.icon
-            const isActive = matchesMobilePath(pathname, item.href)
+            const isActive = matchesMobilePath(currentPath, item.href)
             const isFeatured = item.href === featuredHref
 
             return (

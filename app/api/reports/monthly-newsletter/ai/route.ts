@@ -84,7 +84,7 @@ async function generateCompletion(
         {
           role: 'system',
           content:
-            'You are a KSS NW Health & Safety consultant writing concise monthly briefings for Footasylum area managers. Return plain text only with no markdown.',
+            'You are writing concise monthly briefings for The Fragrance Shop area managers. Return plain text only with no markdown.',
         },
         {
           role: 'user',
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     const generateBriefingPrompt = `Act as a KSS NW Health & Safety consultant. Summarize Area ${selectedArea} performance (Avg: ${avgLabel}%). Tactical tone. 40 words max.`
 
-    const composeNewsletterPrompt = `Write a professional internal newsletter email from KSS NW (Footasylum's Health & Safety Consultants) to Footasylum Area Managers regarding their store audit scores. Use this context: Area: ${selectedArea}, Avg: ${avgLabel}%, Top: ${topStore}, Bottom: ${bottomStore}, Leaderboard: ${leaderboardText}. Include an upbeat greeting, 'Regional Highlights', 'Focus Required', and a professional closing. Use retail terminology such as high standards and visual excellence. Plain text only. No markdown, no asterisks, no hashtags. Keep the full email between 140 and 180 words.`
+    const composeNewsletterPrompt = `Write a professional internal newsletter email to The Fragrance Shop area managers regarding their store visit scores. Use this context: Area: ${selectedArea}, Avg: ${avgLabel}%, Top: ${topStore}, Bottom: ${bottomStore}, Leaderboard: ${leaderboardText}. Include an upbeat greeting, 'Regional Highlights', 'Focus Required', and a professional closing. Use retail terminology such as high standards and visual excellence. Plain text only. No markdown, no asterisks, no hashtags. Keep the full email between 140 and 180 words.`
 
     const analyzeRegionalRiskPrompt = `Analyze this score distribution for retail store audits from a KSS NW consultant perspective: [${scoreDistribution.join(', ')}]. The average is ${avgLabel}%. Identify whether it is Top-Heavy, Consistent but low, or Inconsistent, and provide a 2-sentence operational risk warning. Plain text only, max 45 words.`
 

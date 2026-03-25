@@ -104,7 +104,7 @@ export function BugTable() {
     const supabase = createClient()
 
     let query = supabase
-      .from('fa_user_feedback')
+      .from('tfs_user_feedback')
       .select('*')
       .order('created_at', { ascending: false })
 
@@ -131,10 +131,10 @@ export function BugTable() {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     const [openBugs, features, resolvedWeek, allResolved] = await Promise.all([
-      supabase.from('fa_user_feedback').select('id', { count: 'exact', head: true }).eq('type', 'bug').in('status', ['open', 'in_progress']),
-      supabase.from('fa_user_feedback').select('id', { count: 'exact', head: true }).eq('type', 'feature').in('status', ['open', 'in_progress']),
-      supabase.from('fa_user_feedback').select('id', { count: 'exact', head: true }).eq('status', 'resolved').gte('resolved_at', weekAgo),
-      supabase.from('fa_user_feedback').select('created_at, resolved_at').eq('status', 'resolved').not('resolved_at', 'is', null),
+      supabase.from('tfs_user_feedback').select('id', { count: 'exact', head: true }).eq('type', 'bug').in('status', ['open', 'in_progress']),
+      supabase.from('tfs_user_feedback').select('id', { count: 'exact', head: true }).eq('type', 'feature').in('status', ['open', 'in_progress']),
+      supabase.from('tfs_user_feedback').select('id', { count: 'exact', head: true }).eq('status', 'resolved').gte('resolved_at', weekAgo),
+      supabase.from('tfs_user_feedback').select('created_at, resolved_at').eq('status', 'resolved').not('resolved_at', 'is', null),
     ])
 
     let avgDays = 0
@@ -166,7 +166,7 @@ export function BugTable() {
   async function updateItem(id: string, updates: Record<string, unknown>) {
     const supabase = createClient()
     const { error } = await supabase
-      .from('fa_user_feedback')
+      .from('tfs_user_feedback')
       .update(updates)
       .eq('id', id)
 
@@ -187,7 +187,7 @@ export function BugTable() {
   async function deleteItem(id: string) {
     const supabase = createClient()
     const { error } = await supabase
-      .from('fa_user_feedback')
+      .from('tfs_user_feedback')
       .delete()
       .eq('id', id)
 

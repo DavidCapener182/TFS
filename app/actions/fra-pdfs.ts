@@ -49,7 +49,7 @@ export async function uploadFRAPDF(
 
   // Update the store record with the PDF path
   const { error: updateError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({ fire_risk_assessment_pdf_path: filePath })
     .eq('id', storeId)
 
@@ -105,7 +105,7 @@ export async function deleteFRAPDF(storeId: string) {
 
   // Get current PDF path
   const { data: store, error: fetchError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .select('fire_risk_assessment_pdf_path')
     .eq('id', storeId)
     .single()
@@ -132,7 +132,7 @@ export async function deleteFRAPDF(storeId: string) {
   // Update store record to remove PDF path and clear FRA data (date, percentage, notes)
   // When PDF is deleted, the entire FRA record should be cleared
   const { error: updateError } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({ 
       fire_risk_assessment_pdf_path: null,
       fire_risk_assessment_date: null,

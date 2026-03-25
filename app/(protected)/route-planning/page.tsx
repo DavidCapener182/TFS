@@ -3,106 +3,83 @@ import { requireRole } from '@/lib/auth'
 import { RoutePlanningClient } from '@/components/route-planning/route-planning-client'
 import { applyStoreCoordinateOverride, shouldAlwaysIncludeStore, shouldHideStore } from '@/lib/store-normalization'
 
+type RoutePlanningProfile = {
+  id: string
+  full_name: string | null
+  home_address: string | null
+  home_latitude: number | string | null
+  home_longitude: number | string | null
+  role: string | null
+}
+
+function isManagerProfile(profile: RoutePlanningProfile): boolean {
+  return profile.role === 'admin' || profile.role === 'ops'
+}
+
+function normalizeCoordinate(value: number | string | null | undefined): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
 async function getRoutePlanningData() {
   const supabase = createClient()
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
   sixMonthsAgo.setHours(0, 0, 0, 0)
 
-  // Get all active stores with their locations and audit status
-  // Try to fetch route_sequence, but handle gracefully if column doesn't exist
-  let stores: any[] = []
-  let storesError: any = null
-  
-  try {
-    const result = await supabase
-      .from('fa_stores')
-      .select(`
-        id,
-        is_active,
-        store_code,
-        store_name,
-        address_line_1,
-        city,
-        postcode,
-        region,
-        latitude,
-        longitude,
-        compliance_audit_1_date,
-        compliance_audit_1_overall_pct,
-        compliance_audit_2_date,
-        compliance_audit_2_planned_date,
-        compliance_audit_2_assigned_manager_user_id,
-        route_sequence,
-        assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(
-          id,
-          full_name,
-          home_address,
-          home_latitude,
-          home_longitude
-        )
-      `)
-      .order('store_name', { ascending: true })
-    
-    stores = result.data || []
-    storesError = result.error
-  } catch (err: any) {
-    // If route_sequence column doesn't exist, fetch without it
-    if (err.message?.includes('route_sequence') || err.message?.includes('column')) {
-      const result = await supabase
-        .from('fa_stores')
-        .select(`
-          id,
-          is_active,
-          store_code,
-          store_name,
-          address_line_1,
-          city,
-          postcode,
-          region,
-          latitude,
-          longitude,
-          compliance_audit_1_date,
-          compliance_audit_1_overall_pct,
-          compliance_audit_2_date,
-          compliance_audit_2_planned_date,
-          compliance_audit_2_assigned_manager_user_id,
-          assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(
-            id,
-            full_name,
-            home_address,
-            home_latitude,
-            home_longitude
-          )
-        `)
-        .order('store_name', { ascending: true })
-      
-      stores = result.data || []
-      storesError = result.error
-    } else {
-      storesError = err
-    }
+  const [storesResult, profilesResult] = await Promise.all([
+    supabase
+      .from('tfs_stores')
+      .select('*')
+      .order('store_name', { ascending: true }),
+    supabase
+      .from('fa_profiles')
+      .select('*')
+      .order('full_name', { ascending: true }),
+  ])
+
+  if (storesResult.error) {
+    console.error('Error fetching stores:', storesResult.error)
   }
 
-  if (storesError) {
-    console.error('Error fetching stores:', storesError)
-    return { stores: [], profiles: [] }
+  if (profilesResult.error) {
+    console.error('Error fetching profiles:', profilesResult.error)
   }
 
-  // Get all profiles for manager selection (only ops and admin - managers)
-  const { data: profiles, error: profilesError } = await supabase
-    .from('fa_profiles')
-    .select('id, full_name, home_address, home_latitude, home_longitude, role')
-    .in('role', ['ops', 'admin']) // Only include managers (ops and admin)
-    .order('full_name', { ascending: true })
-
-  if (profilesError) {
-    console.error('Error fetching profiles:', profilesError)
-  }
+  const allProfiles = ((profilesResult.data || []) as RoutePlanningProfile[]).filter(
+    (profile) => Boolean(profile?.id)
+  )
+  const managerProfiles = allProfiles.filter(isManagerProfile)
+  const visibleProfiles = (managerProfiles.length > 0 ? managerProfiles : allProfiles)
+    .filter((profile) => Boolean(profile.full_name))
+    .map((profile) => ({
+      id: profile.id,
+      full_name: profile.full_name,
+      home_address: profile.home_address || null,
+      home_latitude: normalizeCoordinate(profile.home_latitude),
+      home_longitude: normalizeCoordinate(profile.home_longitude),
+      role: profile.role,
+    }))
+  const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]))
 
   // Filter out closed/excluded stores and stores that have completed Audit 1 with score >= 80% within the last 6 months.
   // These stores don't need a second audit for 6 months.
-  const storesWithCoordinates = (stores || []).map((store: any) => applyStoreCoordinateOverride(store))
+  const storesWithCoordinates = ((storesResult.data || []) as any[]).map((store: any) =>
+    applyStoreCoordinateOverride({
+      ...store,
+      assigned_manager: store.compliance_audit_2_assigned_manager_user_id
+        ? profilesById.get(store.compliance_audit_2_assigned_manager_user_id) || null
+        : null,
+    })
+  )
 
   const filteredStores = storesWithCoordinates.filter((store: any) => {
     if (!store?.is_active && !shouldAlwaysIncludeStore(store)) {
@@ -137,7 +114,7 @@ async function getRoutePlanningData() {
 
   return {
     stores: processedStores,
-    profiles: profiles || [],
+    profiles: visibleProfiles,
   }
 }
 

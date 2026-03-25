@@ -3,6 +3,38 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+function isMissingRouteSequenceError(error: { message?: string } | null | undefined): boolean {
+  return /route_sequence/i.test(error?.message || '')
+}
+
+async function updateTfsStoreWithRouteSequenceFallback(
+  supabase: ReturnType<typeof createClient>,
+  storeId: string,
+  values: Record<string, unknown>
+) {
+  const result = await supabase
+    .from('tfs_stores')
+    .update(values)
+    .eq('id', storeId)
+
+  if (!result.error || !isMissingRouteSequenceError(result.error)) {
+    return result
+  }
+
+  const fallbackValues = Object.fromEntries(
+    Object.entries(values).filter(([key]) => key !== 'route_sequence')
+  )
+
+  if (Object.keys(fallbackValues).length === 0) {
+    return { error: null }
+  }
+
+  return supabase
+    .from('tfs_stores')
+    .update(fallbackValues)
+    .eq('id', storeId)
+}
+
 export async function updateStoreLocation(
   storeId: string,
   latitude: number | null,
@@ -11,7 +43,7 @@ export async function updateStoreLocation(
   const supabase = createClient()
 
   const { error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({
       latitude: latitude || null,
       longitude: longitude || null,
@@ -59,14 +91,11 @@ export async function updateRoutePlannedDate(
 ) {
   const supabase = createClient()
 
-  const { error } = await supabase
-    .from('fa_stores')
-    .update({
+  const { error } = await updateTfsStoreWithRouteSequenceFallback(supabase, storeId, {
       compliance_audit_2_planned_date: plannedDate || null,
       // Clear route sequence when clearing planned date
       ...(plannedDate === null && { route_sequence: null }),
     })
-    .eq('id', storeId)
 
   if (error) {
     console.error('Error updating planned date:', error)
@@ -87,10 +116,7 @@ export async function updateRouteSequence(
   // Update each store with its sequence number
   const updates = storeIds.map((storeId, index) => {
     const sequence = index + 1 // Start from 1
-    return supabase
-      .from('fa_stores')
-      .update({ route_sequence: sequence })
-      .eq('id', storeId)
+    return updateTfsStoreWithRouteSequenceFallback(supabase, storeId, { route_sequence: sequence })
   })
 
   const results = await Promise.all(updates)
@@ -110,13 +136,10 @@ export async function completeRoute(storeIds: string[]) {
 
   // Update all stores in the route: clear planned date (don't set audit date - audit hasn't happened yet)
   const updates = storeIds.map(storeId => {
-    return supabase
-      .from('fa_stores')
-      .update({
+    return updateTfsStoreWithRouteSequenceFallback(supabase, storeId, {
         compliance_audit_2_planned_date: null,
         route_sequence: null,
       })
-      .eq('id', storeId)
   })
 
   const results = await Promise.all(updates)
@@ -138,7 +161,7 @@ export async function rescheduleRoute(storeIds: string[], newDate: string) {
   // Update all stores in the route with new planned date
   const updates = storeIds.map(storeId => {
     return supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .update({
         compliance_audit_2_planned_date: newDate,
       })
@@ -163,7 +186,7 @@ export async function cleanupIncompleteAudit2Dates() {
 
   // Clear compliance_audit_2_date for stores where audit 2 percentage is null (audit not actually completed)
   const { error } = await supabase
-    .from('fa_stores')
+    .from('tfs_stores')
     .update({
       compliance_audit_2_date: null,
     })
@@ -175,7 +198,7 @@ export async function cleanupIncompleteAudit2Dates() {
     return { error: error.message }
   }
 
-  revalidatePath('/audit-tracker')
+  revalidatePath('/visit-tracker')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -196,7 +219,7 @@ export async function getRouteOperationalItems(
   const supabase = createClient()
 
   const { data, error } = await supabase
-    .from('fa_route_operational_items')
+    .from('tfs_route_operational_items')
     .select('id, title, location, start_time, duration_minutes')
     .eq('manager_user_id', managerUserId)
     .eq('planned_date', plannedDate)
@@ -223,7 +246,7 @@ export async function saveRouteOperationalItem(
   const supabase = createClient()
 
   const { data, error } = await supabase
-    .from('fa_route_operational_items')
+    .from('tfs_route_operational_items')
     .insert({
       manager_user_id: managerUserId,
       planned_date: plannedDate,
@@ -255,7 +278,7 @@ export async function updateRouteOperationalItem(
   const supabase = createClient()
 
   const { data, error } = await supabase
-    .from('fa_route_operational_items')
+    .from('tfs_route_operational_items')
     .update({
       title: title,
       location: location,
@@ -282,7 +305,7 @@ export async function deleteRouteOperationalItem(
   const supabase = createClient()
 
   const { error } = await supabase
-    .from('fa_route_operational_items')
+    .from('tfs_route_operational_items')
     .delete()
     .eq('id', id)
 
@@ -310,7 +333,7 @@ export async function getRouteVisitTimes(
   const supabase = createClient()
 
   const { data, error } = await supabase
-    .from('fa_route_visit_times')
+    .from('tfs_route_visit_times')
     .select('id, store_id, start_time, end_time')
     .eq('manager_user_id', managerUserId)
     .eq('planned_date', plannedDate)
@@ -335,7 +358,7 @@ export async function saveRouteVisitTime(
   const supabase = createClient()
 
   const { data, error } = await supabase
-    .from('fa_route_visit_times')
+    .from('tfs_route_visit_times')
     .upsert({
       manager_user_id: managerUserId,
       planned_date: plannedDate,
@@ -365,7 +388,7 @@ export async function deleteRouteVisitTime(
   const supabase = createClient()
 
   const { error } = await supabase
-    .from('fa_route_visit_times')
+    .from('tfs_route_visit_times')
     .delete()
     .eq('id', id)
 
@@ -386,7 +409,7 @@ export async function deleteAllRouteVisitTimes(
   const supabase = createClient()
 
   let query = supabase
-    .from('fa_route_visit_times')
+    .from('tfs_route_visit_times')
     .delete()
     .eq('manager_user_id', managerUserId)
     .eq('planned_date', plannedDate)
@@ -416,7 +439,7 @@ export async function deleteAllRouteOperationalItems(
   const supabase = createClient()
 
   let query = supabase
-    .from('fa_route_operational_items')
+    .from('tfs_route_operational_items')
     .delete()
     .eq('manager_user_id', managerUserId)
     .eq('planned_date', plannedDate)
@@ -447,7 +470,7 @@ export async function getCompletedRouteVisits(
   const supabase = createClient()
 
   let query = supabase
-    .from('fa_activity_log')
+    .from('tfs_activity_log')
     .select('entity_id, details')
     .eq('entity_type', 'store')
     .eq('action', 'ROUTE_VISIT_COMPLETED')
@@ -489,7 +512,7 @@ export async function markRouteVisitComplete(
   }
 
   const { data: existing, error: existingError } = await supabase
-    .from('fa_activity_log')
+    .from('tfs_activity_log')
     .select('id')
     .eq('entity_type', 'store')
     .eq('entity_id', storeId)
@@ -511,7 +534,7 @@ export async function markRouteVisitComplete(
   }
 
   const { error } = await supabase
-    .from('fa_activity_log')
+    .from('tfs_activity_log')
     .insert({
       entity_type: 'store',
       entity_id: storeId,
@@ -627,17 +650,17 @@ export async function getRoutePreVisitBriefing(
     incidentsResult,
   ] = await Promise.all([
     supabase
-      .from('fa_audit_templates')
+      .from('tfs_audit_templates')
       .select('id')
       .eq('category', 'footasylum_audit'),
     supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select('store_id, template_id, overall_score, conducted_at, created_at, status')
       .in('store_id', uniqueStoreIds)
       .eq('status', 'completed')
       .not('overall_score', 'is', null),
     supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select(`
         id,
         compliance_audit_1_date,
@@ -649,13 +672,13 @@ export async function getRoutePreVisitBriefing(
       `)
       .in('id', uniqueStoreIds),
     supabase
-      .from('fa_store_actions')
+      .from('tfs_store_actions')
       .select('id, store_id, title, status, priority, due_date, created_at')
       .in('store_id', uniqueStoreIds)
       .in('status', ['open', 'in_progress', 'blocked'])
       .order('due_date', { ascending: true }),
     supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('id, store_id, reference_no, summary, severity, status, occurred_at')
       .in('store_id', uniqueStoreIds)
       .gte('occurred_at', lookbackDate.toISOString())

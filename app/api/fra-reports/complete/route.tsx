@@ -28,14 +28,14 @@ export async function POST(request: NextRequest) {
 
     // Get the audit instance and ensure it's an FRA
     const { data: instance, error: instanceError } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .select(`
         id,
         template_id,
         store_id,
         conducted_at,
         created_at,
-        fa_audit_templates ( category )
+        tfs_audit_templates ( category )
       `)
       .eq('id', instanceId)
       .single()
@@ -44,14 +44,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'FRA instance not found' }, { status: 404 })
     }
 
-    const template = instance.fa_audit_templates as { category?: string } | null
+    const template = instance.tfs_audit_templates as { category?: string } | null
     if (template?.category !== 'fire_risk_assessment') {
       return NextResponse.json({ error: 'Not a Fire Risk Assessment instance' }, { status: 400 })
     }
 
     const resolveAssessmentDate = async (): Promise<{ date: Date; source: string }> => {
       const { data: responses } = await supabase
-        .from('fa_audit_responses')
+        .from('tfs_audit_responses')
         .select('response_json')
         .eq('audit_instance_id', instanceId)
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Mark audit instance as completed
     const { error: updateInstanceError } = await supabase
-      .from('fa_audit_instances')
+      .from('tfs_audit_instances')
       .update({
         status: 'completed',
         conducted_at: assessmentIso,
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Set store's fire_risk_assessment_date to the H&S audit date so tracker aligns with the real assessment date
     const { error: updateStoreError } = await supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .update({ fire_risk_assessment_date: assessmentDay })
       .eq('id', storeId)
 
@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: ratingResponses, error: ratingResponsesError } = await supabase
-      .from('fa_audit_responses')
-      .select('response_value, response_json, fa_audit_template_questions(question_text)')
+      .from('tfs_audit_responses')
+      .select('response_value, response_json, tfs_audit_template_questions(question_text)')
       .eq('audit_instance_id', instanceId)
 
     if (ratingResponsesError) {

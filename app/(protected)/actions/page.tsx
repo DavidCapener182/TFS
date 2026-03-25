@@ -15,6 +15,7 @@ import {
   getStoreActionQuestion,
   normalizeStoreActionQuestion,
 } from '@/lib/store-action-titles'
+import { formatStoreName } from '@/lib/store-display'
 
 type ActionFilters = {
   assigned_to?: string
@@ -478,19 +479,19 @@ function dedupeVisibleStoreActions(actions: UnifiedAction[]): UnifiedAction[] {
 async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAction[]; storeQuestionOptions: string[] }> {
   const supabase = createClient()
   let incidentQuery = supabase
-    .from('fa_actions')
+    .from('tfs_actions')
     .select(`
       *,
-      assigned_to:fa_profiles!fa_actions_assigned_to_user_id_fkey(*),
-      incident:fa_incidents!fa_actions_incident_id_fkey(reference_no)
+      assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(*),
+      incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
     `)
     .order('due_date', { ascending: true })
 
   let storeQuery = supabase
-    .from('fa_store_actions')
+    .from('tfs_store_actions')
     .select(`
       *,
-      store:fa_stores!fa_store_actions_store_id_fkey(id, store_name, store_code, region, compliance_audit_2_assigned_manager_user_id)
+      store:tfs_stores!tfs_store_actions_store_id_fkey(id, store_name, store_code, region, compliance_audit_2_assigned_manager_user_id)
     `)
     .order('due_date', { ascending: true })
 
@@ -545,8 +546,8 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
     incident: action.store
       ? {
           reference_no: action.store.store_code
-            ? `${action.store.store_code} - ${action.store.store_name}`
-            : action.store.store_name,
+            ? `${action.store.store_code} - ${formatStoreName(action.store.store_name)}`
+            : formatStoreName(action.store.store_name),
         }
       : { reference_no: 'Store Action' },
     assigned_to: (() => {
@@ -588,7 +589,7 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
         const incidentRef = String(action.incident?.reference_no || '').toLowerCase()
         const assignee = String(action.assigned_to?.full_name || '').toLowerCase()
         const description = String(action.description || '').toLowerCase()
-        const storeName = String(action.store?.store_name || '').toLowerCase()
+        const storeName = formatStoreName(action.store?.store_name).toLowerCase()
 
         return (
           title.includes(q) ||
@@ -693,8 +694,8 @@ export default async function ActionsPage({
         : `incident:${action.incident_id || action.id}`
       const groupLabel = isStoreAction
         ? action.store?.store_code
-          ? `${action.store.store_code} - ${action.store.store_name}`
-          : action.store?.store_name || action.incident?.reference_no || 'Store Action'
+          ? `${action.store.store_code} - ${formatStoreName(action.store.store_name)}`
+          : formatStoreName(action.store?.store_name) || action.incident?.reference_no || 'Store Action'
         : action.incident?.reference_no || 'Incident Action'
 
       if (!groups.has(groupKey)) {

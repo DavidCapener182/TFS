@@ -1,14 +1,82 @@
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, isSupabaseConfigured } from '@/lib/auth'
 import { truncateToDecimals } from '@/lib/utils'
 import { subDays } from 'date-fns'
 import { DashboardClient } from '@/components/dashboard/dashboard-client'
 import { computeComplianceForecast, getFRAStatusFromDate } from '@/lib/compliance-forecast'
+import { formatStoreName } from '@/lib/store-display'
 import { buildStoreMergeContext, getCanonicalStoreId, shouldHideStore } from '@/lib/store-normalization'
 
 // --- Data Fetching ---
 
 async function getDashboardData() {
+  if (!isSupabaseConfigured()) {
+    return {
+      openIncidents: 0,
+      underInvestigation: 0,
+      overdueActions: 0,
+      highCritical: 0,
+      statusCounts: {},
+      totalIncidents: 0,
+      severityCounts: {},
+      incidentBreakdownByPeriod: {
+        fiscalYear: { low: 0, medium: 0, high: 0, critical: 0, total: 0 },
+        month: { low: 0, medium: 0, high: 0, critical: 0, total: 0 },
+        week: { low: 0, medium: 0, high: 0, critical: 0, total: 0 },
+      },
+      topStores: [],
+      maxStoreCount: 0,
+      recentActivity: [],
+      storesNeedingSecondVisit: [],
+      profiles: [],
+      plannedRoutes: [],
+      auditStats: {
+        totalStores: 0,
+        firstAuditsComplete: 0,
+        secondAuditsComplete: 0,
+        totalAuditsComplete: 0,
+        firstAuditPercentage: 0,
+        secondAuditPercentage: 0,
+        totalAuditPercentage: 0,
+      },
+      storeActionStats: {
+        totalTracked: 0,
+        active: 0,
+        overdue: 0,
+        highUrgent: 0,
+        statusCounts: {},
+        priorityCounts: {},
+        topStores: [],
+      },
+      combinedActionStats: {
+        incidentOverdue: 0,
+        storeOverdue: 0,
+        totalOverdue: 0,
+      },
+      complianceTracking: {
+        noAuditStartedCount: 0,
+        audit1CompleteCount: 0,
+        audit2CompleteCount: 0,
+        awaitingSecondAuditCount: 0,
+        secondAuditPlannedCount: 0,
+        secondAuditUnplannedCount: 0,
+        storesNeedingSecondVisitCount: 0,
+        plannedRoutesCount: 0,
+        plannedVisitsNext14Days: 0,
+      },
+      fraStats: {
+        required: 0,
+        due: 0,
+        overdue: 0,
+        upToDate: 0,
+        inDate: 0,
+        inDateCoveragePercentage: 0,
+      },
+      storesRequiringFRA: 0,
+      complianceForecast: [],
+    }
+  }
+
   const supabase = createClient()
   const thirtyDaysAgo = subDays(new Date(), 30).toISOString()
   const today = new Date().toISOString().split('T')[0]
@@ -32,18 +100,18 @@ async function getDashboardData() {
     { data: overdueActionsByStoreRaw },
     { data: storeActionsRaw }
   ] = await Promise.all([
-    supabase.from('fa_incidents').select('*', { count: 'exact', head: true }).in('status', ['open', 'under_investigation', 'actions_in_progress']),
-    supabase.from('fa_incidents').select('*', { count: 'exact', head: true }).eq('status', 'under_investigation'),
-    supabase.from('fa_actions').select('*', { count: 'exact', head: true }).lt('due_date', today).not('status', 'in', '(complete,cancelled)'),
-    supabase.from('fa_incidents').select('*', { count: 'exact', head: true }).in('severity', ['high', 'critical']).gte('occurred_at', thirtyDaysAgo),
-    supabase.from('fa_incidents').select('status'),
-    supabase.from('fa_incidents').select('severity, occurred_at'),
-    supabase.from('fa_incidents').select(`store_id, fa_stores!inner(store_name, store_code)`).in('status', ['open', 'under_investigation', 'actions_in_progress']),
-    supabase.from('fa_activity_log').select(`*, performed_by:fa_profiles!fa_activity_log_performed_by_user_id_fkey(full_name)`).order('created_at', { ascending: false }).limit(20),
-    supabase.from('fa_stores').select(`id, store_name, store_code, compliance_audit_1_date, compliance_audit_2_date, compliance_audit_2_assigned_manager_user_id, compliance_audit_2_planned_date, assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(id, full_name)`).is('compliance_audit_2_date', null).eq('is_active', true).order('store_name', { ascending: true }),
+    supabase.from('tfs_incidents').select('*', { count: 'exact', head: true }).in('status', ['open', 'under_investigation', 'actions_in_progress']),
+    supabase.from('tfs_incidents').select('*', { count: 'exact', head: true }).eq('status', 'under_investigation'),
+    supabase.from('tfs_actions').select('*', { count: 'exact', head: true }).lt('due_date', today).not('status', 'in', '(complete,cancelled)'),
+    supabase.from('tfs_incidents').select('*', { count: 'exact', head: true }).in('severity', ['high', 'critical']).gte('occurred_at', thirtyDaysAgo),
+    supabase.from('tfs_incidents').select('status'),
+    supabase.from('tfs_incidents').select('severity, occurred_at'),
+    supabase.from('tfs_incidents').select(`store_id, tfs_stores!inner(store_name, store_code)`).in('status', ['open', 'under_investigation', 'actions_in_progress']),
+    supabase.from('tfs_activity_log').select(`*, performed_by:fa_profiles!tfs_activity_log_performed_by_user_id_fkey(full_name)`).order('created_at', { ascending: false }).limit(20),
+    supabase.from('tfs_stores').select(`id, store_name, store_code, compliance_audit_1_date, compliance_audit_2_date, compliance_audit_2_assigned_manager_user_id, compliance_audit_2_planned_date, assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(id, full_name)`).is('compliance_audit_2_date', null).eq('is_active', true).order('store_name', { ascending: true }),
     supabase.from('fa_profiles').select('id, full_name').order('full_name', { ascending: true }),
     supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select(`
         id,
         store_name,
@@ -58,40 +126,40 @@ async function getDashboardData() {
       `)
       .eq('is_active', true),
     supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select('id, store_name, store_code, address_line_1, city, postcode, latitude, longitude'),
     supabase
-      .from('fa_stores')
+      .from('tfs_stores')
       .select(
-        'id, store_name, store_code, region, postcode, latitude, longitude, compliance_audit_2_planned_date, compliance_audit_2_assigned_manager_user_id, route_sequence, assigned_manager:fa_profiles!fa_stores_compliance_audit_2_assigned_manager_user_id_fkey(id, full_name)'
+        'id, store_name, store_code, region, postcode, latitude, longitude, compliance_audit_2_planned_date, compliance_audit_2_assigned_manager_user_id, route_sequence, assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(id, full_name)'
       )
       .not('compliance_audit_2_planned_date', 'is', null)
       .eq('is_active', true)
       .order('compliance_audit_2_planned_date', { ascending: true }),
-    supabase.from('fa_stores').select('id, compliance_audit_1_date, compliance_audit_2_date, fire_risk_assessment_date').eq('is_active', true),
+    supabase.from('tfs_stores').select('id, compliance_audit_1_date, compliance_audit_2_date, fire_risk_assessment_date').eq('is_active', true),
     supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('store_id')
       .in('status', ['open', 'under_investigation', 'actions_in_progress']),
     supabase
-      .from('fa_actions')
+      .from('tfs_actions')
       .select(`
         status,
         due_date,
-        incident:fa_incidents!fa_actions_incident_id_fkey(
+        incident:tfs_incidents!tfs_actions_incident_id_fkey(
           store_id
         )
       `)
       .lt('due_date', today)
       .not('status', 'in', '(complete,cancelled)'),
     supabase
-      .from('fa_store_actions')
+      .from('tfs_store_actions')
       .select(`
         store_id,
         status,
         due_date,
         priority,
-        store:fa_stores!fa_store_actions_store_id_fkey(store_name, store_code)
+        store:tfs_stores!tfs_store_actions_store_id_fkey(store_name, store_code)
       `)
       .not('status', 'eq', 'cancelled')
   ])
@@ -190,8 +258,8 @@ async function getDashboardData() {
     const store = storeById.get(storeId)
     if (!acc[storeId]) {
       acc[storeId] = {
-        name: store?.store_name || item.fa_stores?.store_name || 'Unknown',
-        code: store?.store_code || item.fa_stores?.store_code,
+        name: formatStoreName(store?.store_name || item.tfs_stores?.store_name || 'Unknown'),
+        code: store?.store_code || item.tfs_stores?.store_code,
         count: 0,
       }
     }
@@ -252,7 +320,7 @@ async function getDashboardData() {
     const storeRel = storeById.get(storeId) || (Array.isArray(action?.store) ? action.store[0] : action?.store)
     if (!acc[storeId]) {
       acc[storeId] = {
-        name: storeRel?.store_name || 'Unknown',
+        name: formatStoreName(storeRel?.store_name || 'Unknown'),
         code: storeRel?.store_code || undefined,
         count: 0,
         overdue: 0,
@@ -345,7 +413,7 @@ async function getDashboardData() {
       // Store full store data with route_sequence for sorting later
       existing.stores.push({
         id: store.id,
-        name: store.store_name,
+        name: formatStoreName(store.store_name),
         store_code: store.store_code,
         postcode: store.postcode,
         latitude: store.latitude,
@@ -363,7 +431,7 @@ async function getDashboardData() {
         managerHome: null,
         stores: [{
           id: store.id,
-          name: store.store_name,
+          name: formatStoreName(store.store_name),
           store_code: store.store_code,
           postcode: store.postcode,
           latitude: store.latitude,
@@ -404,7 +472,7 @@ async function getDashboardData() {
 
     try {
       const { data: operationalItems, error } = await supabase
-        .from('fa_route_operational_items')
+        .from('tfs_route_operational_items')
         .select('title, location')
         .eq('manager_user_id', route.managerId)
         .eq('planned_date', route.plannedDate)
@@ -449,7 +517,7 @@ async function getDashboardData() {
     try {
       const storeIds = Array.from(fraDataMap.keys())
       const { data: fraPctData, error: pctError } = await supabase
-        .from('fa_stores')
+        .from('tfs_stores')
         .select('id, fire_risk_assessment_pct')
         .in('id', storeIds)
       

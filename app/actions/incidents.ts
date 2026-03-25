@@ -27,11 +27,11 @@ export async function createIncident(input: CreateIncidentInput) {
   }
 
   // Generate reference number
-  const { data: refData } = await supabase.rpc('fa_generate_incident_reference')
+  const { data: refData } = await supabase.rpc('tfs_generate_incident_reference')
   const reference_no = refData || `INC-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
 
   const { data: incident, error } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .insert({
       ...input,
       reference_no,
@@ -70,7 +70,7 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
 
   // Get current incident for activity log
   const { data: currentIncident } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .select('*')
     .eq('id', id)
     .single()
@@ -85,7 +85,7 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
     
     // Check if incident already exists in closed_incidents (shouldn't happen, but safety check)
     const { data: existingClosed } = await supabase
-      .from('fa_closed_incidents')
+      .from('tfs_closed_incidents')
       .select('id')
       .eq('id', id)
       .single()
@@ -93,7 +93,7 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
     if (!existingClosed) {
       // Copy incident to closed_incidents table
       const { error: insertError } = await supabase
-        .from('fa_closed_incidents')
+        .from('tfs_closed_incidents')
         .insert({
           id: currentIncident.id,
           reference_no: currentIncident.reference_no,
@@ -125,7 +125,7 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
 
     // Delete from open incidents table (this will cascade delete related actions, investigations, etc.)
     const { error: deleteError } = await supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .delete()
       .eq('id', id)
 
@@ -152,7 +152,7 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
   const updateData: Record<string, unknown> = { ...updates }
   
   const { data: incident, error } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .update(updateData)
     .eq('id', id)
     .select()
@@ -189,7 +189,7 @@ export async function assignInvestigator(incidentId: string, investigatorId: str
   // Only update status if we're assigning (not unassigning)
   if (investigatorId && investigatorId !== 'unassigned') {
     const { data: currentIncident } = await supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('status')
       .eq('id', incidentId)
       .single()
@@ -201,7 +201,7 @@ export async function assignInvestigator(incidentId: string, investigatorId: str
   }
 
   const { data: incident, error } = await supabase
-    .from('fa_incidents')
+    .from('tfs_incidents')
     .update(updateData)
     .eq('id', incidentId)
     .select()
@@ -231,29 +231,29 @@ export async function deleteIncident(id: string) {
 
   // Check if incident is in closed_incidents table first
   const { data: closedIncident, error: closedError } = await supabase
-    .from('fa_closed_incidents')
+    .from('tfs_closed_incidents')
     .select('reference_no')
     .eq('id', id)
     .maybeSingle()
 
   let currentIncident: any = null
-  let tableName = 'fa_incidents'
+  let tableName = 'tfs_incidents'
 
   // If found in closed_incidents, use that table
   if (closedIncident) {
     currentIncident = closedIncident
-    tableName = 'fa_closed_incidents'
+    tableName = 'tfs_closed_incidents'
   } else {
     // If not in closed_incidents, check open incidents
     const { data: openIncident, error: openError } = await supabase
-      .from('fa_incidents')
+      .from('tfs_incidents')
       .select('reference_no')
       .eq('id', id)
       .maybeSingle()
     
     if (openIncident) {
       currentIncident = openIncident
-      tableName = 'fa_incidents'
+      tableName = 'tfs_incidents'
     }
   }
 

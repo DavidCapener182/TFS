@@ -48,7 +48,7 @@ async function getDirectPdfText(
   instanceId: string
 ): Promise<string | null> {
   const { data: responses } = await supabase
-    .from('fa_audit_responses')
+    .from('tfs_audit_responses')
     .select('response_json')
     .eq('audit_instance_id', instanceId)
 
@@ -113,11 +113,11 @@ export async function GET(request: NextRequest) {
     }
 
     const fraInstance = await getAuditInstance(instanceId)
-    if (!fraInstance || (fraInstance.fa_audit_templates as any)?.category !== 'fire_risk_assessment') {
+    if (!fraInstance || (fraInstance.tfs_audit_templates as any)?.category !== 'fire_risk_assessment') {
       return NextResponse.json({ error: 'Invalid FRA audit instance' }, { status: 400 })
     }
 
-    const store = fraInstance.fa_stores as any
+    const store = fraInstance.tfs_stores as any
     const storeId = store.id
 
     const directPdfText = await getDirectPdfText(supabase, instanceId)

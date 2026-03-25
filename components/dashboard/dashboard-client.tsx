@@ -17,10 +17,10 @@ import {
   Flame,
   Info,
   Map as MapIcon,
-  ShieldAlert,
   TrendingUp,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { formatStoreName } from '@/lib/store-display'
 import { formatPercent, getDisplayStoreCode } from '@/lib/utils'
 
 // --- Helper Components ---
@@ -100,12 +100,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   }
 
   const plannedRoutes = Array.isArray(data.plannedRoutes) ? data.plannedRoutes : []
-  const storesNeedingSecondVisit = Array.isArray(data.storesNeedingSecondVisit) ? data.storesNeedingSecondVisit : []
-  const plannedStoreCount = plannedRoutes.reduce(
-    (total: number, route: any) => total + (route.stores?.length || route.storeCount || 0),
-    0
-  )
   const plannedRouteCount = plannedRoutes.length
+  const plannedVisitCount = Number(data.complianceTracking?.secondAuditPlannedCount || 0)
+  const completedVisitCount = Number(data.auditStats?.secondAuditsComplete || 0)
+  const unplannedVisitCount = Number(data.complianceTracking?.secondAuditUnplannedCount || 0)
   const totalOverdueActions = Number(data.combinedActionStats?.totalOverdue ?? data.overdueActions ?? 0)
   const healthScore = Math.max(
     0,
@@ -141,23 +139,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const activeIncidentPeriodOption = INCIDENT_PERIOD_OPTIONS.find((option) => option.key === incidentPeriod)
 
   const highRiskStoresCount = Number(data.complianceForecast?.highRiskCount || 0)
-  const fraRequiredCount = Number(data.storesRequiringFRA || 0)
-  const fraOverdueCount = Number(data.fraStats?.overdue || 0)
   const updatedTime = format(new Date(), 'HH:mm')
-
-  const daysUntilYearEnd = (() => {
-    const now = new Date()
-    const endOfYear = new Date(now.getFullYear(), 11, 31)
-    return Math.max(0, Math.ceil((endOfYear.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-  })()
-
-  const dueVisits = storesNeedingSecondVisit.map((store: any) => ({
-    id: store.id,
-    name: store.store_name || 'Unknown Store',
-    code: getDisplayStoreCode(store.store_code) || '—',
-    status: store.compliance_audit_2_planned_date ? 'Planned' : 'Not Planned',
-  }))
-  const mobileDueVisitsPreview = dueVisits.slice(0, 6)
 
   const parseDateOnly = (value: string | null | undefined): Date | null => {
     if (!value) return null
@@ -169,20 +151,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   const todayDateOnly = new Date()
   todayDateOnly.setHours(0, 0, 0, 0)
-
-  const dueRoutesCount = plannedRoutes.filter((route: any) => {
-    const plannedDate = parseDateOnly(route?.plannedDate)
-    return plannedDate ? plannedDate.getTime() <= todayDateOnly.getTime() : false
-  }).length
-  const upcomingRoutesCount = Math.max(0, plannedRouteCount - dueRoutesCount)
-
-  const nextRoutes = [...plannedRoutes]
-    .sort((a: any, b: any) => {
-      const aTime = parseDateOnly(a?.plannedDate)?.getTime() || Number.MAX_SAFE_INTEGER
-      const bTime = parseDateOnly(b?.plannedDate)?.getTime() || Number.MAX_SAFE_INTEGER
-      return aTime - bTime
-    })
-    .slice(0, 3)
 
   const getRiskBand = (store: any): 'high' | 'medium' | 'low' => {
     const directBand = typeof store?.riskBand === 'string' ? store.riskBand.toLowerCase() : ''
@@ -228,7 +196,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
               <h1 className="mb-1 text-[1.7rem] font-semibold tracking-[-0.04em] text-white sm:text-2xl md:text-3xl md:font-bold md:tracking-tight">Dashboard</h1>
               <p className="max-w-[28rem] text-[12.5px] leading-[1.3] text-slate-300 sm:text-sm md:text-sm md:text-slate-400">
-                Real-time view of incidents, audits, and planned operations across your network.
+                Real-time view of incidents, visits, and planned operations across your network.
               </p>
             </div>
 
@@ -253,7 +221,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <div>
                 <div className="mb-0.5 flex items-center gap-1.5">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 md:text-xs md:tracking-wider">
-                    Network Health
+                    Completed Visits
                   </p>
                   <div
                     className="relative"
@@ -266,7 +234,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       onFocus={() => setShowHealthTooltip(true)}
                       onBlur={() => setShowHealthTooltip(false)}
                       className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 bg-slate-900/80 text-slate-300 transition-colors hover:border-blue-400 hover:text-blue-300"
-                      aria-label="Explain network health score"
+                      aria-label="Explain planned visits"
                       aria-expanded={showHealthTooltip}
                     >
                       <Info size={11} />
@@ -276,17 +244,16 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         role="tooltip"
                         className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg border border-slate-600 bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-200 shadow-lg"
                       >
-                        Network Health Score combines 65% audit completion and 35% overdue-action performance.
-                        Higher scores mean stronger compliance and fewer overdue issues.
+                        Completed visits count stores that have already received their follow-up compliance visit.
                       </div>
                     ) : null}
                   </div>
                 </div>
-                <p className="text-[1.85rem] font-black leading-none text-emerald-400 md:text-4xl">{healthScore}%</p>
+                <p className="text-[1.85rem] font-black leading-none text-emerald-400 md:text-4xl">{completedVisitCount}</p>
               </div>
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 md:h-12 md:w-12">
-                <BarChart3 size={18} className="md:hidden" />
-                <BarChart3 size={24} className="hidden md:block" />
+                <CalendarDays size={18} className="md:hidden" />
+                <CalendarDays size={24} className="hidden md:block" />
               </div>
             </div>
 
@@ -308,18 +275,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
             <div className="flex min-h-[60px] items-center justify-between rounded-[20px] border border-white/10 bg-white/[0.06] p-2.5 backdrop-blur-sm md:min-h-0 md:flex-col md:items-start md:justify-between md:rounded-2xl md:border-slate-700/50 md:bg-slate-800/50 md:p-4">
               <div className="flex min-w-0 items-center gap-1.5 text-slate-400">
-                <ShieldAlert size={14} className="text-red-400" />
+                <TrendingUp size={14} className="text-emerald-400" />
                 <span className="text-[9px] font-bold uppercase tracking-[0.12em] md:text-xs md:tracking-normal">High Risk Stores</span>
               </div>
-              <p className="text-lg font-bold leading-none text-red-400 md:text-2xl">{highRiskStoresCount}</p>
+              <p className="text-lg font-bold leading-none text-emerald-300 md:text-2xl">{highRiskStoresCount}</p>
             </div>
 
             <div className="flex min-h-[60px] items-center justify-between rounded-[20px] border border-white/10 bg-white/[0.06] p-2.5 backdrop-blur-sm md:min-h-0 md:flex-col md:items-start md:justify-between md:rounded-2xl md:border-slate-700/50 md:bg-slate-800/50 md:p-4">
               <div className="flex min-w-0 items-center gap-1.5 text-slate-400">
-                <Flame size={14} className="text-orange-400" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] md:text-xs md:tracking-normal">FRA Required</span>
+                <MapIcon size={14} className="text-cyan-300" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] md:text-xs md:tracking-normal">Planned Routes</span>
               </div>
-              <p className="text-lg font-bold leading-none text-orange-400 md:text-2xl">{fraRequiredCount}</p>
+              <p className="text-lg font-bold leading-none text-cyan-300 md:text-2xl">{plannedRouteCount}</p>
             </div>
           </div>
         </div>
@@ -330,7 +297,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
-                <CheckCircle2 size={18} className="text-emerald-500" /> Audit Completion Rates
+                <CheckCircle2 size={18} className="text-emerald-500" /> Visit Activity
               </h2>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
                 {totalStores} Stores Total
@@ -339,30 +306,39 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="space-y-2">
-                <p className="text-xs font-bold uppercase text-slate-400">First Audit</p>
+                <p className="text-xs font-bold uppercase text-slate-400">Completed Visits</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-3xl font-bold text-slate-800">{formatPercent(firstAuditRate)}</p>
-                  <p className="mb-1 font-mono text-xs text-slate-500">{firstAuditCount}/{totalStores}</p>
+                  <p className="text-3xl font-bold text-slate-800">{completedVisitCount}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">{totalStores} total stores</p>
                 </div>
-                <ProgressBar value={firstAuditRate} colorClass="bg-emerald-500" />
+                <ProgressBar
+                  value={totalStores > 0 ? (completedVisitCount / totalStores) * 100 : 0}
+                  colorClass="bg-emerald-500"
+                />
               </div>
 
               <div className="space-y-2 border-slate-100 md:border-l md:pl-6">
-                <p className="text-xs font-bold uppercase text-slate-400">Second Audit</p>
+                <p className="text-xs font-bold uppercase text-slate-400">Planned Visits</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-3xl font-bold text-slate-800">{formatPercent(secondAuditRate)}</p>
-                  <p className="mb-1 font-mono text-xs text-slate-500">{secondAuditCount}/{totalStores}</p>
+                  <p className="text-3xl font-bold text-slate-800">{plannedVisitCount}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">scheduled now</p>
                 </div>
-                <ProgressBar value={secondAuditRate} colorClass="bg-blue-500" />
+                <ProgressBar
+                  value={totalStores > 0 ? (plannedVisitCount / totalStores) * 100 : 0}
+                  colorClass="bg-blue-500"
+                />
               </div>
 
               <div className="space-y-2 border-slate-100 md:border-l md:pl-6">
-                <p className="text-xs font-bold uppercase text-slate-400">Fully Compliant</p>
+                <p className="text-xs font-bold uppercase text-slate-400">Unplanned Stores</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-3xl font-bold text-indigo-600">{formatPercent(fullyCompliantRate)}</p>
-                  <p className="mb-1 font-mono text-xs text-slate-500">{fullyCompliantCount}/{totalStores}</p>
+                  <p className="text-3xl font-bold text-indigo-600">{unplannedVisitCount}</p>
+                  <p className="mb-1 font-mono text-xs text-slate-500">need scheduling</p>
                 </div>
-                <ProgressBar value={fullyCompliantRate} colorClass="bg-indigo-500" />
+                <ProgressBar
+                  value={totalStores > 0 ? (unplannedVisitCount / totalStores) * 100 : 0}
+                  colorClass="bg-indigo-500"
+                />
               </div>
             </div>
           </div>
@@ -435,118 +411,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/92 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:shadow-sm">
-            <div className="border-b border-slate-200 bg-amber-50/60 p-5 md:p-6">
-              <h2 className="mb-1 flex items-center gap-2 text-lg font-bold text-amber-900">
-                <AlertTriangle size={18} className="text-amber-500" /> Compliance Visits Due
-              </h2>
-              <p className="text-sm text-amber-700">
-                {storesNeedingSecondVisit.length} stores still need a second visit this year. Minimum deadline is {daysUntilYearEnd} days.
-              </p>
-            </div>
-
-            <div className="md:hidden">
-              {dueVisits.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm italic text-slate-500">
-                  No due visits at the moment.
-                </div>
-              ) : (
-                <div className="space-y-3.5 p-4">
-                  {mobileDueVisitsPreview.map((visit: any) => (
-                    <div key={visit.id} className="rounded-[24px] border border-amber-100 bg-white/96 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{visit.name}</p>
-                          <p className="mt-1 font-mono text-[11px] text-slate-400">{visit.code}</p>
-                        </div>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                            visit.status === 'Planned'
-                              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-                              : 'border-rose-100 bg-rose-50 text-rose-700'
-                          }`}
-                        >
-                          <AlertCircle size={10} />
-                          {visit.status}
-                        </span>
-                      </div>
-                      <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50/90 px-3 py-2.5">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Minimum deadline</p>
-                          <p className="mt-1 font-mono text-sm font-semibold text-amber-700">{daysUntilYearEnd} days</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {dueVisits.length > mobileDueVisitsPreview.length ? (
-                    <div className="rounded-[22px] border border-dashed border-amber-200 bg-amber-50/70 px-4 py-3 text-center text-sm text-amber-800">
-                      +{dueVisits.length - mobileDueVisitsPreview.length} more stores still need a second visit.
-                    </div>
-                  ) : null}
-                  <Link
-                    href="/route-planning"
-                    prefetch={false}
-                    className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[18px] bg-[#143457] px-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(20,52,87,0.16)] transition-colors hover:bg-[#183c65]"
-                  >
-                    Plan Visits
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            <div className="hidden max-h-[460px] overflow-auto md:block">
-              <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-400">
-                  <tr>
-                    <th className="px-6 py-4 font-bold">Store</th>
-                    <th className="px-6 py-4 font-bold">Status</th>
-                    <th className="px-6 py-4 font-bold">Deadline</th>
-                    <th className="px-6 py-4 text-right font-bold">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {dueVisits.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-6 text-center text-sm italic text-slate-500">
-                        No due visits at the moment.
-                      </td>
-                    </tr>
-                  ) : (
-                    dueVisits.map((visit: any) => (
-                      <tr key={visit.id} className="transition-colors hover:bg-slate-50">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-slate-900">{visit.name}</p>
-                          <p className="text-xs font-mono text-slate-400">{visit.code}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${
-                            visit.status === 'Planned'
-                              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-                              : 'border-red-100 bg-red-50 text-red-600'
-                          }`}>
-                            <AlertCircle size={10} />
-                            {visit.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="font-mono font-medium text-amber-600">{daysUntilYearEnd} days</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Link
-                            href="/route-planning"
-                            prefetch={false}
-                            className="text-xs font-bold uppercase tracking-wider text-blue-600 transition-colors hover:text-blue-800"
-                          >
-                            Plan Visit
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
 
         <div className="space-y-6 lg:col-span-4">
@@ -631,7 +495,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     >
                       <div className="mb-1 flex items-start justify-between">
                         <div>
-                          <span className="mr-2 font-bold text-slate-800">{store.storeName}</span>
+                          <span className="mr-2 font-bold text-slate-800">{formatStoreName(store.storeName)}</span>
                           <span className="text-xs font-mono text-slate-400">{store.storeCode || '—'}</span>
                         </div>
                         <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${scoreBadgeClass}`}>
@@ -641,73 +505,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       <p className="text-xs text-slate-500">
                         {Array.isArray(store.drivers) && store.drivers.length > 0
                           ? store.drivers.slice(0, 2).join(' • ')
-                          : 'No recent audit score • No in-date FRA'}
+                          : 'No recent visit or action drivers available'}
                       </p>
                     </Link>
                   )
                 })
               )}
             </div>
-          </div>
-
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
-            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold">
-              <MapIcon size={18} className="text-blue-500" /> Planned Rounds
-            </h2>
-
-            <div className="mb-6 grid grid-cols-3 gap-3">
-              <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-3.5 text-center md:rounded-xl md:p-3">
-                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Due</p>
-                <p className="text-lg font-bold text-red-500">{dueRoutesCount}</p>
-              </div>
-              <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-3.5 text-center md:rounded-xl md:p-3">
-                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Upcoming</p>
-                <p className="text-lg font-bold text-blue-600">{upcomingRoutesCount}</p>
-              </div>
-              <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-3.5 text-center md:rounded-xl md:p-3">
-                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Stops</p>
-                <p className="text-lg font-bold text-slate-800">{plannedStoreCount}</p>
-              </div>
-            </div>
-
-            {plannedRouteCount === 0 ? (
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
-                <CalendarDays size={24} className="mx-auto mb-2 text-emerald-400" />
-                <p className="text-sm font-semibold text-emerald-800">No planned rounds scheduled.</p>
-                <p className="mt-1 text-xs text-emerald-600">You&apos;re all caught up for this week.</p>
-                <Link
-                  href="/route-planning"
-                  prefetch={false}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-emerald-200 bg-white py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                >
-                  Create New Route
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {nextRoutes.map((route: any) => (
-                  <div key={route.key} className="rounded-[22px] border border-slate-100 p-3.5 md:rounded-xl md:p-3">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-slate-800">{route.managerName || 'Unassigned'}</p>
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        {(route.stores?.length || route.storeCount || 0)} stops
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {route.area || 'Unknown area'} • {route.plannedDate || 'No date'}
-                    </p>
-                  </div>
-                ))}
-                <Link
-                  href="/route-planning"
-                  prefetch={false}
-                  className="inline-flex items-center text-sm font-semibold text-blue-600 transition-colors hover:text-blue-800"
-                >
-                  Open Route Planner
-                  <ChevronRight size={14} className="ml-1" />
-                </Link>
-              </div>
-            )}
           </div>
 
           <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
@@ -718,8 +522,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <p className="text-xl font-bold text-slate-900">{Number(data.underInvestigation || 0)}</p>
               </div>
               <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-3.5 md:rounded-lg md:p-3">
-                <p className="text-[10px] font-bold uppercase text-slate-400">FRA Overdue</p>
-                <p className="text-xl font-bold text-rose-700">{fraOverdueCount}</p>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Planned Routes</p>
+                <p className="text-xl font-bold text-rose-700">{plannedRouteCount}</p>
               </div>
             </div>
           </div>

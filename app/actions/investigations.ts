@@ -31,7 +31,7 @@ export async function createInvestigation(incidentId: string, input: CreateInves
   }
 
   const { data: investigation, error } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .insert(investigationData)
     .select()
     .single()
@@ -57,7 +57,7 @@ export async function updateInvestigation(id: string, updates: Partial<CreateInv
   }
 
   const { data: currentInvestigation } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .select('*')
     .eq('id', id)
     .single()
@@ -75,7 +75,7 @@ export async function updateInvestigation(id: string, updates: Partial<CreateInv
   }
 
   const { data: investigation, error } = await supabase
-    .from('fa_investigations')
+    .from('tfs_investigations')
     .update(updateData)
     .eq('id', id)
     .select()

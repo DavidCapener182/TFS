@@ -58,14 +58,14 @@ const FIELD_LABELS: Record<string, string> = {
   route_sequence: 'Route sequence',
   region: 'Region',
   store_name: 'Store name',
-  compliance_audit_1_overall_pct: 'Audit 1 score',
-  compliance_audit_1_date: 'Audit 1 date',
-  compliance_audit_2_overall_pct: 'Audit 2 score',
-  compliance_audit_2_date: 'Audit 2 date',
-  compliance_audit_2_planned_date: 'Planned route date',
-  compliance_audit_2_assigned_manager_user_id: 'Assigned route manager',
-  compliance_audit_3_overall_pct: 'Audit 3 score',
-  compliance_audit_3_date: 'Audit 3 date',
+  compliance_audit_1_overall_pct: 'Visit 1 score',
+  compliance_audit_1_date: 'Visit 1 date',
+  compliance_audit_2_overall_pct: 'Visit 2 score',
+  compliance_audit_2_date: 'Visit 2 date',
+  compliance_audit_2_planned_date: 'Planned visit date',
+  compliance_audit_2_assigned_manager_user_id: 'Assigned visit manager',
+  compliance_audit_3_overall_pct: 'Visit 3 score',
+  compliance_audit_3_date: 'Visit 3 date',
 }
 
 const CHANGE_FIELD_PRIORITY = [
@@ -252,7 +252,7 @@ function getEntityPageFallback(activity: LatestActivity | null | undefined): str
   if (['action', 'actions', 'store_action'].includes(entityType)) return '/actions'
   if (['store', 'stores'].includes(entityType)) return '/stores'
   if (['route', 'route_planning'].includes(entityType)) return '/route-planning'
-  if (['fra', 'fire_risk_assessment'].includes(entityType)) return '/fire-risk-assessment'
+  if (['fra', 'fire_risk_assessment'].includes(entityType)) return '/visit-tracker'
   if (['profile', 'user', 'users'].includes(entityType)) return '/admin'
 
   return null
@@ -518,7 +518,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
       }
 
       const { data, error } = await supabase
-        .from('fa_activity_log')
+        .from('tfs_activity_log')
         .select('performed_by_user_id, entity_type, entity_id, action, created_at, details')
         .in('performed_by_user_id', userIds)
         .order('created_at', { ascending: false })
@@ -560,7 +560,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   return (
     <header
       ref={headerRef}
-      className="no-print fixed inset-x-0 top-0 z-30 border-b border-white/8 bg-[linear-gradient(180deg,rgba(6,22,37,0.98)_0%,rgba(5,20,33,0.94)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#0e1925] md:px-6 md:pt-0 lg:px-8"
+      className="no-print fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:pt-0 lg:px-8"
     >
       <div className="flex w-full flex-col gap-3.5 pb-4 pt-3 md:flex-row md:items-center md:justify-between md:gap-4 md:pb-0 md:pt-0">
         <div className="flex items-center gap-3 md:hidden">
@@ -578,8 +578,8 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold tracking-[0.16em] text-white/45">
-              KSS x Footasylum
+            <p className="text-[10px] font-semibold tracking-[0.16em] text-white/55">
+              The Fragrance Shop
             </p>
             <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-white">{mobilePageTitle}</h1>
           </div>
