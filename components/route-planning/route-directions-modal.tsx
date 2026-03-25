@@ -73,7 +73,7 @@ interface PreVisitBriefingStore {
   store_id: string
   previous_score: number | null
   previous_score_date: string | null
-  previous_score_source: 'safehub' | 'legacy' | 'none'
+  previous_score_source: 'current' | 'legacy' | 'none'
   open_actions: PreVisitBriefingAction[]
   recent_incidents: PreVisitBriefingIncident[]
 }

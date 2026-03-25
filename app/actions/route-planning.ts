@@ -583,7 +583,7 @@ export interface PreVisitBriefingStoreSummary {
   store_id: string
   previous_score: number | null
   previous_score_date: string | null
-  previous_score_source: 'safehub' | 'legacy' | 'none'
+  previous_score_source: 'current' | 'legacy' | 'none'
   open_actions: PreVisitBriefingAction[]
   recent_incidents: PreVisitBriefingIncident[]
 }
@@ -699,7 +699,7 @@ export async function getRoutePreVisitBriefing(
   }
 
   const footasylumTemplateIds = new Set((templatesResult.data || []).map((row: any) => row.id))
-  const latestSafehubScoreByStore = new Map<string, { score: number; date: string | null }>()
+  const latestCurrentScoreByStore = new Map<string, { score: number; date: string | null }>()
 
   const completedAudits = (auditsResult.data || [])
     .filter((audit: any) => footasylumTemplateIds.has(audit.template_id))
@@ -710,8 +710,8 @@ export async function getRoutePreVisitBriefing(
     })
 
   for (const audit of completedAudits as any[]) {
-    if (latestSafehubScoreByStore.has(audit.store_id)) continue
-    latestSafehubScoreByStore.set(audit.store_id, {
+    if (latestCurrentScoreByStore.has(audit.store_id)) continue
+    latestCurrentScoreByStore.set(audit.store_id, {
       score: Number(audit.overall_score),
       date: audit.conducted_at || audit.created_at || null,
     })
@@ -748,13 +748,13 @@ export async function getRoutePreVisitBriefing(
   }
 
   const summaries: PreVisitBriefingStoreSummary[] = uniqueStoreIds.map((storeId) => {
-    const safehubScore = latestSafehubScoreByStore.get(storeId) || null
+    const currentScore = latestCurrentScoreByStore.get(storeId) || null
     const legacyScore = getLegacyPreviousScore(storeRowsById.get(storeId))
 
-    const previousScore = safehubScore?.score ?? legacyScore?.score ?? null
-    const previousScoreDate = safehubScore?.date ?? legacyScore?.date ?? null
+    const previousScore = currentScore?.score ?? legacyScore?.score ?? null
+    const previousScoreDate = currentScore?.date ?? legacyScore?.date ?? null
     const previousScoreSource: PreVisitBriefingStoreSummary['previous_score_source'] =
-      safehubScore ? 'safehub' : legacyScore ? 'legacy' : 'none'
+      currentScore ? 'current' : legacyScore ? 'legacy' : 'none'
 
     return {
       store_id: storeId,
