@@ -39,7 +39,7 @@ vi.mock('@/app/actions/fra-reports', () => ({
   }),
 }))
 
-vi.mock('@/app/actions/safehub', () => ({
+vi.mock('@/app/actions/audits', () => ({
   getAuditInstance: vi.fn().mockResolvedValue({
     tfs_audit_templates: { category: 'fire_risk_assessment' },
     tfs_stores: {

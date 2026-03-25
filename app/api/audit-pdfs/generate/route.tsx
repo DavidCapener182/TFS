@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
-import { getTemplate, getAuditInstance } from '@/app/actions/safehub'
+import { getAuditInstance, getTemplate } from '@/app/actions/audits'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { InspectionReportPDF } from '@/lib/pdf/inspection-report-document'

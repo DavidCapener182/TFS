@@ -12,7 +12,7 @@ import {
   parseAuditDateString,
 } from '@/lib/fra/pdf-parser'
 import { buildFRARiskSummary, computeFRARiskRating, type FRARiskFindings } from '@/lib/fra/risk-rating'
-import { getAuditInstance } from './safehub'
+import { getAuditInstance } from './audits'
 
 type ParsedYesNoQuestion = {
   answer: 'yes' | 'no' | 'na' | null

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getLatestHSAuditForStore } from '@/app/actions/fra-reports'
-import { getAuditInstance } from '@/app/actions/safehub'
+import { getAuditInstance } from '@/app/actions/audits'
 import { getStoreDataFromGoogleSearch } from '@/lib/fra/google-store-data-search'
 import { getOpeningHoursFromSearch } from '@/lib/fra/opening-hours-search'
 import {

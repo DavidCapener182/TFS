@@ -93,7 +93,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(() => mockSupabase),
 }))
 
-vi.mock('@/app/actions/safehub', () => ({
+vi.mock('@/app/actions/audits', () => ({
   getAuditInstance: vi.fn().mockResolvedValue({
     id: 'fra-123',
     template_id: 'template-1',
