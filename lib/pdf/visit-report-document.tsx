@@ -122,7 +122,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   row: {
-    marginBottom: 4,
+    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    columnGap: 8,
   },
   rowLabel: {
     fontSize: 8,
@@ -130,11 +133,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.7,
     fontWeight: 700,
+    width: '34%',
   },
   rowValue: {
     fontSize: 9.5,
     color: '#0f172a',
-    marginTop: 1,
+    width: '66%',
   },
   bullet: {
     fontSize: 9.5,
@@ -290,7 +294,7 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
         </View>
 
         {sections.map((section) => (
-          <View key={section.title} style={styles.section} wrap={false}>
+          <View key={section.title} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.items.map(([label, value]) => (
               <View key={`${section.title}-${label}`} style={styles.row}>
@@ -312,4 +316,3 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
     </Document>
   )
 }
-

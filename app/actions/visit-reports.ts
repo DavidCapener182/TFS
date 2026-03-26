@@ -246,6 +246,8 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     created_by_user_id: user.id,
   }
 
+  let linkedFollowUpWarning: string | null = null
+
   if (input.reportId) {
     const { data: report, error } = await supabase
       .from('tfs_visit_reports')
@@ -277,16 +279,21 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     }
 
     if (input.status === 'final') {
-      await createLinkedIncidentAndAction({
-        supabase,
-        userId: user.id,
-        storeId: input.storeId,
-        reportId: report.id,
-        reportTitle: report.title,
-        visitDate: report.visit_date,
-        summary: report.summary || null,
-        payload: normalizedPayload,
-      })
+      try {
+        await createLinkedIncidentAndAction({
+          supabase,
+          userId: user.id,
+          storeId: input.storeId,
+          reportId: report.id,
+          reportTitle: report.title,
+          visitDate: report.visit_date,
+          summary: report.summary || null,
+          payload: normalizedPayload,
+        })
+      } catch (linkedError) {
+        linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
+        console.error('Visit report follow-up creation failed:', linkedError)
+      }
     }
 
     revalidatePath('/reports')
@@ -302,6 +309,7 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
       summary: report.summary || null,
       createdAt: report.created_at,
       updatedAt: report.updated_at,
+      warning: linkedFollowUpWarning,
     }
   }
 
@@ -316,16 +324,21 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   }
 
   if (input.status === 'final') {
-    await createLinkedIncidentAndAction({
-      supabase,
-      userId: user.id,
-      storeId: input.storeId,
-      reportId: report.id,
-      reportTitle: report.title,
-      visitDate: report.visit_date,
-      summary: report.summary || null,
-      payload: normalizedPayload,
-    })
+    try {
+      await createLinkedIncidentAndAction({
+        supabase,
+        userId: user.id,
+        storeId: input.storeId,
+        reportId: report.id,
+        reportTitle: report.title,
+        visitDate: report.visit_date,
+        summary: report.summary || null,
+        payload: normalizedPayload,
+      })
+    } catch (linkedError) {
+      linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
+      console.error('Visit report follow-up creation failed:', linkedError)
+    }
   }
 
   try {
@@ -352,5 +365,6 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     summary: report.summary || null,
     createdAt: report.created_at,
     updatedAt: report.updated_at,
+    warning: linkedFollowUpWarning,
   }
 }

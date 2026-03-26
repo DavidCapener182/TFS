@@ -563,6 +563,7 @@ export function VisitReportsWorkspace({
   const [currentStep, setCurrentStep] = useState(0)
   const [mobileStepMenuOpen, setMobileStepMenuOpen] = useState(false)
   const [isSaving, startSave] = useTransition()
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
   const canUseBuilder = canEdit && reportsAvailable
   const selectedStore = stores.find((store) => store.id === draft.storeId) || null
@@ -799,10 +800,18 @@ export function VisitReportsWorkspace({
           )
         })
 
-        toast({
-          title: draft.reportId ? 'Report updated' : 'Report saved',
-          description: `${result.title} has been ${draft.reportId ? 'updated' : 'saved'}.`,
-        })
+        if (result.warning) {
+          toast({
+            variant: 'destructive',
+            title: 'Report saved with warning',
+            description: result.warning,
+          })
+        } else {
+          toast({
+            title: draft.reportId ? 'Report updated' : 'Report saved',
+            description: `${result.title} has been ${draft.reportId ? 'updated' : 'saved'}.`,
+          })
+        }
         if (typeof window !== 'undefined') {
           window.localStorage.setItem(
             VISIT_REPORT_DRAFT_STORAGE_KEY,
@@ -829,7 +838,7 @@ export function VisitReportsWorkspace({
     })
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!draft.reportId) {
       toast({
         variant: 'destructive',
@@ -838,7 +847,46 @@ export function VisitReportsWorkspace({
       })
       return
     }
-    window.open(`/api/reports/visit-reports/${draft.reportId}/pdf?mode=download`, '_blank')
+
+    if (isDownloadingPdf) return
+    setIsDownloadingPdf(true)
+
+    try {
+      const endpoint = `/api/reports/visit-reports/${draft.reportId}/pdf?mode=download`
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error('Unable to generate PDF for download.')
+      }
+
+      const pdfBlob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(pdfBlob)
+      const downloadLink = document.createElement('a')
+      const sanitizedTitle = (draft.title || 'visit-report')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+
+      downloadLink.href = blobUrl
+      downloadLink.download = `${sanitizedTitle || 'visit-report'}.pdf`
+      downloadLink.rel = 'noopener'
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download failed',
+        description: error instanceof Error ? error.message : 'Could not download PDF.',
+      })
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   return (
