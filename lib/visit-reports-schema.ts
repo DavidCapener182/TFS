@@ -1,5 +1,7 @@
 const VISIT_REPORTS_TABLE = 'tfs_visit_reports'
 
+const FOLLOW_UP_TABLES = ['tfs_incidents', 'tfs_actions'] as const
+
 type QueryErrorLike = {
   code?: string | null
   hint?: string | null
@@ -14,6 +16,29 @@ function getErrorLike(error: unknown): QueryErrorLike | null {
 function tableMentioned(error: QueryErrorLike): boolean {
   const haystack = `${error.message || ''} ${error.hint || ''}`.toLowerCase()
   return haystack.includes(VISIT_REPORTS_TABLE) || haystack.includes(`public.${VISIT_REPORTS_TABLE}`)
+}
+
+function followUpTableMentioned(error: QueryErrorLike): boolean {
+  const haystack = `${error.message || ''} ${error.hint || ''}`.toLowerCase()
+  return FOLLOW_UP_TABLES.some(
+    (name) => haystack.includes(name) || haystack.includes(`public.${name}`)
+  )
+}
+
+export function isMissingFollowUpTablesError(error: unknown): boolean {
+  const errorLike = getErrorLike(error)
+  if (!errorLike) return false
+
+  if (errorLike.code === 'PGRST205' || errorLike.code === '42P01') {
+    return followUpTableMentioned(errorLike)
+  }
+
+  const haystack = `${errorLike.message || ''} ${errorLike.hint || ''}`.toLowerCase()
+  return followUpTableMentioned(errorLike) && (
+    haystack.includes('could not find the table') ||
+    haystack.includes('does not exist') ||
+    haystack.includes('schema cache')
+  )
 }
 
 export function isMissingVisitReportsTableError(error: unknown): boolean {

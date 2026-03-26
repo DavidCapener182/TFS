@@ -34,6 +34,54 @@ function toErrorMessage(error: unknown): string {
   return formatVisitReportsActionError('Failed to save visit report.', error)
 }
 
+function getErrorText(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  if (!error || typeof error !== 'object') return ''
+
+  const errorLike = error as { message?: unknown; hint?: unknown }
+  const parts = []
+
+  if (typeof errorLike.message === 'string') {
+    parts.push(errorLike.message)
+  }
+
+  if (typeof errorLike.hint === 'string') {
+    parts.push(errorLike.hint)
+  }
+
+  return parts.join(' ')
+}
+
+function getErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('code' in error)) return ''
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code.toUpperCase() : ''
+}
+
+function isFollowUpTablesUnavailable(error: unknown): boolean {
+  const haystack = getErrorText(error).toLowerCase()
+  if (!haystack) return false
+
+  const mentionsFollowUpTable =
+    haystack.includes('tfs_incidents') ||
+    haystack.includes('public.tfs_incidents') ||
+    haystack.includes('tfs_actions') ||
+    haystack.includes('public.tfs_actions')
+
+  if (!mentionsFollowUpTable) return false
+
+  const code = getErrorCode(error)
+  if (code === 'PGRST205' || code === '42P01') {
+    return true
+  }
+
+  return (
+    haystack.includes('could not find the table') ||
+    haystack.includes('schema cache') ||
+    haystack.includes('does not exist')
+  )
+}
+
 function normalizeDate(value: string): string {
   const trimmed = String(value || '').trim()
   if (!trimmed) {
@@ -99,12 +147,23 @@ async function createLinkedIncidentAndAction(params: {
   const dueDate = addDays(visitDate, 7)
 
   const sourceMarker = `Source visit report ID: ${reportId}`
-  const { data: existingIncident } = await supabase
+  const { data: existingIncident, error: existingIncidentError } = await supabase
     .from('tfs_incidents')
     .select('id')
     .eq('store_id', storeId)
     .ilike('description', `%${sourceMarker}%`)
     .maybeSingle()
+
+  if (existingIncidentError) {
+    if (isFollowUpTablesUnavailable(existingIncidentError)) {
+      console.warn(
+        'Visit report follow-up skipped: incidents/actions tables unavailable.',
+        existingIncidentError
+      )
+      return
+    }
+    throw new Error(toErrorMessage(existingIncidentError))
+  }
 
   let incidentId = existingIncident?.id || null
   if (!incidentId) {
@@ -140,17 +199,38 @@ async function createLinkedIncidentAndAction(params: {
       .select('id')
       .single()
 
-    if (incidentError || !incident) {
+    if (incidentError) {
+      if (isFollowUpTablesUnavailable(incidentError)) {
+        console.warn(
+          'Visit report follow-up skipped: incidents/actions tables unavailable.',
+          incidentError
+        )
+        return
+      }
       throw new Error(toErrorMessage(incidentError))
+    }
+    if (!incident) {
+      throw new Error('Failed to create incident for visit report follow-up.')
     }
     incidentId = incident.id
   }
 
-  const { data: existingActions } = await supabase
+  const { data: existingActions, error: existingActionsError } = await supabase
     .from('tfs_actions')
     .select('id')
     .eq('incident_id', incidentId)
     .limit(1)
+
+  if (existingActionsError) {
+    if (isFollowUpTablesUnavailable(existingActionsError)) {
+      console.warn(
+        'Visit report follow-up skipped: incidents/actions tables unavailable.',
+        existingActionsError
+      )
+      return
+    }
+    throw new Error(toErrorMessage(existingActionsError))
+  }
 
   if ((existingActions || []).length > 0) return
 
@@ -175,6 +255,13 @@ async function createLinkedIncidentAndAction(params: {
     })
 
   if (actionError) {
+    if (isFollowUpTablesUnavailable(actionError)) {
+      console.warn(
+        'Visit report follow-up skipped: incidents/actions tables unavailable.',
+        actionError
+      )
+      return
+    }
     throw new Error(toErrorMessage(actionError))
   }
 }
@@ -291,8 +378,15 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
           payload: normalizedPayload,
         })
       } catch (linkedError) {
-        linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
-        console.error('Visit report follow-up creation failed:', linkedError)
+        if (isFollowUpTablesUnavailable(linkedError)) {
+          console.warn(
+            'Visit report follow-up skipped: incidents/actions tables unavailable.',
+            linkedError
+          )
+        } else {
+          linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
+          console.error('Visit report follow-up creation failed:', linkedError)
+        }
       }
     }
 
@@ -336,8 +430,15 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
         payload: normalizedPayload,
       })
     } catch (linkedError) {
-      linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
-      console.error('Visit report follow-up creation failed:', linkedError)
+      if (isFollowUpTablesUnavailable(linkedError)) {
+        console.warn(
+          'Visit report follow-up skipped: incidents/actions tables unavailable.',
+          linkedError
+        )
+      } else {
+        linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
+        console.error('Visit report follow-up creation failed:', linkedError)
+      }
     }
   }
 
