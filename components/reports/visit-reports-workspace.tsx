@@ -172,121 +172,121 @@ const RECOMMENDATION_PROMPTS: PromptSection = {
 }
 
 const INCIDENT_OVERVIEW_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['incidentOverview']>>> = [
-  { key: 'datesTimesRecorded', label: 'Dates/times of incidents recorded' },
+  { key: 'datesTimesRecorded', label: 'Were dates/times of incidents recorded?' },
   {
     key: 'sameOffendersSuspected',
-    label: 'Repeat group or repeat pattern suspected',
+    label: 'Is a repeat group or repeat pattern suspected?',
     description: 'If checked, summarise why in incident notes.',
   },
   {
     key: 'violenceInvolved',
-    label: 'Violence or threat involved',
+    label: 'Was violence or a threat involved?',
     description: 'If checked, record exact behaviours and who was affected.',
   },
 ]
 
 const STORE_LAYOUT_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['storeLayoutExposure']>>> = [
-  { key: 'highValueVisibleFromEntrance', label: 'High-value stock visible from entrance' },
-  { key: 'highValueReachableWithinFiveSeconds', label: 'High-value stock reachable within 3-5 seconds' },
-  { key: 'counterLeanOverAccess', label: 'Counter easily accessible by leaning over' },
-  { key: 'counterBypassPossible', label: 'Counter can be physically bypassed / jumped' },
+  { key: 'highValueVisibleFromEntrance', label: 'Is high-value stock visible from the entrance?' },
+  { key: 'highValueReachableWithinFiveSeconds', label: 'Is high-value stock reachable within 3-5 seconds?' },
+  { key: 'counterLeanOverAccess', label: 'Is the counter easily accessible by leaning over?' },
+  { key: 'counterBypassPossible', label: 'Can the counter be physically bypassed or jumped?' },
   {
     key: 'clearEscapeRouteBehindCounter',
-    label: 'Clear escape route exists behind counter',
+    label: 'Is there a clear escape route behind the counter?',
     description: 'If checked, note route and visibility gaps in observations.',
   },
 ]
 
 const PRODUCT_CONTROL_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['productControlMeasures']>>> = [
-  { key: 'testersUsedInsteadOfLiveStock', label: 'Testers used instead of live stock' },
-  { key: 'emptyBoxesUsedForDisplay', label: 'Empty boxes used for display' },
+  { key: 'testersUsedInsteadOfLiveStock', label: 'Are testers used instead of live stock?' },
+  { key: 'emptyBoxesUsedForDisplay', label: 'Are empty boxes used for display?' },
   {
     key: 'highValueStockReducedOnShopFloor',
-    label: 'High-value stock reduced on shop floor',
+    label: 'Has high-value stock been reduced on the shop floor?',
     description: 'If unchecked, capture which lines remain overexposed.',
   },
-  { key: 'fsduPositionedNearTill', label: 'FSDU / displays positioned near till or controlled zone' },
-  { key: 'excessStockRemovedFromDisplay', label: 'Excess stock removed from display' },
+  { key: 'fsduPositionedNearTill', label: 'Are FSDU/displays positioned near till or controlled zone?' },
+  { key: 'excessStockRemovedFromDisplay', label: 'Has excess stock been removed from display?' },
 ]
 
 const STAFF_POSITION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['staffPositioningBehaviour']>>> = [
-  { key: 'staffFacingEntrance', label: 'Staff positioned facing the entrance' },
-  { key: 'immediateGreetingInPlace', label: 'Immediate customer greeting is in place' },
-  { key: 'staffAwareOfGroupEntryRisks', label: 'Staff understand group-entry risk' },
+  { key: 'staffFacingEntrance', label: 'Are staff positioned facing the entrance?' },
+  { key: 'immediateGreetingInPlace', label: 'Is an immediate customer greeting in place?' },
+  { key: 'staffAwareOfGroupEntryRisks', label: 'Do staff understand group-entry risk?' },
   {
     key: 'staffMaintainVisibility',
-    label: 'Staff maintain visibility across the floor',
+    label: 'Do staff maintain visibility across the floor?',
     description: 'If not consistent, note where visibility is lost.',
   },
 ]
 
 const STAFF_SAFETY_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['staffSafetyResponse']>>> = [
-  { key: 'staffUnderstandDoNotEngage', label: 'Staff understand the DO NOT ENGAGE policy' },
-  { key: 'noPhysicalInterventionObserved', label: 'No physical intervention observed / encouraged' },
-  { key: 'clearEscalationProcessInPlace', label: 'Clear escalation process is in place' },
-  { key: 'policeReportingProcedureUnderstood', label: 'Police reporting procedure is understood' },
+  { key: 'staffUnderstandDoNotEngage', label: 'Do staff understand the DO NOT ENGAGE policy?' },
+  { key: 'noPhysicalInterventionObserved', label: 'Was physical intervention avoided?' },
+  { key: 'clearEscalationProcessInPlace', label: 'Is a clear escalation process in place?' },
+  { key: 'policeReportingProcedureUnderstood', label: 'Is the police reporting procedure understood?' },
   {
     key: 'incidentLoggingProcedureFollowed',
-    label: 'Incident logging procedure is followed',
+    label: 'Is the incident logging procedure followed?',
     description: 'If not followed, record where the process breaks.',
   },
 ]
 
 const CCTV_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['cctvSurveillance']>>> = [
-  { key: 'entranceCoveredClearly', label: 'Entrance covered clearly' },
-  { key: 'tillAreaCovered', label: 'Till area covered' },
-  { key: 'highValueAreasCovered', label: 'High-value product areas covered' },
+  { key: 'entranceCoveredClearly', label: 'Is the entrance covered clearly?' },
+  { key: 'tillAreaCovered', label: 'Is the till area covered?' },
+  { key: 'highValueAreasCovered', label: 'Are high-value product areas covered?' },
   {
     key: 'facialIdentificationPossible',
-    label: 'Facial identification is possible',
+    label: 'Is facial identification possible?',
     description: 'If no, record distance/angle/lighting issues.',
   },
-  { key: 'cameraAnglesAppropriate', label: 'Camera angles are appropriate' },
+  { key: 'cameraAnglesAppropriate', label: 'Are camera angles appropriate?' },
 ]
 
 const RADIO_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['communicationRadioUse']>>> = [
-  { key: 'radioPresentAndWorking', label: 'Store radio is present and working' },
-  { key: 'staffTrainedOnRadioUsage', label: 'Staff are trained on radio usage' },
-  { key: 'nearbyStoreCommunicationActive', label: 'Communication with nearby stores is active' },
-  { key: 'earlyWarningSystemInPlace', label: 'Early warning system is in place' },
+  { key: 'radioPresentAndWorking', label: 'Is the store radio present and working?' },
+  { key: 'staffTrainedOnRadioUsage', label: 'Are staff trained on radio usage?' },
+  { key: 'nearbyStoreCommunicationActive', label: 'Is communication with nearby stores active?' },
+  { key: 'earlyWarningSystemInPlace', label: 'Is an early warning system in place?' },
 ]
 
 const ENVIRONMENT_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['environmentalExternalFactors']>>> = [
-  { key: 'nearbyStoresAlsoTargeted', label: 'Nearby stores also targeted' },
-  { key: 'shoppingCentreSecurityEngaged', label: 'Shopping centre security engaged' },
-  { key: 'offenderDescriptionsShared', label: 'Known descriptions/intelligence shared' },
-  { key: 'peakRiskTimesIdentified', label: 'Peak risk times identified' },
+  { key: 'nearbyStoresAlsoTargeted', label: 'Are nearby stores also being targeted?' },
+  { key: 'shoppingCentreSecurityEngaged', label: 'Is shopping centre security engaged?' },
+  { key: 'offenderDescriptionsShared', label: 'Have known descriptions/intelligence been shared?' },
+  { key: 'peakRiskTimesIdentified', label: 'Have peak risk times been identified?' },
 ]
 
 const IMMEDIATE_ACTION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['immediateActionsTaken']>>> = [
-  { key: 'highRiskStockRemoved', label: 'High-risk stock removed or reduced' },
-  { key: 'stockRepositionedBehindCounter', label: 'Stock repositioned behind counter' },
-  { key: 'staffBriefedOnSafetyProcedures', label: 'Staff briefed on safety procedures' },
-  { key: 'entryAwarenessProtocolImplemented', label: 'Entry awareness protocol implemented' },
-  { key: 'storeLayoutAdjustedWherePossible', label: 'Store layout adjusted where possible' },
+  { key: 'highRiskStockRemoved', label: 'Was high-risk stock removed or reduced?' },
+  { key: 'stockRepositionedBehindCounter', label: 'Was stock repositioned behind the counter?' },
+  { key: 'staffBriefedOnSafetyProcedures', label: 'Were staff briefed on safety procedures?' },
+  { key: 'entryAwarenessProtocolImplemented', label: 'Was an entry awareness protocol implemented?' },
+  { key: 'storeLayoutAdjustedWherePossible', label: 'Was the store layout adjusted where possible?' },
 ]
 
 const PHYSICAL_RECOMMENDATION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['recommendations']['physical']>>> = [
-  { key: 'counterModificationsRequired', label: 'Counter or barrier modifications required' },
-  { key: 'lockableStorageRequired', label: 'Lockable storage required' },
-  { key: 'additionalSecurityPresenceRecommended', label: 'Additional security presence recommended' },
+  { key: 'counterModificationsRequired', label: 'Are counter or barrier modifications required?' },
+  { key: 'lockableStorageRequired', label: 'Is lockable storage required?' },
+  { key: 'additionalSecurityPresenceRecommended', label: 'Is additional security presence recommended?' },
 ]
 
 const OPERATIONAL_RECOMMENDATION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['recommendations']['operational']>>> = [
-  { key: 'staffTrainingRequired', label: 'Staff training required' },
-  { key: 'improvedIncidentLoggingRequired', label: 'Improved incident logging required' },
-  { key: 'revisedProceduresRequired', label: 'Revised procedures required' },
+  { key: 'staffTrainingRequired', label: 'Is staff training required?' },
+  { key: 'improvedIncidentLoggingRequired', label: 'Is improved incident logging required?' },
+  { key: 'revisedProceduresRequired', label: 'Are revised procedures required?' },
 ]
 
 const INTELLIGENCE_RECOMMENDATION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['recommendations']['intelligence']>>> = [
-  { key: 'offenderInformationSharingRequired', label: 'Offender information sharing required' },
-  { key: 'liaisonWithCentreSecurityRequired', label: 'Liaison with centre security required' },
-  { key: 'policeEngagementRequired', label: 'Police engagement required' },
+  { key: 'offenderInformationSharingRequired', label: 'Is offender information sharing required?' },
+  { key: 'liaisonWithCentreSecurityRequired', label: 'Is liaison with centre security required?' },
+  { key: 'policeEngagementRequired', label: 'Is police engagement required?' },
 ]
 
 const DETERRENCE_RECOMMENDATION_FIELDS: Array<ChecklistFieldConfig<BooleanFieldKey<TargetedTheftVisitPayload['recommendations']['deterrence']>>> = [
-  { key: 'highValueStockSignageRecommended', label: 'Signage that high-value stock is not kept on display' },
-  { key: 'strongStaffEngagementOnEntryRequired', label: 'Stronger staff engagement on entry' },
+  { key: 'highValueStockSignageRecommended', label: 'Is signage needed stating high-value stock is not kept on display?' },
+  { key: 'strongStaffEngagementOnEntryRequired', label: 'Is stronger staff engagement on entry required?' },
 ]
 
 const RISK_LEVEL_OPTIONS: Array<{ value: VisitReportRiskLevel; label: string; className: string }> = [
