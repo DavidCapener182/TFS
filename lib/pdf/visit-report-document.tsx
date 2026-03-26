@@ -294,10 +294,10 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
         </View>
 
         {sections.map((section) => (
-          <View key={section.title} style={styles.section}>
+          <View key={section.title} style={styles.section} wrap={false}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.items.map(([label, value]) => (
-              <View key={`${section.title}-${label}`} style={styles.row}>
+              <View key={`${section.title}-${label}`} style={styles.row} wrap={false}>
                 <Text style={styles.rowLabel}>{label}</Text>
                 <Text style={styles.rowValue}>{value}</Text>
               </View>
@@ -305,7 +305,7 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
           </View>
         ))}
 
-        <View style={styles.section}>
+        <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Checklist summary</Text>
           <Text style={styles.bullet}>- CCTV facial identification possible: {yesNo(payload.cctvSurveillance.facialIdentificationPossible)}</Text>
           <Text style={styles.bullet}>- Early warning system in place: {yesNo(payload.communicationRadioUse.earlyWarningSystemInPlace)}</Text>
