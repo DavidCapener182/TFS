@@ -8,6 +8,7 @@ import { useSidebar } from './sidebar-provider'
 import { getMobilePageTitle } from './mobile-nav-config'
 import { cn, formatAppDate, formatAppDateTime, formatAppTime } from '@/lib/utils'
 import { StoreSearch } from '@/components/layout/store-search'
+import { FollowUpBanner } from '@/components/layout/follow-up-banner'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/lib/auth'
 import {
@@ -623,6 +624,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
 
         <div className="md:hidden">
           <StoreSearch />
+          <FollowUpBanner />
         </div>
 
         <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex md:gap-4">
@@ -640,6 +642,9 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
           </button>
 
           <StoreSearch />
+        </div>
+        <div className="hidden md:block">
+          <FollowUpBanner />
         </div>
 
         <div className="hidden items-center gap-2 md:flex md:gap-4">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,6 +15,7 @@ interface IncidentActionsProps {
   incidentId: string
   actions: any[]
   profiles: Array<{ id: string; full_name: string | null }>
+  initialOpen?: boolean
 }
 
 function ActionTableRow({ action, incidentId, isOverdue }: { action: any, incidentId: string, isOverdue: boolean }) {
@@ -56,8 +57,12 @@ function ActionTableRow({ action, incidentId, isOverdue }: { action: any, incide
   )
 }
 
-export function IncidentActions({ incidentId, actions, profiles }: IncidentActionsProps) {
+export function IncidentActions({ incidentId, actions, profiles, initialOpen = false }: IncidentActionsProps) {
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (initialOpen) setOpen(true)
+  }, [initialOpen])
 
   return (
     <div className="space-y-4">

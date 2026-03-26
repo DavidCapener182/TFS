@@ -5,15 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { format } from 'date-fns'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { InvestigationForm } from './investigation-form'
 
 interface IncidentInvestigationProps {
   incident: any
   investigation: any
+  profiles: Array<{ id: string; full_name: string | null }>
 }
 
-export function IncidentInvestigation({ incident, investigation }: IncidentInvestigationProps) {
+export function IncidentInvestigation({ incident, investigation, profiles }: IncidentInvestigationProps) {
   const [open, setOpen] = useState(false)
 
   if (!investigation) {
@@ -29,7 +30,12 @@ export function IncidentInvestigation({ incident, investigation }: IncidentInves
               <DialogHeader>
                 <DialogTitle>Create Investigation</DialogTitle>
               </DialogHeader>
-              <InvestigationForm incidentId={incident.id} onSuccess={() => setOpen(false)} />
+              <InvestigationForm
+                incidentId={incident.id}
+                profiles={profiles}
+                defaultLeadInvestigatorUserId={incident.assigned_investigator_user_id}
+                onSuccess={() => setOpen(false)}
+              />
             </DialogContent>
           </Dialog>
         </CardContent>
@@ -106,7 +112,13 @@ export function IncidentInvestigation({ incident, investigation }: IncidentInves
               <DialogHeader>
                 <DialogTitle>Edit Investigation</DialogTitle>
               </DialogHeader>
-              <InvestigationForm incidentId={incident.id} investigation={investigation} onSuccess={() => setOpen(false)} />
+              <InvestigationForm
+                incidentId={incident.id}
+                investigation={investigation}
+                profiles={profiles}
+                defaultLeadInvestigatorUserId={incident.assigned_investigator_user_id}
+                onSuccess={() => setOpen(false)}
+              />
             </DialogContent>
           </Dialog>
         </CardContent>
@@ -114,5 +126,4 @@ export function IncidentInvestigation({ incident, investigation }: IncidentInves
     </div>
   )
 }
-
 

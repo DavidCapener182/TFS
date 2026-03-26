@@ -79,65 +79,29 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
     throw new Error('Incident not found')
   }
 
-  // If closing the incident, move it to closed_incidents table
+  // Keep closed incidents in the live table so linked actions/investigations remain intact.
   if (updates.status === 'closed' && currentIncident.status !== 'closed') {
     const closedAt = new Date().toISOString()
-    
-    // Check if incident already exists in closed_incidents (shouldn't happen, but safety check)
-    const { data: existingClosed } = await supabase
-      .from('tfs_closed_incidents')
-      .select('id')
+    const { data: incident, error: closeError } = await supabase
+      .from('tfs_incidents')
+      .update({
+        status: 'closed' as FaIncidentStatus,
+        closed_at: closedAt,
+        closure_summary: updates.closure_summary || currentIncident.closure_summary,
+      })
       .eq('id', id)
+      .select()
       .single()
 
-    if (!existingClosed) {
-      // Copy incident to closed_incidents table
-      const { error: insertError } = await supabase
-        .from('tfs_closed_incidents')
-        .insert({
-          id: currentIncident.id,
-          reference_no: currentIncident.reference_no,
-          store_id: currentIncident.store_id,
-          reported_by_user_id: currentIncident.reported_by_user_id,
-          incident_category: currentIncident.incident_category,
-          severity: currentIncident.severity,
-          summary: currentIncident.summary,
-          description: currentIncident.description,
-          occurred_at: currentIncident.occurred_at,
-          reported_at: currentIncident.reported_at,
-          persons_involved: currentIncident.persons_involved,
-          injury_details: currentIncident.injury_details,
-          witnesses: currentIncident.witnesses,
-          riddor_reportable: currentIncident.riddor_reportable,
-          status: 'closed' as FaIncidentStatus,
-          assigned_investigator_user_id: currentIncident.assigned_investigator_user_id,
-          target_close_date: currentIncident.target_close_date,
-          closed_at: closedAt,
-          closure_summary: updates.closure_summary || currentIncident.closure_summary,
-          created_at: currentIncident.created_at,
-          updated_at: closedAt,
-        })
-
-      if (insertError) {
-        throw new Error(`Failed to move incident to closed: ${insertError.message}`)
-      }
-    }
-
-    // Delete from open incidents table (this will cascade delete related actions, investigations, etc.)
-    const { error: deleteError } = await supabase
-      .from('tfs_incidents')
-      .delete()
-      .eq('id', id)
-
-    if (deleteError) {
-      throw new Error(`Failed to delete incident: ${deleteError.message}`)
+    if (closeError) {
+      throw new Error(`Failed to close incident: ${closeError.message}`)
     }
 
     // Log activity (skip if no authenticated user, as per our updated trigger)
     try {
       await logActivity('incident', id, 'CLOSED', {
         old: currentIncident,
-        new: { ...currentIncident, status: 'closed', closed_at: closedAt },
+        new: incident,
       })
     } catch (logError) {
       // Log error but don't fail the close operation
@@ -145,7 +109,8 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
     }
 
     revalidatePath('/incidents')
-    return { ...currentIncident, status: 'closed' as FaIncidentStatus, closed_at: closedAt }
+    revalidatePath(`/incidents/${id}`)
+    return incident
   }
 
   // Regular update for non-closing status changes
@@ -171,6 +136,107 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
   revalidatePath('/incidents')
   revalidatePath(`/incidents/${id}`)
   return incident
+}
+
+export async function reopenIncident(id: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { data: openIncident, error: openFetchError } = await supabase
+    .from('tfs_incidents')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (openFetchError) {
+    throw new Error(`Failed to fetch incident: ${openFetchError.message}`)
+  }
+
+  if (openIncident) {
+    const { data: reopened, error: reopenError } = await supabase
+      .from('tfs_incidents')
+      .update({
+        status: 'open' as FaIncidentStatus,
+        closed_at: null,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (reopenError) {
+      throw new Error(`Failed to reopen incident: ${reopenError.message}`)
+    }
+
+    try {
+      await logActivity('incident', id, 'REOPENED', {
+        old: openIncident,
+        new: reopened,
+      })
+    } catch (logError) {
+      console.error('Failed to log activity for incident reopen:', logError)
+    }
+
+    revalidatePath('/incidents')
+    revalidatePath('/dashboard')
+    revalidatePath(`/incidents/${id}`)
+    return reopened
+  }
+
+  const { data: closedIncident, error: closedFetchError } = await supabase
+    .from('tfs_closed_incidents')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (closedFetchError) {
+    throw new Error(`Failed to fetch archived incident: ${closedFetchError.message}`)
+  }
+
+  if (!closedIncident) {
+    throw new Error('Incident not found')
+  }
+
+  const { data: reopened, error: insertError } = await supabase
+    .from('tfs_incidents')
+    .insert({
+      ...closedIncident,
+      status: 'open' as FaIncidentStatus,
+      closed_at: null,
+    })
+    .select()
+    .single()
+
+  if (insertError) {
+    throw new Error(`Failed to reopen archived incident: ${insertError.message}`)
+  }
+
+  const { error: deleteError } = await supabase
+    .from('tfs_closed_incidents')
+    .delete()
+    .eq('id', id)
+
+  if (deleteError) {
+    throw new Error(`Reopened incident but failed to remove archive copy: ${deleteError.message}`)
+  }
+
+  try {
+    await logActivity('incident', id, 'REOPENED', {
+      old: closedIncident,
+      new: reopened,
+      source_table: 'tfs_closed_incidents',
+    })
+  } catch (logError) {
+    console.error('Failed to log activity for archived incident reopen:', logError)
+  }
+
+  revalidatePath('/incidents')
+  revalidatePath('/dashboard')
+  revalidatePath(`/incidents/${id}`)
+  return reopened
 }
 
 export async function assignInvestigator(incidentId: string, investigatorId: string) {
@@ -286,5 +352,4 @@ export async function deleteIncident(id: string) {
   revalidatePath('/dashboard')
   return { success: true }
 }
-
 

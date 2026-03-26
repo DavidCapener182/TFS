@@ -296,6 +296,20 @@ function getPriorityStoreSortValue(level: StoreVisitNeedLevel): number {
   return 3
 }
 
+function summarizeFindingOutcome(value: string, maxLength = 220): string {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+
+  const firstLine = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+
+  const base = (firstLine || trimmed).replace(/\s+/g, ' ').trim()
+  if (base.length <= maxLength) return base
+  return `${base.slice(0, maxLength - 1).trimEnd()}…`
+}
+
 function buildRecentFinding(
   visit: DashboardVisitEntry,
   store: Pick<StoreRow, 'id' | 'store_name' | 'store_code'>
@@ -332,11 +346,13 @@ function buildRecentFinding(
     .sort((a, b) => b.score - a.score)
 
   const primaryActivity = rankedActivities[0]
-  const summary =
+  const rawSummary =
     primaryActivity?.detailText ||
     (visit.followUpRequired ? 'Follow-up visit requested from the latest site visit.' : null) ||
     visit.notes
 
+  if (!rawSummary) return null
+  const summary = summarizeFindingOutcome(rawSummary)
   if (!summary) return null
 
   return {

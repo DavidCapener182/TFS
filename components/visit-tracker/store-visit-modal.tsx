@@ -1560,12 +1560,18 @@ export function StoreVisitModal({
                   )}
 
                   <div className="space-y-2 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
-                    <Label htmlFor="visit-notes">Visit notes</Label>
+                    <Label htmlFor="visit-notes">
+                      {visitType === 'action_led' ? 'Actions agreed / completed' : 'Visit notes'}
+                    </Label>
                     <Textarea
                       id="visit-notes"
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
-                      placeholder="Add overall visit context, outcomes, escalation points, or anything else the officer found on site."
+                      placeholder={
+                        visitType === 'action_led'
+                          ? 'List the actions agreed or completed on site. Keep it short and actionable (one per line is ideal).'
+                          : 'Add overall visit context, outcomes, escalation points, or anything else the officer found on site.'
+                      }
                       className="min-h-[120px]"
                     />
                   </div>

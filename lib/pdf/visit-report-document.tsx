@@ -173,6 +173,12 @@ function joinTruthy(values: Array<string | null | undefined>): string {
   return values.map((value) => String(value || '').trim()).filter(Boolean).join(' | ')
 }
 
+function formatPersonRole(value: string): string {
+  const normalized = String(value || '').trim()
+  if (!normalized) return 'Unknown'
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
 export function VisitReportPdfDocument(props: VisitReportPdfProps) {
   const {
     reportTitle,
@@ -197,6 +203,29 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
         ['Primary products', payload.incidentOverview.primaryProducts || 'N/A'],
         ['Entry point', payload.incidentOverview.entryPoint || 'N/A'],
         ['Summary', payload.incidentOverview.summary || 'N/A'],
+      ],
+    },
+    {
+      title: 'People involved and injury capture',
+      items: [
+        ['People logged', payload.incidentPeople.people.length ? String(payload.incidentPeople.people.length) : 'None'],
+        ['Any injury reported', yesNo(payload.incidentPeople.someoneInjured)],
+        ['Injury summary', payload.incidentPeople.injurySummary || 'N/A'],
+        [
+          'People detail',
+          payload.incidentPeople.people.length > 0
+            ? payload.incidentPeople.people
+                .map((person) =>
+                  joinTruthy([
+                    person.name || null,
+                    formatPersonRole(person.role),
+                    person.involvement || null,
+                    person.injured ? `Injured: ${person.injuryDetails || 'Yes'}` : 'Injured: No',
+                  ])
+                )
+                .join('\n')
+            : 'N/A',
+        ],
       ],
     },
     {

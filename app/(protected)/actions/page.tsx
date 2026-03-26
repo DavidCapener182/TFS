@@ -485,6 +485,7 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
       assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(*),
       incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
     `)
+    .not('title', 'ilike', 'Implement visit report actions:%')
     .order('due_date', { ascending: true })
 
   let storeQuery = supabase

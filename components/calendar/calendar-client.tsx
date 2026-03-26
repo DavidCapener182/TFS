@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { CalendarDayEvent } from './calendar-day-event'
 import { CalendarEventModal } from './calendar-event-modal'
-import type { CalendarData, CompletedStore, PlannedRoute } from '@/app/actions/calendar'
+import type { CalendarAction, CalendarData, CalendarIncident, CalendarVisit, CompletedStore, PlannedRoute } from '@/app/actions/calendar'
 
 interface CalendarClientProps {
   initialData: CalendarData
@@ -35,6 +35,9 @@ type CalendarCell = {
   isCurrentMonth: boolean
   plannedRoutes: PlannedRoute[]
   completedStores: CompletedStore[]
+  incidents: CalendarIncident[]
+  actions: CalendarAction[]
+  visits: CalendarVisit[]
 }
 
 async function fetchCalendarData(month: number, year: number): Promise<CalendarData> {
@@ -119,8 +122,21 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
   const [currentYear, setCurrentYear] = useState(initialData.year)
   const [calendarData, setCalendarData] = useState(initialData)
   const [selectedEvent, setSelectedEvent] = useState<{
-    type: 'planned' | 'completed'
-    data: PlannedRoute | CompletedStore
+    type: 'planned' | 'completed' | 'incident' | 'action' | 'visit' | 'store'
+    data:
+      | PlannedRoute
+      | CompletedStore
+      | CalendarIncident
+      | CalendarAction
+      | CalendarVisit
+      | {
+          storeId: string
+          storeName: string
+          storeCode: string | null
+          incidents: CalendarIncident[]
+          actions: CalendarAction[]
+          visits: CalendarVisit[]
+        }
     date: string
   } | null>(null)
 
@@ -148,9 +164,24 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 })
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
 
-    const dataMap = new Map<string, { plannedRoutes: PlannedRoute[]; completedStores: CompletedStore[] }>()
+    const dataMap = new Map<
+      string,
+      {
+        plannedRoutes: PlannedRoute[]
+        completedStores: CompletedStore[]
+        incidents: CalendarIncident[]
+        actions: CalendarAction[]
+        visits: CalendarVisit[]
+      }
+    >()
     calendarData.days.forEach((day) => {
-      dataMap.set(day.date, { plannedRoutes: day.plannedRoutes, completedStores: day.completedStores })
+      dataMap.set(day.date, {
+        plannedRoutes: day.plannedRoutes,
+        completedStores: day.completedStores,
+        incidents: day.incidents || [],
+        actions: day.actions || [],
+        visits: day.visits || [],
+      })
     })
 
     const cells: CalendarCell[] = []
@@ -158,7 +189,7 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
 
     while (cursor <= calendarEnd) {
       const dateStr = format(cursor, 'yyyy-MM-dd')
-      const dayData = dataMap.get(dateStr) || { plannedRoutes: [], completedStores: [] }
+      const dayData = dataMap.get(dateStr) || { plannedRoutes: [], completedStores: [], incidents: [], actions: [], visits: [] }
       const isCurrentMonth = cursor.getMonth() === currentDate.getMonth() && cursor.getFullYear() === currentDate.getFullYear()
 
       cells.push({
@@ -167,6 +198,9 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
         isCurrentMonth,
         plannedRoutes: dayData.plannedRoutes,
         completedStores: dayData.completedStores,
+        incidents: dayData.incidents,
+        actions: dayData.actions,
+        visits: dayData.visits,
       })
 
       cursor = addDays(cursor, 1)
@@ -178,7 +212,13 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
   const daysWithEvents = useMemo(
     () =>
       calendarCells.filter(
-        (cell) => cell.isCurrentMonth && (cell.plannedRoutes.length > 0 || cell.completedStores.length > 0)
+        (cell) =>
+          cell.isCurrentMonth &&
+          (cell.plannedRoutes.length > 0 ||
+            cell.completedStores.length > 0 ||
+            cell.incidents.length > 0 ||
+            cell.actions.length > 0 ||
+            cell.visits.length > 0)
       ),
     [calendarCells]
   )
@@ -402,6 +442,91 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
                   {format(cell.date, 'd')}
                 </div>
                 <div className="space-y-1">
+                  {(() => {
+                    const bucket = new Map<
+                      string,
+                      {
+                        storeId: string
+                        storeName: string
+                        storeCode: string | null
+                        incidents: CalendarIncident[]
+                        actions: CalendarAction[]
+                        visits: CalendarVisit[]
+                      }
+                    >()
+
+                    cell.incidents.forEach((incident) => {
+                      const key = incident.storeId
+                      if (!bucket.has(key)) {
+                        bucket.set(key, {
+                          storeId: incident.storeId,
+                          storeName: incident.storeName,
+                          storeCode: incident.storeCode,
+                          incidents: [],
+                          actions: [],
+                          visits: [],
+                        })
+                      }
+                      bucket.get(key)!.incidents.push(incident)
+                    })
+
+                    cell.actions.forEach((action) => {
+                      const key = action.storeId || 'unknown'
+                      if (!bucket.has(key)) {
+                        bucket.set(key, {
+                          storeId: action.storeId || 'unknown',
+                          storeName: action.storeName || 'Unknown Store',
+                          storeCode: action.storeCode || null,
+                          incidents: [],
+                          actions: [],
+                          visits: [],
+                        })
+                      }
+                      bucket.get(key)!.actions.push(action)
+                    })
+
+                    cell.visits.forEach((visit) => {
+                      const key = visit.storeId
+                      if (!bucket.has(key)) {
+                        bucket.set(key, {
+                          storeId: visit.storeId,
+                          storeName: visit.storeName,
+                          storeCode: visit.storeCode,
+                          incidents: [],
+                          actions: [],
+                          visits: [],
+                        })
+                      }
+                      bucket.get(key)!.visits.push(visit)
+                    })
+
+                    const storeRows = Array.from(bucket.values()).sort((a, b) =>
+                      a.storeName.localeCompare(b.storeName)
+                    )
+
+                    return storeRows.map((store) => (
+                      <CalendarDayEvent
+                        key={`store-${cell.dateStr}-${store.storeId}`}
+                        type="store"
+                        data={{
+                          storeId: store.storeId,
+                          storeName: store.storeName,
+                          storeCode: store.storeCode,
+                          incidentCount: store.incidents.length,
+                          actionCount: store.actions.length,
+                          visitCount: store.visits.length,
+                        }}
+                        date={cell.dateStr}
+                        onClick={() =>
+                          setSelectedEvent({
+                            type: 'store',
+                            data: store,
+                            date: cell.dateStr,
+                          })
+                        }
+                      />
+                    ))
+                  })()}
                   {cell.plannedRoutes.map((route, idx) => (
                     <CalendarDayEvent
                       key={`planned-${cell.dateStr}-${route.key}-${idx}`}
@@ -451,6 +576,92 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
                   </div>
 
                   <div className="space-y-3">
+                    {(() => {
+                      const bucket = new Map<
+                        string,
+                        {
+                          storeId: string
+                          storeName: string
+                          storeCode: string | null
+                          incidents: CalendarIncident[]
+                          actions: CalendarAction[]
+                          visits: CalendarVisit[]
+                        }
+                      >()
+
+                      day.incidents.forEach((incident) => {
+                        const key = incident.storeId
+                        if (!bucket.has(key)) {
+                          bucket.set(key, {
+                            storeId: incident.storeId,
+                            storeName: incident.storeName,
+                            storeCode: incident.storeCode,
+                            incidents: [],
+                            actions: [],
+                            visits: [],
+                          })
+                        }
+                        bucket.get(key)!.incidents.push(incident)
+                      })
+
+                      day.actions.forEach((action) => {
+                        const key = action.storeId || 'unknown'
+                        if (!bucket.has(key)) {
+                          bucket.set(key, {
+                            storeId: action.storeId || 'unknown',
+                            storeName: action.storeName || 'Unknown Store',
+                            storeCode: action.storeCode || null,
+                            incidents: [],
+                            actions: [],
+                            visits: [],
+                          })
+                        }
+                        bucket.get(key)!.actions.push(action)
+                      })
+
+                      day.visits.forEach((visit) => {
+                        const key = visit.storeId
+                        if (!bucket.has(key)) {
+                          bucket.set(key, {
+                            storeId: visit.storeId,
+                            storeName: visit.storeName,
+                            storeCode: visit.storeCode,
+                            incidents: [],
+                            actions: [],
+                            visits: [],
+                          })
+                        }
+                        bucket.get(key)!.visits.push(visit)
+                      })
+
+                      const storeRows = Array.from(bucket.values()).sort((a, b) =>
+                        a.storeName.localeCompare(b.storeName)
+                      )
+
+                      return storeRows.map((store) => (
+                        <CalendarDayEvent
+                          key={`mob-store-${day.dateStr}-${store.storeId}`}
+                          type="store"
+                          data={{
+                            storeId: store.storeId,
+                            storeName: store.storeName,
+                            storeCode: store.storeCode,
+                            incidentCount: store.incidents.length,
+                            actionCount: store.actions.length,
+                            visitCount: store.visits.length,
+                          }}
+                          date={day.dateStr}
+                          isMobile
+                          onClick={() =>
+                            setSelectedEvent({
+                              type: 'store',
+                              data: store,
+                              date: day.dateStr,
+                            })
+                          }
+                        />
+                      ))
+                    })()}
                     {day.plannedRoutes.map((route, idx) => (
                       <CalendarDayEvent
                         key={`mob-planned-${day.dateStr}-${route.key}-${idx}`}

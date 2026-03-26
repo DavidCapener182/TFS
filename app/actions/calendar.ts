@@ -27,10 +27,49 @@ export interface CompletedStore {
   managerName: string | null
 }
 
+export interface CalendarIncident {
+  id: string
+  referenceNo: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  severity: string
+  status: string
+  reportedAt: string
+  summary: string
+}
+
+export interface CalendarAction {
+  id: string
+  title: string
+  status: string
+  priority: string
+  actionedAt: string
+  incidentId: string | null
+  incidentReferenceNo: string | null
+  storeId: string | null
+  storeName: string | null
+  storeCode: string | null
+}
+
+export interface CalendarVisit {
+  id: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  visitedAt: string
+  visitType: string
+  followUpRequired: boolean
+  notes: string | null
+}
+
 export interface CalendarDay {
   date: string // ISO date string (YYYY-MM-DD)
   plannedRoutes: PlannedRoute[]
   completedStores: CompletedStore[]
+  incidents: CalendarIncident[]
+  actions: CalendarAction[]
+  visits: CalendarVisit[]
 }
 
 export interface CalendarData {
@@ -47,56 +86,132 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
   const monthEnd = endOfMonth(new Date(year, month - 1, 1))
   const startDateStr = format(monthStart, 'yyyy-MM-dd')
   const endDateStr = format(monthEnd, 'yyyy-MM-dd')
+  const startTs = monthStart.toISOString()
+  const endTs = monthEnd.toISOString()
 
   // Fetch planned routes for the month
-  const { data: plannedRoutesRaw, error: plannedError } = await supabase
-    .from('tfs_stores')
-    .select(`
-      id,
-      store_name,
-      store_code,
-      region,
-      compliance_audit_2_planned_date,
-      compliance_audit_2_assigned_manager_user_id,
-      assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+  const [
+    plannedRoutesResult,
+    completedStoresResult,
+    incidentsResult,
+    closedIncidentsResult,
+    actionsResult,
+    visitsResult,
+  ] = await Promise.all([
+    supabase
+      .from('tfs_stores')
+      .select(`
         id,
-        full_name
-      )
-    `)
-    .not('compliance_audit_2_planned_date', 'is', null)
-    .gte('compliance_audit_2_planned_date', startDateStr)
-    .lte('compliance_audit_2_planned_date', endDateStr)
-    .eq('is_active', true)
-
-  if (plannedError) {
-    console.error('Error fetching planned routes:', plannedError)
-  }
-
-  // Fetch completed stores (with audit/FRA data) for the month
-  // We need to fetch all stores and filter in memory since Supabase OR queries are complex
-  const { data: completedStoresRaw, error: completedError } = await supabase
-    .from('tfs_stores')
-    .select(`
-      id,
-      store_name,
-      store_code,
-      compliance_audit_1_date,
-      compliance_audit_1_overall_pct,
-      compliance_audit_2_date,
-      compliance_audit_2_overall_pct,
-      fire_risk_assessment_date,
-      fire_risk_assessment_pct,
-      compliance_audit_2_assigned_manager_user_id,
-      assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+        store_name,
+        store_code,
+        region,
+        compliance_audit_2_planned_date,
+        compliance_audit_2_assigned_manager_user_id,
+        assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+          id,
+          full_name
+        )
+      `)
+      .not('compliance_audit_2_planned_date', 'is', null)
+      .gte('compliance_audit_2_planned_date', startDateStr)
+      .lte('compliance_audit_2_planned_date', endDateStr)
+      .eq('is_active', true),
+    // Completed stores (with audit/FRA data) for the month.
+    // We fetch all stores and filter in memory since Supabase OR queries are complex.
+    supabase
+      .from('tfs_stores')
+      .select(`
         id,
-        full_name
-      )
-    `)
-    .eq('is_active', true)
+        store_name,
+        store_code,
+        compliance_audit_1_date,
+        compliance_audit_1_overall_pct,
+        compliance_audit_2_date,
+        compliance_audit_2_overall_pct,
+        fire_risk_assessment_date,
+        fire_risk_assessment_pct,
+        compliance_audit_2_assigned_manager_user_id,
+        assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+          id,
+          full_name
+        )
+      `)
+      .eq('is_active', true),
+    supabase
+      .from('tfs_incidents')
+      .select(`
+        id,
+        reference_no,
+        store_id,
+        severity,
+        status,
+        reported_at,
+        summary,
+        tfs_stores:store_id(store_name, store_code)
+      `)
+      .gte('reported_at', startTs)
+      .lte('reported_at', endTs),
+    supabase
+      .from('tfs_closed_incidents')
+      .select(`
+        id,
+        reference_no,
+        store_id,
+        severity,
+        status,
+        reported_at,
+        summary,
+        tfs_stores:store_id(store_name, store_code)
+      `)
+      .gte('reported_at', startTs)
+      .lte('reported_at', endTs),
+    supabase
+      .from('tfs_actions')
+      .select(`
+        id,
+        title,
+        status,
+        priority,
+        created_at,
+        incident_id,
+        incident:tfs_incidents!tfs_actions_incident_id_fkey(
+          id,
+          reference_no,
+          store_id,
+          tfs_stores:store_id(store_name, store_code)
+        )
+      `)
+      .not('title', 'ilike', 'Implement visit report actions:%')
+      .gte('created_at', startTs)
+      .lte('created_at', endTs),
+    supabase
+      .from('tfs_store_visits')
+      .select(`
+        id,
+        store_id,
+        visited_at,
+        visit_type,
+        follow_up_required,
+        notes,
+        tfs_stores:store_id(store_name, store_code)
+      `)
+      .gte('visited_at', startTs)
+      .lte('visited_at', endTs),
+  ])
 
-  if (completedError) {
-    console.error('Error fetching completed stores:', completedError)
-  }
+  const plannedRoutesRaw = plannedRoutesResult.data
+  const completedStoresRaw = completedStoresResult.data
+  const incidentsRaw = incidentsResult.data
+  const closedIncidentsRaw = closedIncidentsResult.data
+  const actionsRaw = actionsResult.data
+  const visitsRaw = visitsResult.data
+
+  if (plannedRoutesResult.error) console.error('Error fetching planned routes:', plannedRoutesResult.error)
+  if (completedStoresResult.error) console.error('Error fetching completed stores:', completedStoresResult.error)
+  if (incidentsResult.error) console.error('Error fetching incidents:', incidentsResult.error)
+  if (closedIncidentsResult.error) console.error('Error fetching closed incidents:', closedIncidentsResult.error)
+  if (actionsResult.error) console.error('Error fetching actions:', actionsResult.error)
+  if (visitsResult.error) console.error('Error fetching store visits:', visitsResult.error)
 
   // Process planned routes - group by manager, area, and date
   const plannedRoutesByDate = new Map<string, PlannedRoute[]>()
@@ -205,6 +320,68 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
     })
   }
 
+  const incidentsByDate = new Map<string, CalendarIncident[]>()
+  const mergedIncidents = [...(incidentsRaw || []), ...(closedIncidentsRaw || [])]
+  mergedIncidents.forEach((row: any) => {
+    const date = row?.reported_at ? format(new Date(row.reported_at), 'yyyy-MM-dd') : null
+    if (!date) return
+    const storeRel = Array.isArray(row.tfs_stores) ? row.tfs_stores[0] : row.tfs_stores
+    const incident: CalendarIncident = {
+      id: row.id,
+      referenceNo: row.reference_no,
+      storeId: row.store_id,
+      storeName: formatStoreName(storeRel?.store_name) || 'Unknown Store',
+      storeCode: storeRel?.store_code || null,
+      severity: row.severity || 'low',
+      status: row.status || 'open',
+      reportedAt: row.reported_at,
+      summary: row.summary || '',
+    }
+    if (!incidentsByDate.has(date)) incidentsByDate.set(date, [])
+    incidentsByDate.get(date)!.push(incident)
+  })
+
+  const actionsByDate = new Map<string, CalendarAction[]>()
+  ;(actionsRaw || []).forEach((row: any) => {
+    const date = row?.created_at ? format(new Date(row.created_at), 'yyyy-MM-dd') : null
+    if (!date) return
+    const incidentRel = Array.isArray(row.incident) ? row.incident[0] : row.incident
+    const storeRel = Array.isArray(incidentRel?.tfs_stores) ? incidentRel.tfs_stores[0] : incidentRel?.tfs_stores
+    const action: CalendarAction = {
+      id: row.id,
+      title: row.title || 'Untitled action',
+      status: row.status || 'open',
+      priority: row.priority || 'medium',
+      actionedAt: row.created_at,
+      incidentId: row.incident_id || null,
+      incidentReferenceNo: incidentRel?.reference_no || null,
+      storeId: incidentRel?.store_id || null,
+      storeName: storeRel?.store_name ? formatStoreName(storeRel.store_name) : null,
+      storeCode: storeRel?.store_code || null,
+    }
+    if (!actionsByDate.has(date)) actionsByDate.set(date, [])
+    actionsByDate.get(date)!.push(action)
+  })
+
+  const visitsByDate = new Map<string, CalendarVisit[]>()
+  ;(visitsRaw || []).forEach((row: any) => {
+    const date = row?.visited_at ? format(new Date(row.visited_at), 'yyyy-MM-dd') : null
+    if (!date) return
+    const storeRel = Array.isArray(row.tfs_stores) ? row.tfs_stores[0] : row.tfs_stores
+    const visit: CalendarVisit = {
+      id: row.id,
+      storeId: row.store_id,
+      storeName: formatStoreName(storeRel?.store_name) || 'Unknown Store',
+      storeCode: storeRel?.store_code || null,
+      visitedAt: row.visited_at,
+      visitType: row.visit_type || 'planned',
+      followUpRequired: Boolean(row.follow_up_required),
+      notes: row.notes || null,
+    }
+    if (!visitsByDate.has(date)) visitsByDate.set(date, [])
+    visitsByDate.get(date)!.push(visit)
+  })
+
   // Create calendar days for the entire month
   const days: CalendarDay[] = []
   const currentDate = new Date(monthStart)
@@ -214,7 +391,10 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
     days.push({
       date: dateStr,
       plannedRoutes: plannedRoutesByDate.get(dateStr) || [],
-      completedStores: completedStoresByDate.get(dateStr) || []
+      completedStores: completedStoresByDate.get(dateStr) || [],
+      incidents: incidentsByDate.get(dateStr) || [],
+      actions: actionsByDate.get(dateStr) || [],
+      visits: visitsByDate.get(dateStr) || [],
     })
     currentDate.setDate(currentDate.getDate() + 1)
   }

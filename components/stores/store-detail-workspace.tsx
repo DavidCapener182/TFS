@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
+import { ActionForm } from '@/components/incidents/action-form'
+import { EditIncidentDialog } from '@/components/incidents/edit-incident-dialog'
 import {
   StoreCrmDisplayContact,
   StoreCrmPanel,
@@ -25,6 +27,13 @@ import {
 } from '@/lib/visit-needs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  buildVisitReportPdfUrl,
+  extractLinkedVisitReportId,
+  getIncidentPersonLabel,
+} from '@/lib/incidents/incident-utils'
+import { CloseIncidentButton } from '@/components/shared/close-incident-button'
 import {
   AlertCircle,
   Calendar,
@@ -32,6 +41,7 @@ import {
   ClipboardList,
   Clock,
   ExternalLink,
+  FileText,
   MapPin,
   Store,
 } from 'lucide-react'
@@ -44,6 +54,7 @@ interface StoreDetailWorkspaceProps {
   visitsAvailable: boolean
   visitsUnavailableMessage: string | null
   userRole: UserRole
+  profiles: Array<{ id: string; full_name: string | null }>
   crmData: {
     contacts: StoreCrmContact[]
     notes: StoreCrmNote[]
@@ -123,6 +134,7 @@ export function StoreDetailWorkspace({
   visitsAvailable,
   visitsUnavailableMessage,
   userRole,
+  profiles,
   crmData,
   canEdit,
 }: StoreDetailWorkspaceProps) {
@@ -130,30 +142,41 @@ export function StoreDetailWorkspace({
   const [activeTab, setActiveTab] = useState('store crm')
   const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
   const [actionsMessage, setActionsMessage] = useState<string | null>(null)
+  const [selectedActionIncident, setSelectedActionIncident] = useState<any | null>(null)
+
+  const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
 
   const ongoingIncidents = useMemo(
-    () => incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').toLowerCase())),
+    () => incidents.filter((incident) => !['closed', 'cancelled'].includes(normalizeStatus(incident.status))),
     [incidents]
   )
 
   const completedIncidents = useMemo(
-    () => incidents.filter((incident) => String(incident.status || '').toLowerCase() === 'closed'),
+    () => incidents.filter((incident) => normalizeStatus(incident.status) === 'closed'),
     [incidents]
   )
 
   const ongoingActions = useMemo(
-    () => actions.filter((action) => !['complete', 'cancelled'].includes(String(action.status || '').toLowerCase())),
+    () => actions.filter((action) => !['complete', 'cancelled'].includes(normalizeStatus(action.status))),
     [actions]
   )
 
   const completedActions = useMemo(
-    () => actions.filter((action) => String(action.status || '').toLowerCase() === 'complete'),
+    () => actions.filter((action) => normalizeStatus(action.status) === 'complete'),
     [actions]
   )
   const directStoreActions = useMemo(
     () => actions.filter((action) => action.source_type === 'store'),
     [actions]
   )
+  const incidentActionCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    actions.forEach((action) => {
+      if (!action.incident_id) return
+      counts.set(action.incident_id, (counts.get(action.incident_id) || 0) + 1)
+    })
+    return counts
+  }, [actions])
   const incidentLinkedActions = useMemo(
     () => actions.filter((action) => action.source_type !== 'store'),
     [actions]
@@ -213,6 +236,7 @@ export function StoreDetailWorkspace({
   const actionResolutionPct = actions.length > 0 ? Math.round((completedActions.length / actions.length) * 100) : 0
   const severityIndex = getSeverityIndexLabel(ongoingIncidents)
   const canCreateStoreActions = userRole === 'admin' || userRole === 'ops'
+  const canManageIncidents = userRole === 'admin' || userRole === 'ops'
   const supplementalContacts = useMemo<StoreCrmDisplayContact[]>(() => {
     if (!store.reporting_area_manager_name && !store.reporting_area_manager_email) {
       return []
@@ -558,6 +582,221 @@ export function StoreDetailWorkspace({
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
+              <div>
+                <h3 className="font-bold text-slate-900">Active Cases</h3>
+                <p className="text-sm text-slate-500">
+                  Review current LP cases, open the linked report PDF, create actions, and move the case through investigation or closure.
+                </p>
+              </div>
+              <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+                {ongoingIncidents.length} open
+              </Badge>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {ongoingIncidents.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500">No open incidents are active for this store.</div>
+              ) : (
+                ongoingIncidents.map((incident) => {
+                  const linkedVisitReportId = extractLinkedVisitReportId(incident)
+                  const linkedVisitReportUrl = linkedVisitReportId
+                    ? buildVisitReportPdfUrl(linkedVisitReportId)
+                    : null
+                  const linkedActionCount = incidentActionCounts.get(incident.id) || 0
+                  const incidentCategoryLabel = String(incident.incident_category || 'security')
+                    .split('_')
+                    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                    .join(' ')
+
+                  return (
+                    <div key={incident.id} className="space-y-4 p-6">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-500">
+                              {incident.reference_no}
+                            </span>
+                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                              {String(incident.status || 'open').replace(/_/g, ' ')}
+                            </Badge>
+                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                              {String(incident.severity || 'low')}
+                            </Badge>
+                            {linkedVisitReportUrl ? (
+                              <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                Visit report linked
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <p className="text-base font-semibold text-slate-900">
+                              {incident.summary || 'No summary recorded'}
+                            </p>
+                            {linkedVisitReportUrl ? (
+                              <div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-white">
+                                <iframe
+                                  title="Visit report PDF"
+                                  src={linkedVisitReportUrl}
+                                  className="h-[60vh] w-full bg-white"
+                                />
+                              </div>
+                            ) : incident.description ? (
+                              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
+                                {incident.description}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
+                            <span>Occurred: {formatActionDate(incident.occurred_at)}</span>
+                            <span>Category: {incidentCategoryLabel}</span>
+                            <span>People: {getIncidentPersonLabel(incident, incident.incident_category)}</span>
+                            <span>Linked actions: {linkedActionCount}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 xl:max-w-[420px] xl:justify-end">
+                          {linkedVisitReportUrl ? (
+                            <Button variant="outline" size="sm" asChild className="h-9">
+                              <Link href={linkedVisitReportUrl} target="_blank">
+                                <FileText className="mr-2 h-4 w-4" />
+                                Open PDF
+                              </Link>
+                            </Button>
+                          ) : null}
+                          <Button variant="outline" size="sm" asChild className="h-9">
+                            <Link href={`/incidents/${incident.id}`}>
+                              Manage Case
+                            </Link>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild className="h-9">
+                            <Link href={`/incidents/${incident.id}?tab=investigation`}>
+                              Investigation
+                            </Link>
+                          </Button>
+                          {canManageIncidents ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-9"
+                              onClick={() => setSelectedActionIncident(incident)}
+                            >
+                              New Action
+                            </Button>
+                          ) : null}
+                          {canManageIncidents ? <EditIncidentDialog incident={incident} /> : null}
+                          {canManageIncidents ? (
+                            <CloseIncidentButton
+                              incidentId={incident.id}
+                              incidentReference={incident.reference_no}
+                              currentStatus={incident.status}
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
+              <div>
+                <h3 className="font-bold text-slate-900">Active Actions</h3>
+                <p className="text-sm text-slate-500">
+                  Open tasks linked to incidents or directly to the store.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+                  {ongoingActions.length} active
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setActiveTab('store actions')}
+                >
+                  View all
+                </Button>
+              </div>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {ongoingActions.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500">No active actions for this store.</div>
+              ) : (
+                ongoingActions.slice(0, 6).map((action) => {
+                  const title =
+                    action.source_type === 'store'
+                      ? getStoreActionListTitle(action)
+                      : action.title || 'Untitled action'
+                  const incidentHref = action.incident_id
+                    ? `/incidents/${action.incident_id}?tab=actions`
+                    : null
+                  const incidentReference =
+                    action.incident?.reference_no || action.incident?.referenceNo || null
+
+                  return (
+                    <div key={action.id} className="space-y-3 p-5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-900">{title}</p>
+                          {incidentHref ? (
+                            <Link
+                              href={incidentHref}
+                              className="inline-flex items-center gap-2 text-xs font-bold text-blue-600 hover:underline"
+                            >
+                              {incidentReference ? (
+                                <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-500">
+                                  {incidentReference}
+                                </span>
+                              ) : null}
+                              View incident actions
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                          ) : null}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={action.source_type === 'store'
+                              ? 'border-violet-200 bg-violet-50 text-violet-700'
+                              : 'border-sky-200 bg-sky-50 text-sky-700'}
+                          >
+                            {action.source_type === 'store' ? 'Store' : 'Incident'}
+                          </Badge>
+                          <Badge variant="outline" className={getActionPriorityTone(action.priority)}>
+                            {String(action.priority || 'medium')}
+                          </Badge>
+                          <Badge variant="outline" className={getActionStatusTone(action.status)}>
+                            {String(action.status || 'open').replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span>Due: {formatActionDate(action.due_date)}</span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              {ongoingActions.length > 6 ? (
+                <div className="px-6 py-4 text-sm text-slate-500">
+                  Showing 6 of {ongoingActions.length} active actions.
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-6 py-4">
               <h3 className="font-bold">Closed History</h3>
               <Link href="/reports" className="text-sm font-bold text-blue-600 hover:underline">
                 Export Logs
@@ -590,12 +829,30 @@ export function StoreDetailWorkspace({
                       <p className="text-sm font-medium leading-relaxed text-slate-700">{incident.summary}</p>
                     </div>
                     <div className="shrink-0">
-                      <Link
-                        href={`/incidents/${incident.id}`}
-                        className="whitespace-nowrap rounded border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm transition-all hover:bg-white"
-                      >
-                        View Details
-                      </Link>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {extractLinkedVisitReportId(incident) ? (
+                          <Link
+                            href={buildVisitReportPdfUrl(extractLinkedVisitReportId(incident)!)}
+                            target="_blank"
+                            className="whitespace-nowrap rounded border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm transition-all hover:bg-white"
+                          >
+                            Open PDF
+                          </Link>
+                        ) : null}
+                        {canManageIncidents ? (
+                          <CloseIncidentButton
+                            incidentId={incident.id}
+                            incidentReference={incident.reference_no}
+                            currentStatus={String(incident.status || 'closed')}
+                          />
+                        ) : null}
+                        <Link
+                          href={`/incidents/${incident.id}`}
+                          className="whitespace-nowrap rounded border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm transition-all hover:bg-white"
+                        >
+                          View Details
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -712,6 +969,30 @@ export function StoreDetailWorkspace({
         userRole={userRole}
         onActionsCreated={handleStoreActionsCreated}
       />
+
+      <Dialog
+        open={Boolean(selectedActionIncident)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedActionIncident(null)
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedActionIncident
+                ? `Create Action for ${selectedActionIncident.reference_no}`
+                : 'Create Action'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedActionIncident ? (
+            <ActionForm
+              incidentId={selectedActionIncident.id}
+              profiles={profiles}
+              onSuccess={() => setSelectedActionIncident(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

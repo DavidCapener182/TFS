@@ -15,6 +15,12 @@ import { LazyIncidentsAnalyticsCharts } from '@/components/incidents/lazy-incide
 import Link from 'next/link'
 import { Search, AlertTriangle, FileText, Eye, CheckCircle2, SlidersHorizontal, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  buildVisitReportPdfUrl,
+  extractLinkedVisitReportId,
+  getIncidentPersonLabel,
+  getIncidentRoleBreakdown,
+} from '@/lib/incidents/incident-utils'
 import { formatStoreName } from '@/lib/store-display'
 
 type IncidentFilters = {
@@ -42,12 +48,7 @@ function getIncidentMetaObject(incident: any) {
 }
 
 function getIncidentPersonType(incident: any) {
-  const meta = getIncidentMetaObject(incident) as Record<string, any>
-  const personType = meta.person_type ?? meta.personType
-  if (typeof personType !== 'string' || personType.trim().length === 0) {
-    return 'Unknown'
-  }
-  return personType
+  return getIncidentPersonLabel(incident, incident?.incident_category)
 }
 
 function getIncidentChildInvolved(incident: any) {
@@ -553,8 +554,11 @@ export default async function IncidentsPage({
 
   // Calculate stats
   const totalIncidents = allIncidents.length
-  const openIncidents = allIncidents.filter((i: any) => i.status === 'open' || i.status === 'under_investigation').length
+  const openIncidents = allIncidents.filter(
+    (i: any) => !['closed', 'cancelled'].includes(String(i.status || '').toLowerCase())
+  ).length
   const criticalIncidents = allIncidents.filter((i: any) => i.severity === 'critical' || i.severity === 'high').length
+  const highlightedOpenIncidents = incidents.slice(0, 3)
   const hasActiveFilters = Boolean(filters.q || filters.status || filters.severity || filters.year || filters.date_from || filters.date_to)
   const activeFilterCount = [
     filters.q,
@@ -639,8 +643,6 @@ export default async function IncidentsPage({
   const accidentsPreviousYtd = incidentRows.filter((entry) => isYearToDate(entry.date, previousYear)).length
   const riddorMonth = incidentRows.filter((entry) => toMonthKey(entry.date) === currentMonthKey && entry.incident.riddor_reportable).length
   const riddorYtd = incidentRows.filter((entry) => isYearToDate(entry.date, currentYear) && entry.incident.riddor_reportable).length
-  const nearMissMonth = incidentRows.filter((entry) => toMonthKey(entry.date) === currentMonthKey && entry.incident.incident_category === 'near_miss').length
-  const childIncidentsMonth = incidentRows.filter((entry) => toMonthKey(entry.date) === currentMonthKey && getIncidentChildInvolved(entry.incident)).length
 
   const getPercentChange = (currentValue: number, previousValue: number) => {
     if (previousValue === 0) return currentValue === 0 ? 0 : 100
@@ -662,13 +664,17 @@ export default async function IncidentsPage({
 
   const personCounter = new Map<string, number>(personOrder.map((name) => [name, 0]))
   for (const incident of allIncidents) {
-    const personType = normalizePersonType(getIncidentPersonType(incident))
-    personCounter.set(personType, (personCounter.get(personType) || 0) + 1)
+    const personTypes = getIncidentRoleBreakdown(incident, incident.incident_category)
+    personTypes.forEach((personType) => {
+      const normalizedType = normalizePersonType(personType)
+      personCounter.set(normalizedType, (personCounter.get(normalizedType) || 0) + 1)
+    })
   }
 
   const personData = personOrder
     .map((name) => ({ name, value: personCounter.get(name) || 0 }))
     .filter((item) => !(item.name === 'Unknown' && item.value === 0))
+  const totalPeopleLogged = personData.reduce((sum, item) => sum + item.value, 0)
 
   const monthlyTrendMap = new Map<string, { month: string; incidents: number; riddor: number; nearMiss: number; open: number; closed: number }>()
   for (const { incident, date } of incidentRows) {
@@ -755,7 +761,7 @@ export default async function IncidentsPage({
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Incidents</h1>
           </div>
           <p className="max-w-2xl text-sm text-slate-500 sm:text-base md:ml-11">
-            Track safety incidents, manage investigations, and monitor resolution progress.
+            Track LP incidents, manage investigations, and monitor resolution progress.
           </p>
         </div>
         <div className="flex-shrink-0">
@@ -926,44 +932,44 @@ export default async function IncidentsPage({
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
         <Card className="border-slate-200 border-l-4 border-l-emerald-500">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Accidents (Month)</p>
+            <p className="text-xs text-slate-500">Incidents (Month)</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">{accidentsMonth}</p>
             <p className="text-xs text-slate-500 mt-1">{formatDelta(accidentsMonthDelta)} vs previous month</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 border-l-4 border-l-amber-500">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Accidents (YTD)</p>
+            <p className="text-xs text-slate-500">Incidents (YTD)</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">{accidentsYtd}</p>
             <p className="text-xs text-slate-500 mt-1">{formatDelta(accidentsYtdDelta)} vs prior YTD</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 border-l-4 border-l-red-500">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">RIDDOR (Month)</p>
+            <p className="text-xs text-slate-500">Escalated (Month)</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">{riddorMonth}</p>
-            <p className="text-xs text-slate-500 mt-1">Reportable this month</p>
+            <p className="text-xs text-slate-500 mt-1">Serious incidents flagged this month</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 border-l-4 border-l-teal-600">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">RIDDOR (YTD)</p>
+            <p className="text-xs text-slate-500">Escalated (YTD)</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">{riddorYtd}</p>
-            <p className="text-xs text-slate-500 mt-1">Total reportable</p>
+            <p className="text-xs text-slate-500 mt-1">Total serious incidents flagged</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 border-l-4 border-l-emerald-600">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Near Miss (Month)</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{nearMissMonth}</p>
-            <p className="text-xs text-slate-500 mt-1">Current month</p>
+            <p className="text-xs text-slate-500">Open Incidents</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">{openIncidents}</p>
+            <p className="text-xs text-slate-500 mt-1">Currently active LP cases</p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 border-l-4 border-l-indigo-500">
           <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Child Incidents</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{childIncidentsMonth}</p>
-            <p className="text-xs text-slate-500 mt-1">This month</p>
+            <p className="text-xs text-slate-500">High / Critical</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">{criticalIncidents}</p>
+            <p className="text-xs text-slate-500 mt-1">Priority risk cases in current results</p>
           </CardContent>
         </Card>
       </div>
@@ -972,8 +978,8 @@ export default async function IncidentsPage({
         <Card className="border-slate-200 xl:col-span-2">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-lg font-semibold text-slate-900">Board Summary</CardTitle>
-              <Badge variant="outline">{riddorIncidents.length} RIDDOR</Badge>
+              <CardTitle className="text-lg font-semibold text-slate-900">LP Summary</CardTitle>
+              <Badge variant="outline">{riddorIncidents.length} escalated</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -991,7 +997,7 @@ export default async function IncidentsPage({
             </div>
             <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
-                <div className="text-xs text-slate-500">Open Insurance Exposures</div>
+                <div className="text-xs text-slate-500">Open Claims / Exposures</div>
                 <div className="text-xl font-bold text-slate-900 mt-1">{openClaimsCount}</div>
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
@@ -1003,12 +1009,67 @@ export default async function IncidentsPage({
                 <div className="text-xl font-bold text-rose-700 mt-1">{criticalIncidents}</div>
               </div>
             </div>
+
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Live cases</p>
+                <Link href="#incidents-table" className="text-xs font-semibold text-indigo-600 hover:underline">
+                  Open register
+                </Link>
+              </div>
+              {highlightedOpenIncidents.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">No active LP cases in the current filter set.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {highlightedOpenIncidents.map((incident: any) => {
+                    const linkedVisitReportId = extractLinkedVisitReportId(incident)
+                    return (
+                      <div key={`summary-incident-${incident.id}`} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link href={`/incidents/${incident.id}`} className="font-mono text-xs font-semibold text-indigo-700 hover:underline">
+                              {incident.reference_no}
+                            </Link>
+                            <Badge variant="outline" className="text-[10px]">
+                              {getIncidentPersonType(incident)}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {String(incident.status || 'open').replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-sm font-medium text-slate-900">
+                            {formatStoreName(incident.tfs_stores?.store_name) || 'Unknown Store'}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {incident.summary || incident.description || 'No summary recorded.'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {linkedVisitReportId ? (
+                            <Button variant="outline" size="sm" asChild className="h-8">
+                              <Link href={buildVisitReportPdfUrl(linkedVisitReportId)} target="_blank">
+                                PDF
+                              </Link>
+                            </Button>
+                          ) : null}
+                          <Button variant="outline" size="sm" asChild className="h-8">
+                            <Link href={`/incidents/${incident.id}`}>
+                              View
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-semibold text-slate-900">All-Time Persons Affected</CardTitle>
+            <CardTitle className="text-lg font-semibold text-slate-900">All-Time People Involved</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {personData.map((item) => {
@@ -1030,8 +1091,8 @@ export default async function IncidentsPage({
               )
             })}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-sm">
-              <span className="text-slate-500">Total Accidents</span>
-              <span className="font-bold text-slate-900">{totalIncidents}</span>
+              <span className="text-slate-500">Total people logged</span>
+              <span className="font-bold text-slate-900">{totalPeopleLogged}</span>
             </div>
           </CardContent>
         </Card>
@@ -1042,7 +1103,7 @@ export default async function IncidentsPage({
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="trends">Trends & Analysis</TabsTrigger>
           <TabsTrigger value="incidents">Incidents</TabsTrigger>
-          <TabsTrigger value="claims">Claims & RIDDOR</TabsTrigger>
+          <TabsTrigger value="claims">Claims & Escalations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -1069,7 +1130,7 @@ export default async function IncidentsPage({
 
         <TabsContent value="incidents" className="space-y-6">
       {/* Open Incidents Table */}
-      <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
+      <Card id="incidents-table" className="shadow-sm border-slate-200 bg-white overflow-hidden">
         <CardHeader className="border-b bg-slate-50/40 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-base font-semibold text-slate-800">Open Incidents</CardTitle>
@@ -1113,7 +1174,7 @@ export default async function IncidentsPage({
                   <TableHead className="font-semibold text-slate-500">Flags</TableHead>
                   <TableHead className="font-semibold text-slate-500">Occurred</TableHead>
                   <TableHead className="font-semibold text-slate-500">Investigator</TableHead>
-                  <TableHead className="w-[100px] text-right font-semibold text-slate-500">Actions</TableHead>
+                  <TableHead className="w-[150px] text-right font-semibold text-slate-500">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1192,7 +1253,7 @@ export default async function IncidentsPage({
                           <div className="flex flex-wrap gap-1.5">
                             {incident.riddor_reportable && (
                               <Badge variant="destructive" className="text-[10px] px-2 py-0.5">
-                                RIDDOR
+                                Escalated
                               </Badge>
                             )}
                             {getIncidentChildInvolved(incident) && (
@@ -1227,6 +1288,13 @@ export default async function IncidentsPage({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {extractLinkedVisitReportId(incident) ? (
+                            <Link href={buildVisitReportPdfUrl(extractLinkedVisitReportId(incident)!)} target="_blank">
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                PDF
+                              </Button>
+                            </Link>
+                          ) : null}
                           <Link href={`/incidents/${incident.id}`}>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
                               <Eye className="h-4 w-4" />
@@ -1297,7 +1365,7 @@ export default async function IncidentsPage({
                           <TableHead className="font-semibold text-slate-500">Occurred</TableHead>
                           <TableHead className="font-semibold text-slate-500">Closed</TableHead>
                           <TableHead className="font-semibold text-slate-500">Investigator</TableHead>
-                          <TableHead className="w-[100px] text-right font-semibold text-slate-500">Actions</TableHead>
+                          <TableHead className="w-[150px] text-right font-semibold text-slate-500">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1358,7 +1426,7 @@ export default async function IncidentsPage({
                                 <div className="flex flex-wrap gap-1.5">
                                   {incident.riddor_reportable && (
                                     <Badge variant="destructive" className="text-[10px] px-2 py-0.5">
-                                      RIDDOR
+                                      Escalated
                                     </Badge>
                                   )}
                                   {getIncidentChildInvolved(incident) && (
@@ -1398,6 +1466,13 @@ export default async function IncidentsPage({
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
+                                {extractLinkedVisitReportId(incident) ? (
+                                  <Link href={buildVisitReportPdfUrl(extractLinkedVisitReportId(incident)!)} target="_blank">
+                                    <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                      PDF
+                                    </Button>
+                                  </Link>
+                                ) : null}
                                 <Link href={`/incidents/${incident.id}`}>
                                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
                                     <Eye className="h-4 w-4" />
@@ -1423,11 +1498,11 @@ export default async function IncidentsPage({
 
       <TabsContent value="claims" className="space-y-6">
 
-      {/* RIDDOR Register */}
+      {/* Escalation Register */}
       <Card className="shadow-sm border-red-200 bg-white overflow-hidden">
         <CardHeader className="border-b bg-red-50/50 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-base font-semibold text-red-800">RIDDOR Incidents</CardTitle>
+            <CardTitle className="text-base font-semibold text-red-800">Escalated Incidents</CardTitle>
             <Badge variant="destructive" className="font-semibold">
               {riddorIncidents.length} Total
             </Badge>
@@ -1451,7 +1526,7 @@ export default async function IncidentsPage({
                 {riddorIncidents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center text-slate-500">
-                      No RIDDOR incidents for this filter set.
+                      No escalated incidents for this filter set.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1500,7 +1575,7 @@ export default async function IncidentsPage({
           <div className="md:hidden p-4 space-y-3">
             {riddorIncidents.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-4">
-                No RIDDOR incidents for this filter set.
+                No escalated incidents for this filter set.
               </p>
             ) : (
               riddorIncidents.map((incident: any) => (

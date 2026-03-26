@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DeleteIncidentButton } from '@/components/shared/delete-incident-button'
 import { Eye, MapPin } from 'lucide-react'
+import { buildVisitReportPdfUrl, extractLinkedVisitReportId, getIncidentPersonLabel } from '@/lib/incidents/incident-utils'
 import { format } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { formatStoreName } from '@/lib/store-display'
@@ -28,8 +29,9 @@ export function ClosedIncidentMobileCard({ incident }: ClosedIncidentMobileCardP
   const personMeta = incident?.persons_involved && typeof incident.persons_involved === 'object'
     ? incident.persons_involved
     : {}
-  const personType = personMeta.person_type || personMeta.personType || 'Unknown'
+  const personType = getIncidentPersonLabel(incident, incident?.incident_category)
   const childInvolved = Boolean(personMeta.child_involved ?? personMeta.childInvolved)
+  const linkedVisitReportId = extractLinkedVisitReportId(incident)
 
   return (
     <Card className="p-3 hover:shadow-sm transition-shadow border-slate-200 bg-slate-50/30">
@@ -84,6 +86,13 @@ export function ClosedIncidentMobileCard({ incident }: ClosedIncidentMobileCardP
                <Badge variant="outline" className="px-2 py-0 text-[10px]">{personType}</Badge>
                {incident.riddor_reportable ? (
                  <Badge variant="destructive" className="px-2 py-0 text-[10px]">RIDDOR</Badge>
+               ) : null}
+               {linkedVisitReportId ? (
+                 <Link href={buildVisitReportPdfUrl(linkedVisitReportId)} target="_blank">
+                   <Badge variant="outline" className="px-2 py-0 text-[10px] border-indigo-200 text-indigo-700">
+                     PDF
+                   </Badge>
+                 </Link>
                ) : null}
                {childInvolved ? (
                  <Badge variant="outline" className="px-2 py-0 text-[10px] border-amber-300 text-amber-700">Child</Badge>

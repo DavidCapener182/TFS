@@ -3,6 +3,15 @@ export type VisitReportType = 'targeted_theft_visit'
 export type VisitReportStatus = 'draft' | 'final'
 
 export type VisitReportRiskLevel = 'low' | 'medium' | 'high' | 'critical'
+export type VisitReportIncidentPersonRole = 'employee' | 'public' | 'contractor' | 'other'
+
+export interface VisitReportIncidentPerson {
+  name: string
+  role: VisitReportIncidentPersonRole
+  involvement: string
+  injured: boolean
+  injuryDetails: string
+}
 
 export interface VisitReportStoreOption {
   id: string
@@ -27,6 +36,11 @@ export interface TargetedTheftVisitPayload {
     primaryProducts: string
     entryPoint: string
     durationSeconds: string
+  }
+  incidentPeople: {
+    someoneInjured: boolean
+    injurySummary: string
+    people: VisitReportIncidentPerson[]
   }
   storeLayoutExposure: {
     highValueVisibleFromEntrance: boolean
@@ -166,6 +180,37 @@ function normalizeRiskLevel(value: unknown): VisitReportRiskLevel | '' {
   return ''
 }
 
+function normalizeIncidentPersonRole(value: unknown): VisitReportIncidentPersonRole {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (
+    normalized === 'employee' ||
+    normalized === 'public' ||
+    normalized === 'contractor' ||
+    normalized === 'other'
+  ) {
+    return normalized
+  }
+  return 'public'
+}
+
+function normalizeIncidentPeople(value: unknown): VisitReportIncidentPerson[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+      const person = entry as Record<string, unknown>
+      return {
+        name: normalizeString(person.name),
+        role: normalizeIncidentPersonRole(person.role),
+        involvement: normalizeString(person.involvement),
+        injured: normalizeBoolean(person.injured),
+        injuryDetails: normalizeString(person.injuryDetails ?? person.injury_details),
+      }
+    })
+    .filter((entry): entry is VisitReportIncidentPerson => Boolean(entry))
+}
+
 export function getVisitReportTypeLabel(value: VisitReportType): string {
   return VISIT_REPORT_TYPE_OPTIONS.find((option) => option.value === value)?.label || 'Visit Report'
 }
@@ -189,6 +234,11 @@ export function getEmptyTargetedTheftVisitPayload(
       primaryProducts: '',
       entryPoint: '',
       durationSeconds: '',
+    },
+    incidentPeople: {
+      someoneInjured: false,
+      injurySummary: '',
+      people: [],
     },
     storeLayoutExposure: {
       highValueVisibleFromEntrance: false,
@@ -350,6 +400,10 @@ export function normalizeTargetedTheftVisitPayload(
     recommendations.deterrence && typeof recommendations.deterrence === 'object' && !Array.isArray(recommendations.deterrence)
       ? (recommendations.deterrence as Record<string, unknown>)
       : {}
+  const incidentPeople =
+    payload.incidentPeople && typeof payload.incidentPeople === 'object' && !Array.isArray(payload.incidentPeople)
+      ? (payload.incidentPeople as Record<string, unknown>)
+      : {}
   const signOff =
     payload.signOff && typeof payload.signOff === 'object' && !Array.isArray(payload.signOff)
       ? (payload.signOff as Record<string, unknown>)
@@ -370,6 +424,11 @@ export function normalizeTargetedTheftVisitPayload(
       primaryProducts: normalizeString(incidentOverview.primaryProducts),
       entryPoint: normalizeString(incidentOverview.entryPoint),
       durationSeconds: normalizeString(incidentOverview.durationSeconds),
+    },
+    incidentPeople: {
+      someoneInjured: normalizeBoolean(incidentPeople.someoneInjured),
+      injurySummary: normalizeString(incidentPeople.injurySummary),
+      people: normalizeIncidentPeople(incidentPeople.people),
     },
     storeLayoutExposure: {
       highValueVisibleFromEntrance: normalizeBoolean(storeLayoutExposure.highValueVisibleFromEntrance),
@@ -490,6 +549,14 @@ export function buildTargetedTheftVisitSummary(
 
   if (payload.incidentOverview.incidentCount) {
     summaryParts.push(`${payload.incidentOverview.incidentCount} recent incident(s) reviewed`)
+  }
+
+  if (payload.incidentPeople.people.length > 0) {
+    summaryParts.push(`${payload.incidentPeople.people.length} people logged`)
+  }
+
+  if (payload.incidentPeople.someoneInjured) {
+    summaryParts.push('Injury reported')
   }
 
   if (payload.incidentOverview.primaryProducts.trim()) {

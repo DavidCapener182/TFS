@@ -27,6 +27,12 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  buildVisitReportPdfUrl,
+  extractLinkedVisitReportId,
+  getIncidentPeople,
+  getIncidentPersonLabel,
+} from '@/lib/incidents/incident-utils'
 import { formatStoreName } from '@/lib/store-display'
 
 async function getIncident(id: string) {
@@ -107,6 +113,7 @@ async function getActions(incidentId: string) {
       assigned_to:fa_profiles!tfs_actions_assigned_to_user_id_fkey(*)
     `)
     .eq('incident_id', incidentId)
+    .not('title', 'ilike', 'Implement visit report actions:%')
     .order('created_at', { ascending: false })
 
   return data || []
@@ -176,7 +183,7 @@ function withBaselineIncidentActivity(activityLog: any[], incident: any) {
   }
 
   const closedAt = incident.closed_at || null
-  const shouldShowClosed = incident.status === 'closed' || Boolean(closedAt)
+  const shouldShowClosed = String(incident.status || '').toLowerCase() === 'closed'
   if (!hasClosed && shouldShowClosed) {
     events.push({
       id: `synthetic-closed-${incident.id}`,
@@ -314,8 +321,10 @@ function resolveActivityActorName(
 
 export default async function IncidentDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string }
+  searchParams?: { tab?: string; newAction?: string }
 }) {
   await requireAuth()
   const incident = await getIncident(params.id)
@@ -381,6 +390,11 @@ export default async function IncidentDetailPage({
 
   const personsObject = normalizeJsonObject(incident.persons_involved)
   const injuryObject = normalizeJsonObject(incident.injury_details)
+  const incidentPeople = getIncidentPeople(incident, incident.incident_category)
+  const linkedVisitReportId = extractLinkedVisitReportId(incident)
+  const linkedVisitReportPdfUrl = linkedVisitReportId
+    ? buildVisitReportPdfUrl(linkedVisitReportId)
+    : null
   const reportedByLabel = pickString(personsObject, ['reported_by_label', 'reportedByLabel'])
   const incidentActorOverrideName = isStoreManagerLabel(reportedByLabel) ? reportedByLabel : null
   const reportedByDisplay = reportedByLabel || incident.reporter?.full_name || 'Unknown'
@@ -388,7 +402,7 @@ export default async function IncidentDetailPage({
   const personFirstName = pickString(personsObject, ['first_name', 'firstName', 'firstname', 'forename'])
   const personLastName = pickString(personsObject, ['last_name', 'lastName', 'lastname', 'surname'])
   const personFullName = pickString(personsObject, ['full_name', 'name', 'person_name'])
-  const personType = pickString(personsObject, ['type', 'person_type', 'personType'])
+  const personType = getIncidentPersonLabel(incident, incident.incident_category)
   const childInvolved = pickBoolean(personsObject, ['child_involved', 'childInvolved', 'is_child', 'minor'])
 
   const displayPersonName =
@@ -404,6 +418,10 @@ export default async function IncidentDetailPage({
   const firstAidAction =
     pickString(injuryObject, ['first_aid_action', 'firstAidAction', 'first_aid', 'firstAid']) ||
     'None recorded'
+  const someoneInjured =
+    pickBoolean(injuryObject, ['someone_injured', 'someoneInjured']) ||
+    incidentPeople.some((person) => person.injured)
+  const injurySummary = pickString(injuryObject, ['injury_summary', 'injurySummary'])
 
   const foreseeable = pickBoolean(injuryObject, ['foreseeable', 'is_foreseeable'])
   const reportedToInsurers = pickBoolean(injuryObject, ['reported_to_insurers', 'reportedToInsurers'])
@@ -418,6 +436,12 @@ export default async function IncidentDetailPage({
 
   const closureDate = incident.closed_at || incident.reported_at || incident.occurred_at
   const recentActivity = activityLog.slice(0, 4)
+  const isClosed = String(incident.status || '').toLowerCase() === 'closed'
+  const initialTab = ['overview', 'investigation', 'actions', 'attachments', 'activity'].includes(
+    String(searchParams?.tab || '')
+  )
+    ? String(searchParams?.tab)
+    : 'overview'
 
   return (
     <div className="space-y-6 p-0">
@@ -438,27 +462,42 @@ export default async function IncidentDetailPage({
           ) : null}
         </div>
 
-        {!isArchivedClosedIncident ? (
-          <div className="flex items-center gap-3">
-            <EditIncidentDialog incident={incident} />
+        <div className="flex items-center gap-3">
+          {linkedVisitReportPdfUrl ? (
             <Button
               variant="outline"
               size="sm"
               asChild
               className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
             >
-              <Link href={`/incidents/${incident.id}/print`} target="_blank">
-                <Printer size={16} className="mr-2" />
-                Print
+              <Link href={linkedVisitReportPdfUrl} target="_blank">
+                <FileText size={16} className="mr-2" />
+                Open Report PDF
               </Link>
             </Button>
-            <CloseIncidentButton
-              incidentId={incident.id}
-              incidentReference={incident.reference_no}
-              currentStatus={incident.status}
-            />
-          </div>
-        ) : null}
+          ) : null}
+          {!isArchivedClosedIncident ? (
+            <>
+              <EditIncidentDialog incident={incident} />
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
+              >
+                <Link href={`/incidents/${incident.id}/print`} target="_blank">
+                  <Printer size={16} className="mr-2" />
+                  Print
+                </Link>
+              </Button>
+              <CloseIncidentButton
+                incidentId={incident.id}
+                incidentReference={incident.reference_no}
+                currentStatus={incident.status}
+              />
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -502,7 +541,7 @@ export default async function IncidentDetailPage({
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList className="no-scrollbar h-auto w-full justify-start gap-8 overflow-x-auto rounded-none border-b border-slate-200 bg-transparent p-0 pt-2">
           <TabsTrigger
             value="overview"
@@ -550,11 +589,21 @@ export default async function IncidentDetailPage({
                   <FileText size={18} className="text-blue-500" />
                   Incident Description
                 </h3>
-                <div className="mb-6 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-sm leading-relaxed text-slate-700">
-                    {incident.description || 'No description recorded for this incident.'}
-                  </p>
-                </div>
+                {linkedVisitReportPdfUrl ? (
+                  <div className="mb-6 overflow-hidden rounded-xl border border-slate-100 bg-white">
+                    <iframe
+                      title="Visit report PDF"
+                      src={linkedVisitReportPdfUrl}
+                      className="h-[70vh] w-full bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-6 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-sm leading-relaxed text-slate-700">
+                      {incident.description || 'No description recorded for this incident.'}
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-4">
                   <div className="flex items-center gap-3">
@@ -630,24 +679,41 @@ export default async function IncidentDetailPage({
                     Persons Involved
                   </h3>
                   <div className="space-y-4">
-                    <div>
-                      <p className="mb-1 text-xs text-slate-500">Full Name</p>
-                      <p className="font-semibold text-slate-900">{displayPersonName}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-                        {personType || 'Unknown'}
-                      </span>
-                      {childInvolved === false ? (
-                        <span className="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                          Adult
-                        </span>
-                      ) : childInvolved === true ? (
-                        <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">
-                          Child
-                        </span>
-                      ) : null}
-                    </div>
+                    {incidentPeople.length > 0 ? (
+                      incidentPeople.map((person, index) => (
+                        <div key={`incident-person-${index}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-slate-900">
+                              {person.name || `Person ${index + 1}`}
+                            </span>
+                            <span className="rounded bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                              {person.role}
+                            </span>
+                            {person.injured ? (
+                              <span className="rounded bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700">
+                                Injured
+                              </span>
+                            ) : null}
+                            {childInvolved === true && index === 0 ? (
+                              <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">
+                                Child
+                              </span>
+                            ) : null}
+                          </div>
+                          {person.involvement ? (
+                            <p className="mt-2 text-sm text-slate-600">{person.involvement}</p>
+                          ) : null}
+                          {person.injuryDetails ? (
+                            <p className="mt-2 text-sm text-rose-700">{person.injuryDetails}</p>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div>
+                        <p className="mb-1 text-xs text-slate-500">Primary Person</p>
+                        <p className="font-semibold text-slate-900">{displayPersonName}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -658,6 +724,10 @@ export default async function IncidentDetailPage({
                   </h3>
                   <div className="space-y-4">
                     <div>
+                      <p className="mb-1 text-xs text-slate-500">Injury Reported</p>
+                      <p className="text-sm font-semibold text-slate-900">{someoneInjured ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div>
                       <p className="mb-1 text-xs text-slate-500">Root Cause</p>
                       <p className="text-sm font-semibold text-slate-900">{injuryRootCause}</p>
                     </div>
@@ -665,6 +735,12 @@ export default async function IncidentDetailPage({
                       <p className="mb-1 text-xs text-slate-500">Incident Type</p>
                       <p className="text-sm font-medium text-slate-700">
                         {injuryIncidentType || titleFromSnake(incident.incident_category)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs text-slate-500">Injury Summary</p>
+                      <p className="text-sm font-medium text-slate-700">
+                        {injurySummary || (someoneInjured ? 'Recorded in person notes.' : 'No injury recorded')}
                       </p>
                     </div>
                     <div>
@@ -686,20 +762,32 @@ export default async function IncidentDetailPage({
                 </h3>
 
                 <div className="relative z-10 space-y-4">
-                  <div className="rounded-lg border border-emerald-100 bg-white/60 p-3">
-                    <p className="mb-1 text-xs font-bold text-emerald-600">Case Closed On</p>
-                    <p className="text-sm font-medium text-emerald-900">{safeDateTime(closureDate)}</p>
-                  </div>
+                  {isClosed || isArchivedClosedIncident ? (
+                    <>
+                      <div className="rounded-lg border border-emerald-100 bg-white/60 p-3">
+                        <p className="mb-1 text-xs font-bold text-emerald-600">Case Closed On</p>
+                        <p className="text-sm font-medium text-emerald-900">{safeDateTime(closureDate)}</p>
+                      </div>
 
-                  <div className="flex items-start gap-2 border-t border-emerald-200/50 pt-3 text-xs text-emerald-700">
-                    <Activity size={14} className="mt-0.5 shrink-0" />
-                    <p>
-                      {incident.closure_summary ||
-                        (isArchivedClosedIncident
-                          ? 'Imported historical closure record.'
-                          : 'Closed through the incident workflow.')}
-                    </p>
-                  </div>
+                      <div className="flex items-start gap-2 border-t border-emerald-200/50 pt-3 text-xs text-emerald-700">
+                        <Activity size={14} className="mt-0.5 shrink-0" />
+                        <p>
+                          {incident.closure_summary ||
+                            (isArchivedClosedIncident
+                              ? 'Imported historical closure record.'
+                              : 'Closed through the incident workflow.')}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-emerald-100 bg-white/60 p-3">
+                      <p className="mb-1 text-xs font-bold text-emerald-600">Case Status</p>
+                      <p className="text-sm font-medium text-emerald-900">Open</p>
+                      <p className="mt-1 text-xs text-emerald-700">
+                        This case is currently active. Use the workflow buttons above to manage progress.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -759,13 +847,18 @@ export default async function IncidentDetailPage({
 
         {!isArchivedClosedIncident ? (
           <TabsContent value="investigation" className="m-0">
-            <IncidentInvestigation incident={incident} investigation={investigation} />
+            <IncidentInvestigation incident={incident} investigation={investigation} profiles={profiles || []} />
           </TabsContent>
         ) : null}
 
         {!isArchivedClosedIncident ? (
           <TabsContent value="actions" className="m-0">
-            <IncidentActions incidentId={params.id} actions={actions} profiles={profiles || []} />
+            <IncidentActions
+              incidentId={params.id}
+              actions={actions}
+              profiles={profiles || []}
+              initialOpen={String(searchParams?.newAction || '') === '1'}
+            />
           </TabsContent>
         ) : null}
 

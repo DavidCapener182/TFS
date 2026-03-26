@@ -10,10 +10,12 @@ import {
   Download,
   FileText,
   Menu,
+  Plus,
   RefreshCw,
   Save,
   Search,
   ShieldAlert,
+  Trash2,
 } from 'lucide-react'
 
 import { saveVisitReport } from '@/app/actions/visit-reports'
@@ -36,6 +38,8 @@ import {
   getEmptyTargetedTheftVisitPayload,
   getVisitReportTypeLabel,
   VISIT_REPORT_TYPE_OPTIONS,
+  type VisitReportIncidentPerson,
+  type VisitReportIncidentPersonRole,
   type TargetedTheftVisitPayload,
   type VisitReportRecord,
   type VisitReportRiskLevel,
@@ -295,6 +299,26 @@ const RISK_LEVEL_OPTIONS: Array<{ value: VisitReportRiskLevel; label: string; cl
   { value: 'high', label: 'High', className: 'border-rose-200 bg-rose-50 text-rose-700' },
   { value: 'critical', label: 'Critical', className: 'border-[#232154] bg-[#f5f1fb] text-[#232154]' },
 ]
+
+const INCIDENT_PERSON_ROLE_OPTIONS: Array<{
+  value: VisitReportIncidentPersonRole
+  label: string
+}> = [
+  { value: 'public', label: 'Public / offender' },
+  { value: 'employee', label: 'Employee' },
+  { value: 'contractor', label: 'Contractor' },
+  { value: 'other', label: 'Other' },
+]
+
+function createEmptyIncidentPerson(): VisitReportIncidentPerson {
+  return {
+    name: '',
+    role: 'public',
+    involvement: '',
+    injured: false,
+    injuryDetails: '',
+  }
+}
 
 function createEmptyDraft(currentUserName: string | null): VisitReportDraft {
   return {
@@ -725,6 +749,13 @@ export function VisitReportsWorkspace({
   }
 
   const handleLoadReport = (report: VisitReportRecord) => {
+    if (report.status === 'final') {
+      if (typeof window !== 'undefined') {
+        window.location.assign(`/api/reports/visit-reports/${report.id}/pdf?mode=view`)
+      }
+      return
+    }
+
     setDraft({
       reportId: report.id,
       reportType: report.reportType,
@@ -800,13 +831,19 @@ export function VisitReportsWorkspace({
           )
         })
 
+        const savedDraft = {
+          ...draft,
+          reportId: result.id,
+          title: result.title,
+        }
+
         if (result.warning) {
           toast({
             variant: 'destructive',
             title: 'Report saved with warning',
             description: result.warning,
           })
-        } else {
+        } else if (result.status !== 'final') {
           toast({
             title: draft.reportId ? 'Report updated' : 'Report saved',
             description: `${result.title} has been ${draft.reportId ? 'updated' : 'saved'}.`,
@@ -816,17 +853,21 @@ export function VisitReportsWorkspace({
           window.localStorage.setItem(
             VISIT_REPORT_DRAFT_STORAGE_KEY,
             JSON.stringify({
-              draft: {
-                ...draft,
-                reportId: result.id,
-                title: result.title,
-              },
+              draft: savedDraft,
               storeSearch,
               currentStep,
               savedAt: new Date().toISOString(),
             })
           )
         }
+
+        if (result.status === 'final' && !result.warning) {
+          if (typeof window !== 'undefined') {
+            window.location.assign(`/api/reports/visit-reports/${result.id}/pdf?mode=view`)
+          }
+          return
+        }
+
         router.refresh()
       } catch (error) {
         toast({
@@ -1398,6 +1439,277 @@ export function VisitReportsWorkspace({
                         placeholder="Describe the last theft step-by-step, including the group behaviour and escalation."
                         className="min-h-[120px]"
                       />
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <Label>People involved and injury capture</Label>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Track offenders, employees, contractors, and anyone injured so the incident record feeds the LP case view correctly.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            updatePayload((payload) => ({
+                              ...payload,
+                              incidentPeople: {
+                                ...payload.incidentPeople,
+                                people: [...payload.incidentPeople.people, createEmptyIncidentPerson()],
+                              },
+                            }))
+                          }
+                          disabled={!canUseBuilder}
+                          className="min-h-[40px] rounded-xl"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add person
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        <div className="space-y-2">
+                          <Label>Was anyone injured during the incident?</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { value: true, label: 'Yes' },
+                              { value: false, label: 'No' },
+                            ].map((option) => {
+                              const isActive = draft.payload.incidentPeople.someoneInjured === option.value
+                              return (
+                                <button
+                                  key={option.label}
+                                  type="button"
+                                  onClick={() =>
+                                    updatePayload((payload) => ({
+                                      ...payload,
+                                      incidentPeople: {
+                                        ...payload.incidentPeople,
+                                        someoneInjured: option.value,
+                                      },
+                                    }))
+                                  }
+                                  disabled={!canUseBuilder}
+                                  className={cn(
+                                    'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                                    isActive
+                                      ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                  )}
+                                >
+                                  {option.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {draft.payload.incidentPeople.someoneInjured ? (
+                          <div className="space-y-2">
+                            <Label>Injury summary</Label>
+                            <Textarea
+                              value={draft.payload.incidentPeople.injurySummary}
+                              onChange={(event) =>
+                                updatePayload((payload) => ({
+                                  ...payload,
+                                  incidentPeople: {
+                                    ...payload.incidentPeople,
+                                    injurySummary: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Record who was injured, what happened, and any immediate treatment or escalation."
+                              className="min-h-[100px]"
+                            />
+                          </div>
+                        ) : null}
+
+                        {draft.payload.incidentPeople.people.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+                            No people logged yet. Add the offender group, affected employee, or any other person involved.
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {draft.payload.incidentPeople.people.map((person, index) => (
+                              <div key={`incident-person-${index}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                  <div className="text-sm font-semibold text-slate-900">
+                                    Person {index + 1}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      updatePayload((payload) => ({
+                                        ...payload,
+                                        incidentPeople: {
+                                          ...payload.incidentPeople,
+                                          people: payload.incidentPeople.people.filter((_, personIndex) => personIndex !== index),
+                                        },
+                                      }))
+                                    }
+                                    disabled={!canUseBuilder}
+                                    className="h-8 px-2 text-slate-500 hover:text-rose-600"
+                                  >
+                                    <Trash2 className="mr-1 h-4 w-4" />
+                                    Remove
+                                  </Button>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label>Name</Label>
+                                    <Input
+                                      value={person.name}
+                                      onChange={(event) =>
+                                        updatePayload((payload) => ({
+                                          ...payload,
+                                          incidentPeople: {
+                                            ...payload.incidentPeople,
+                                            people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                              personIndex === index
+                                                ? { ...entry, name: event.target.value }
+                                                : entry
+                                            ),
+                                          },
+                                        }))
+                                      }
+                                      placeholder="Name or identifier"
+                                      className="min-h-[44px]"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label>Role</Label>
+                                    <Select
+                                      value={person.role}
+                                      onValueChange={(value) =>
+                                        updatePayload((payload) => ({
+                                          ...payload,
+                                          incidentPeople: {
+                                            ...payload.incidentPeople,
+                                            people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                              personIndex === index
+                                                ? { ...entry, role: value as VisitReportIncidentPersonRole }
+                                                : entry
+                                            ),
+                                          },
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger className="min-h-[44px]">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {INCIDENT_PERSON_ROLE_OPTIONS.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="mt-4 space-y-2">
+                                  <Label>Involvement</Label>
+                                  <Textarea
+                                    value={person.involvement}
+                                    onChange={(event) =>
+                                      updatePayload((payload) => ({
+                                        ...payload,
+                                        incidentPeople: {
+                                          ...payload.incidentPeople,
+                                          people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                            personIndex === index
+                                              ? { ...entry, involvement: event.target.value }
+                                              : entry
+                                          ),
+                                        },
+                                      }))
+                                    }
+                                    placeholder="Describe how this person was involved."
+                                    className="min-h-[88px]"
+                                  />
+                                </div>
+
+                                <div className="mt-4 space-y-3">
+                                  <Label>Was this person injured?</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {[
+                                      { value: true, label: 'Yes' },
+                                      { value: false, label: 'No' },
+                                    ].map((option) => {
+                                      const isActive = person.injured === option.value
+                                      return (
+                                        <button
+                                          key={`${index}-${option.label}`}
+                                          type="button"
+                                          onClick={() =>
+                                            updatePayload((payload) => ({
+                                              ...payload,
+                                              incidentPeople: {
+                                                ...payload.incidentPeople,
+                                                someoneInjured:
+                                                  option.value || payload.incidentPeople.someoneInjured,
+                                                people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                                  personIndex === index
+                                                    ? {
+                                                        ...entry,
+                                                        injured: option.value,
+                                                        injuryDetails: option.value ? entry.injuryDetails : '',
+                                                      }
+                                                    : entry
+                                                ),
+                                              },
+                                            }))
+                                          }
+                                          disabled={!canUseBuilder}
+                                          className={cn(
+                                            'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                                            isActive
+                                              ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
+                                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                          )}
+                                        >
+                                          {option.label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+
+                                  {person.injured ? (
+                                    <div className="space-y-2">
+                                      <Label>Injury details</Label>
+                                      <Textarea
+                                        value={person.injuryDetails}
+                                        onChange={(event) =>
+                                          updatePayload((payload) => ({
+                                            ...payload,
+                                            incidentPeople: {
+                                              ...payload.incidentPeople,
+                                              someoneInjured: true,
+                                              people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                                personIndex === index
+                                                  ? { ...entry, injuryDetails: event.target.value }
+                                                  : entry
+                                              ),
+                                            },
+                                          }))
+                                        }
+                                        placeholder="Capture the injury, treatment, and escalation for this person."
+                                        className="min-h-[88px]"
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
@@ -2180,7 +2492,7 @@ export function VisitReportsWorkspace({
                         ) : null}
 
                         <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#232154]">
-                          Load into editor
+                          {report.status === 'final' ? 'Open PDF' : 'Load into editor'}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </div>
                       </button>
@@ -2246,7 +2558,7 @@ export function VisitReportsWorkspace({
                 ? isSaving
                   ? 'Saving...'
                   : draft.status === 'final'
-                    ? 'Save & Create Follow-ups'
+                    ? 'Save Final Report'
                     : 'Save Draft'
                 : 'Next'}
               {isLastStep ? <Save className="ml-2 h-4 w-4" /> : <ChevronRight className="ml-2 h-4 w-4" />}

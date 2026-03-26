@@ -66,11 +66,43 @@ async function getStoreIncidents(storeIds: string[]) {
   const [openResult, closedResult] = await Promise.all([
     supabase
       .from('tfs_incidents')
-      .select('id, reference_no, summary, status, closed_at, occurred_at, severity')
+      .select(`
+        id,
+        reference_no,
+        summary,
+        description,
+        incident_category,
+        status,
+        closed_at,
+        occurred_at,
+        severity,
+        riddor_reportable,
+        persons_involved,
+        injury_details,
+        witnesses,
+        assigned_investigator_user_id,
+        target_close_date
+      `)
       .in('store_id', storeIds),
     supabase
       .from('tfs_closed_incidents')
-      .select('id, reference_no, summary, status, closed_at, occurred_at, severity')
+      .select(`
+        id,
+        reference_no,
+        summary,
+        description,
+        incident_category,
+        status,
+        closed_at,
+        occurred_at,
+        severity,
+        riddor_reportable,
+        persons_involved,
+        injury_details,
+        witnesses,
+        assigned_investigator_user_id,
+        target_close_date
+      `)
       .in('store_id', storeIds),
   ])
 
@@ -92,6 +124,21 @@ async function getStoreIncidents(storeIds: string[]) {
     const bTime = b?.occurred_at ? new Date(b.occurred_at).getTime() : 0
     return bTime - aTime
   })
+}
+
+async function getIncidentProfiles() {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('fa_profiles')
+    .select('id, full_name')
+    .order('full_name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching incident profiles:', error)
+    return []
+  }
+
+  return data || []
 }
 
 async function getStoreActions(storeIds: string[]) {
@@ -135,6 +182,7 @@ async function getStoreActions(storeIds: string[]) {
         incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
       `)
       .in('incident_id', incidentIds)
+      .not('title', 'ilike', 'Implement visit report actions:%')
       .order('due_date', { ascending: false })
 
     if (error) {
@@ -429,11 +477,12 @@ export default async function StoreCrmPage({
 
   const mergedStoreIds = getStoreIdsIncludingAliases(params.id, mergeContext)
 
-  const [incidents, actions, crmData, visitData] = await Promise.all([
+  const [incidents, actions, crmData, visitData, profiles] = await Promise.all([
     getStoreIncidents(mergedStoreIds),
     getStoreActions(mergedStoreIds),
     getStoreCrmData(params.id),
     getStoreVisits(mergedStoreIds),
+    getIncidentProfiles(),
   ])
 
   const canEdit = profile.role === 'admin' || profile.role === 'ops'
@@ -447,6 +496,7 @@ export default async function StoreCrmPage({
       visitsAvailable={visitData.isAvailable}
       visitsUnavailableMessage={visitData.unavailableMessage}
       userRole={profile.role}
+      profiles={profiles}
       crmData={crmData}
       canEdit={canEdit}
     />

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -24,10 +26,22 @@ type InvestigationFormValues = z.infer<typeof investigationSchema>
 interface InvestigationFormProps {
   incidentId: string
   investigation?: any
+  profiles?: Array<{ id: string; full_name: string | null }>
+  defaultLeadInvestigatorUserId?: string | null
   onSuccess?: () => void
 }
 
-export function InvestigationForm({ incidentId, investigation, onSuccess }: InvestigationFormProps) {
+export function InvestigationForm({
+  incidentId,
+  investigation,
+  profiles = [],
+  defaultLeadInvestigatorUserId,
+  onSuccess,
+}: InvestigationFormProps) {
+  const router = useRouter()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const form = useForm<InvestigationFormValues>({
     resolver: zodResolver(investigationSchema),
     defaultValues: investigation ? {
@@ -41,7 +55,7 @@ export function InvestigationForm({ incidentId, investigation, onSuccess }: Inve
     } : {
       investigation_type: 'light_touch',
       status: 'not_started',
-      lead_investigator_user_id: '',
+      lead_investigator_user_id: defaultLeadInvestigatorUserId || '',
       root_cause: '',
       contributing_factors: '',
       findings: '',
@@ -50,6 +64,8 @@ export function InvestigationForm({ incidentId, investigation, onSuccess }: Inve
   })
 
   const onSubmit = async (values: InvestigationFormValues) => {
+    setIsSubmitting(true)
+    setError(null)
     try {
       if (investigation) {
         await updateInvestigation(investigation.id, values)
@@ -57,8 +73,11 @@ export function InvestigationForm({ incidentId, investigation, onSuccess }: Inve
         await createInvestigation(incidentId, values)
       }
       onSuccess?.()
+      router.refresh()
     } catch (error) {
       console.error('Failed to save investigation:', error)
+      setError(error instanceof Error ? error.message : 'Failed to save investigation.')
+      setIsSubmitting(false)
     }
   }
 
@@ -104,6 +123,31 @@ export function InvestigationForm({ incidentId, investigation, onSuccess }: Inve
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="awaiting_actions">Awaiting Actions</SelectItem>
                   <SelectItem value="complete">Complete</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="lead_investigator_user_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Lead Investigator</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a lead investigator" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.id}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -167,12 +211,21 @@ export function InvestigationForm({ incidentId, investigation, onSuccess }: Inve
           )}
         />
 
-        <Button type="submit" className="w-full">
-          {investigation ? 'Update Investigation' : 'Create Investigation'}
+        {error ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting
+            ? 'Saving...'
+            : investigation
+              ? 'Update Investigation'
+              : 'Create Investigation'}
         </Button>
       </form>
     </Form>
   )
 }
-
 

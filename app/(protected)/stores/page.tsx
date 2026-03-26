@@ -96,6 +96,7 @@ async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMerg
         incident:tfs_incidents!tfs_actions_incident_id_fkey(reference_no)
       `)
       .in('incident_id', incidentIds)
+      .not('title', 'ilike', 'Implement visit report actions:%')
 
     if (error) {
       console.error('Error fetching incident-linked store actions:', error)

@@ -3,6 +3,14 @@
 import { revalidatePath } from 'next/cache'
 
 import { logActivity } from '@/lib/activity-log'
+import {
+  buildVisitReportIncidentMeta,
+  buildVisitReportInjuryDetails,
+  buildVisitReportSourceMarker,
+  buildVisitReportStoreVisitDraft,
+  getVisitReportOccurredAt,
+  toIncidentSeverity,
+} from '@/lib/reports/visit-report-follow-ups'
 import { createClient } from '@/lib/supabase/server'
 import { formatVisitReportsActionError } from '@/lib/visit-reports-schema'
 import {
@@ -14,7 +22,7 @@ import {
   type VisitReportStatus,
   type VisitReportType,
 } from '@/lib/reports/visit-report-types'
-import type { FaIncidentCategory, FaSeverity, FaActionPriority } from '@/types/db'
+import type { FaIncidentCategory } from '@/types/db'
 
 const WRITABLE_ROLES = new Set(['admin', 'ops'])
 const VALID_REPORT_TYPES = new Set<VisitReportType>(VISIT_REPORT_TYPE_OPTIONS.map((option) => option.value))
@@ -58,17 +66,15 @@ function getErrorCode(error: unknown): string {
   return typeof code === 'string' ? code.toUpperCase() : ''
 }
 
-function isFollowUpTablesUnavailable(error: unknown): boolean {
+function isTableUnavailable(error: unknown, tableNames: string[]): boolean {
   const haystack = getErrorText(error).toLowerCase()
   if (!haystack) return false
 
-  const mentionsFollowUpTable =
-    haystack.includes('tfs_incidents') ||
-    haystack.includes('public.tfs_incidents') ||
-    haystack.includes('tfs_actions') ||
-    haystack.includes('public.tfs_actions')
+  const mentionsTable = tableNames.some(
+    (tableName) => haystack.includes(tableName) || haystack.includes(`public.${tableName}`)
+  )
 
-  if (!mentionsFollowUpTable) return false
+  if (!mentionsTable) return false
 
   const code = getErrorCode(error)
   if (code === 'PGRST205' || code === '42P01') {
@@ -80,6 +86,18 @@ function isFollowUpTablesUnavailable(error: unknown): boolean {
     haystack.includes('schema cache') ||
     haystack.includes('does not exist')
   )
+}
+
+function isFollowUpTablesUnavailable(error: unknown): boolean {
+  return isTableUnavailable(error, ['tfs_incidents', 'tfs_actions'])
+}
+
+function isStoreVisitsTableUnavailable(error: unknown): boolean {
+  return isTableUnavailable(error, ['tfs_store_visits'])
+}
+
+function joinSections(parts: Array<string | null | undefined>): string {
+  return parts.map((part) => String(part || '').trim()).filter(Boolean).join('\n\n')
 }
 
 function normalizeDate(value: string): string {
@@ -96,20 +114,6 @@ function normalizeDate(value: string): string {
   return trimmed.slice(0, 10)
 }
 
-function toIncidentSeverity(riskRating: TargetedTheftVisitPayload['riskRating']): FaSeverity {
-  if (riskRating === 'critical') return 'critical'
-  if (riskRating === 'high') return 'high'
-  if (riskRating === 'medium') return 'medium'
-  return 'low'
-}
-
-function toActionPriority(riskRating: TargetedTheftVisitPayload['riskRating']): FaActionPriority {
-  if (riskRating === 'critical') return 'urgent'
-  if (riskRating === 'high') return 'high'
-  if (riskRating === 'medium') return 'medium'
-  return 'low'
-}
-
 function addDays(value: string, days: number): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
@@ -121,7 +125,7 @@ function addDays(value: string, days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
-async function createLinkedIncidentAndAction(params: {
+async function syncLinkedIncidentAndAction(params: {
   supabase: ReturnType<typeof createClient>
   userId: string
   storeId: string
@@ -130,6 +134,7 @@ async function createLinkedIncidentAndAction(params: {
   visitDate: string
   summary: string | null
   payload: TargetedTheftVisitPayload
+  reportCreatedAt?: string | null
 }) {
   const {
     supabase,
@@ -140,19 +145,34 @@ async function createLinkedIncidentAndAction(params: {
     visitDate,
     summary,
     payload,
+    reportCreatedAt,
   } = params
   const severity = toIncidentSeverity(payload.riskRating)
-  const actionPriority = toActionPriority(payload.riskRating)
-  const occurredAt = `${visitDate}T12:00:00.000Z`
-  const dueDate = addDays(visitDate, 7)
+  const occurredAt = getVisitReportOccurredAt({
+    visitDate,
+    payload,
+    fallbackIso: reportCreatedAt || null,
+  })
 
-  const sourceMarker = `Source visit report ID: ${reportId}`
-  const { data: existingIncident, error: existingIncidentError } = await supabase
+  const sourceMarker = buildVisitReportSourceMarker(reportId)
+  const incidentDescription = joinSections([
+    summary,
+    payload.incidentOverview.summary,
+    payload.riskJustification ? `Risk justification: ${payload.riskJustification}` : null,
+    payload.recommendations.details
+      ? `Recommendations: ${payload.recommendations.details}`
+      : null,
+    sourceMarker,
+  ]) || null
+  const incidentMeta = buildVisitReportIncidentMeta({ reportId, payload })
+  const injuryDetails = buildVisitReportInjuryDetails(payload)
+  const { data: existingIncidents, error: existingIncidentError } = await supabase
     .from('tfs_incidents')
     .select('id')
     .eq('store_id', storeId)
     .ilike('description', `%${sourceMarker}%`)
-    .maybeSingle()
+    .order('created_at', { ascending: false })
+    .limit(1)
 
   if (existingIncidentError) {
     if (isFollowUpTablesUnavailable(existingIncidentError)) {
@@ -165,17 +185,35 @@ async function createLinkedIncidentAndAction(params: {
     throw new Error(toErrorMessage(existingIncidentError))
   }
 
+  const existingIncident = existingIncidents?.[0] || null
   let incidentId = existingIncident?.id || null
-  if (!incidentId) {
+  if (incidentId) {
+    const { error: incidentUpdateError } = await supabase
+      .from('tfs_incidents')
+      .update({
+        severity,
+        status: 'under_investigation',
+        summary: `Visit report follow-up: ${reportTitle}`,
+        description: incidentDescription,
+        occurred_at: occurredAt,
+        persons_involved: incidentMeta,
+        injury_details: injuryDetails,
+      })
+      .eq('id', incidentId)
+
+    if (incidentUpdateError) {
+      if (isFollowUpTablesUnavailable(incidentUpdateError)) {
+        console.warn(
+          'Visit report follow-up skipped: incidents/actions tables unavailable.',
+          incidentUpdateError
+        )
+        return
+      }
+      throw new Error(toErrorMessage(incidentUpdateError))
+    }
+  } else {
     const { data: refData } = await supabase.rpc('tfs_generate_incident_reference')
     const referenceNo = refData || `INC-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
-
-    const incidentDescriptionParts = [
-      summary || '',
-      payload.riskJustification?.trim() || '',
-      payload.recommendations.details?.trim() || '',
-      sourceMarker,
-    ].filter(Boolean)
 
     const { data: incident, error: incidentError } = await supabase
       .from('tfs_incidents')
@@ -186,15 +224,13 @@ async function createLinkedIncidentAndAction(params: {
         incident_category: 'security' as FaIncidentCategory,
         severity,
         summary: `Visit report follow-up: ${reportTitle}`,
-        description: incidentDescriptionParts.join('\n\n') || null,
+        description: incidentDescription,
         occurred_at: occurredAt,
         reported_at: new Date().toISOString(),
-        status: 'open',
+        status: 'under_investigation',
         riddor_reportable: false,
-        persons_involved: {
-          source: 'visit_report',
-          visit_report_id: reportId,
-        },
+        persons_involved: incidentMeta,
+        injury_details: injuryDetails,
       })
       .select('id')
       .single()
@@ -215,55 +251,191 @@ async function createLinkedIncidentAndAction(params: {
     incidentId = incident.id
   }
 
-  const { data: existingActions, error: existingActionsError } = await supabase
+  // Product decision: do not auto-create follow-up actions from visit reports.
+  // If legacy auto-created actions exist (matched by source marker), remove them so users can add actions manually.
+  const { error: deleteLegacyActionError } = await supabase
     .from('tfs_actions')
-    .select('id')
+    .delete()
     .eq('incident_id', incidentId)
+    .ilike('title', 'Implement visit report actions:%')
+
+  if (deleteLegacyActionError) {
+    if (isFollowUpTablesUnavailable(deleteLegacyActionError)) {
+      console.warn(
+        'Visit report follow-up action cleanup skipped: incidents/actions tables unavailable.',
+        deleteLegacyActionError
+      )
+      return
+    }
+    throw new Error(toErrorMessage(deleteLegacyActionError))
+  }
+}
+
+async function syncLinkedStoreVisit(params: {
+  supabase: ReturnType<typeof createClient>
+  userId: string
+  storeId: string
+  reportId: string
+  reportTitle: string
+  visitDate: string
+  summary: string | null
+  payload: TargetedTheftVisitPayload
+  reportCreatedAt?: string | null
+}) {
+  const {
+    supabase,
+    userId,
+    storeId,
+    reportId,
+    reportTitle,
+    visitDate,
+    summary,
+    payload,
+    reportCreatedAt,
+  } = params
+  const visitDraft = buildVisitReportStoreVisitDraft({
+    reportId,
+    reportTitle,
+    visitDate,
+    summary,
+    payload,
+    fallbackVisitedAt: reportCreatedAt || null,
+  })
+  const sourceMarker = buildVisitReportSourceMarker(reportId)
+
+  const { data: existingVisits, error: existingVisitError } = await supabase
+    .from('tfs_store_visits')
+    .select('id')
+    .eq('store_id', storeId)
+    .ilike('notes', `%${sourceMarker}%`)
+    .order('visited_at', { ascending: false })
     .limit(1)
 
-  if (existingActionsError) {
-    if (isFollowUpTablesUnavailable(existingActionsError)) {
+  if (existingVisitError) {
+    if (isStoreVisitsTableUnavailable(existingVisitError)) {
       console.warn(
-        'Visit report follow-up skipped: incidents/actions tables unavailable.',
-        existingActionsError
+        'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+        existingVisitError
       )
       return
     }
-    throw new Error(toErrorMessage(existingActionsError))
+    throw new Error(toErrorMessage(existingVisitError))
   }
 
-  if ((existingActions || []).length > 0) return
+  const visitPayload = {
+    visit_type: visitDraft.visitType,
+    visited_at: visitDraft.visitedAt || reportCreatedAt || new Date().toISOString(),
+    completed_activity_keys: visitDraft.completedActivityKeys,
+    completed_activity_details: visitDraft.completedActivityDetails,
+    completed_activity_payloads: visitDraft.completedActivityPayloads,
+    notes: visitDraft.notes,
+    follow_up_required: visitDraft.followUpRequired,
+    need_score_snapshot: visitDraft.needScoreSnapshot,
+    need_level_snapshot: visitDraft.needLevelSnapshot,
+    need_reasons_snapshot: visitDraft.needReasonsSnapshot,
+  }
 
-  const actionDescriptionParts = [
-    'Implement agreed mitigations from the visit report.',
-    payload.immediateActionsTaken.actionsCompleted?.trim() || '',
-    payload.recommendations.details?.trim() || '',
-    sourceMarker,
-  ].filter(Boolean)
+  const existingVisit = existingVisits?.[0]
+  if (existingVisit?.id) {
+    const { error: visitUpdateError } = await supabase
+      .from('tfs_store_visits')
+      .update(visitPayload)
+      .eq('id', existingVisit.id)
 
-  const { error: actionError } = await supabase
-    .from('tfs_actions')
+    if (visitUpdateError) {
+      if (isStoreVisitsTableUnavailable(visitUpdateError)) {
+        console.warn(
+          'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+          visitUpdateError
+        )
+        return
+      }
+      throw new Error(toErrorMessage(visitUpdateError))
+    }
+
+    return
+  }
+
+  const { data: visit, error: visitInsertError } = await supabase
+    .from('tfs_store_visits')
     .insert({
-      incident_id: incidentId,
-      title: `Implement visit report actions: ${reportTitle}`,
-      description: actionDescriptionParts.join('\n\n'),
-      priority: actionPriority,
-      assigned_to_user_id: userId,
-      due_date: dueDate,
-      status: 'open',
-      evidence_required: false,
+      ...visitPayload,
+      store_id: storeId,
+      created_by_user_id: userId,
     })
+    .select('id, visited_at, visit_type')
+    .single()
 
-  if (actionError) {
-    if (isFollowUpTablesUnavailable(actionError)) {
+  if (visitInsertError) {
+    if (isStoreVisitsTableUnavailable(visitInsertError)) {
       console.warn(
-        'Visit report follow-up skipped: incidents/actions tables unavailable.',
-        actionError
+        'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+        visitInsertError
       )
       return
     }
-    throw new Error(toErrorMessage(actionError))
+    throw new Error(toErrorMessage(visitInsertError))
   }
+
+  try {
+    await logActivity('store', storeId, 'VISIT_LOGGED', {
+      visit_id: visit.id,
+      visit_type: visit.visit_type,
+      visited_at: visit.visited_at,
+      completed_activity_keys: visitDraft.completedActivityKeys,
+      completed_activity_details: visitDraft.completedActivityDetails,
+      completed_activity_payloads: visitDraft.completedActivityPayloads,
+      follow_up_required: visitDraft.followUpRequired,
+      need_score_snapshot: visitDraft.needScoreSnapshot,
+      need_level_snapshot: visitDraft.needLevelSnapshot,
+      source: 'visit_report',
+      source_report_id: reportId,
+    })
+  } catch (activityError) {
+    console.error('Failed to log linked store visit activity:', activityError)
+  }
+}
+
+async function syncFinalVisitReportRecords(params: {
+  supabase: ReturnType<typeof createClient>
+  userId: string
+  storeId: string
+  reportId: string
+  reportTitle: string
+  visitDate: string
+  summary: string | null
+  payload: TargetedTheftVisitPayload
+  reportCreatedAt?: string | null
+}) {
+  const warnings: string[] = []
+
+  try {
+    await syncLinkedIncidentAndAction(params)
+  } catch (error) {
+    if (isFollowUpTablesUnavailable(error)) {
+      console.warn(
+        'Visit report follow-up skipped: incidents/actions tables unavailable.',
+        error
+      )
+    } else {
+      warnings.push(`Incident/action sync failed: ${toErrorMessage(error)}`)
+      console.error('Visit report incident/action sync failed:', error)
+    }
+  }
+
+  try {
+    await syncLinkedStoreVisit(params)
+  } catch (error) {
+    if (isStoreVisitsTableUnavailable(error)) {
+      console.warn('Visit report visit-log sync skipped: tfs_store_visits unavailable.', error)
+    } else {
+      warnings.push(`Visit tracker sync failed: ${toErrorMessage(error)}`)
+      console.error('Visit report store visit sync failed:', error)
+    }
+  }
+
+  if (warnings.length === 0) return null
+  return `Report saved, but linked LP records could not fully sync: ${warnings.join(' ')}`
 }
 
 export async function saveVisitReport(input: SaveVisitReportInput) {
@@ -366,34 +538,26 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     }
 
     if (input.status === 'final') {
-      try {
-        await createLinkedIncidentAndAction({
-          supabase,
-          userId: user.id,
-          storeId: input.storeId,
-          reportId: report.id,
-          reportTitle: report.title,
-          visitDate: report.visit_date,
-          summary: report.summary || null,
-          payload: normalizedPayload,
-        })
-      } catch (linkedError) {
-        if (isFollowUpTablesUnavailable(linkedError)) {
-          console.warn(
-            'Visit report follow-up skipped: incidents/actions tables unavailable.',
-            linkedError
-          )
-        } else {
-          linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
-          console.error('Visit report follow-up creation failed:', linkedError)
-        }
-      }
+      linkedFollowUpWarning = await syncFinalVisitReportRecords({
+        supabase,
+        userId: user.id,
+        storeId: input.storeId,
+        reportId: report.id,
+        reportTitle: report.title,
+        visitDate: report.visit_date,
+        summary: report.summary || null,
+        payload: normalizedPayload,
+        reportCreatedAt: report.created_at,
+      })
     }
 
     revalidatePath('/reports')
+    revalidatePath('/stores')
     revalidatePath(`/stores/${input.storeId}`)
     revalidatePath('/incidents')
     revalidatePath('/actions')
+    revalidatePath('/visit-tracker')
+    revalidatePath('/dashboard')
 
     return {
       id: report.id,
@@ -418,28 +582,17 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   }
 
   if (input.status === 'final') {
-    try {
-      await createLinkedIncidentAndAction({
-        supabase,
-        userId: user.id,
-        storeId: input.storeId,
-        reportId: report.id,
-        reportTitle: report.title,
-        visitDate: report.visit_date,
-        summary: report.summary || null,
-        payload: normalizedPayload,
-      })
-    } catch (linkedError) {
-      if (isFollowUpTablesUnavailable(linkedError)) {
-        console.warn(
-          'Visit report follow-up skipped: incidents/actions tables unavailable.',
-          linkedError
-        )
-      } else {
-        linkedFollowUpWarning = `Report saved, but follow-up incident/action creation failed: ${toErrorMessage(linkedError)}`
-        console.error('Visit report follow-up creation failed:', linkedError)
-      }
-    }
+    linkedFollowUpWarning = await syncFinalVisitReportRecords({
+      supabase,
+      userId: user.id,
+      storeId: input.storeId,
+      reportId: report.id,
+      reportTitle: report.title,
+      visitDate: report.visit_date,
+      summary: report.summary || null,
+      payload: normalizedPayload,
+      reportCreatedAt: report.created_at,
+    })
   }
 
   try {
@@ -454,9 +607,12 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   }
 
   revalidatePath('/reports')
+  revalidatePath('/stores')
   revalidatePath(`/stores/${input.storeId}`)
   revalidatePath('/incidents')
   revalidatePath('/actions')
+  revalidatePath('/visit-tracker')
+  revalidatePath('/dashboard')
 
   return {
     id: report.id,

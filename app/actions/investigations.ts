@@ -44,6 +44,20 @@ export async function createInvestigation(incidentId: string, input: CreateInves
     new: investigation,
   })
 
+  const { data: currentIncident } = await supabase
+    .from('tfs_incidents')
+    .select('status')
+    .eq('id', incidentId)
+    .single()
+
+  if (currentIncident && currentIncident.status === 'open') {
+    await supabase
+      .from('tfs_incidents')
+      .update({ status: 'under_investigation' })
+      .eq('id', incidentId)
+  }
+
+  revalidatePath('/incidents')
   revalidatePath(`/incidents/${incidentId}`)
   return investigation
 }
@@ -90,8 +104,23 @@ export async function updateInvestigation(id: string, updates: Partial<CreateInv
     new: investigation,
   })
 
+  if (updates.status === 'in_progress') {
+    const { data: currentIncident } = await supabase
+      .from('tfs_incidents')
+      .select('status')
+      .eq('id', investigation.incident_id)
+      .single()
+
+    if (currentIncident && currentIncident.status === 'open') {
+      await supabase
+        .from('tfs_incidents')
+        .update({ status: 'under_investigation' })
+        .eq('id', investigation.incident_id)
+    }
+  }
+
+  revalidatePath('/incidents')
   revalidatePath(`/incidents/${investigation.incident_id}`)
   return investigation
 }
-
 
