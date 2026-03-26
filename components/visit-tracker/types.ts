@@ -1,10 +1,23 @@
 import type {
+  StoreVisitActivityDetails,
   StoreVisitActivityKey,
+  StoreVisitActivityPayloads,
   StoreVisitNeedLevel,
   StoreVisitType,
 } from '@/lib/visit-needs'
 
 export type VisitState = 'planned' | 'recent' | 'random' | 'none'
+
+export interface StoreVisitEvidenceFile {
+  id: string
+  activityKey: StoreVisitActivityKey
+  fileName: string
+  fileType: string | null
+  fileSize: number | null
+  filePath: string
+  createdAt: string
+  downloadUrl: string | null
+}
 
 export interface VisitHistoryEntry {
   id: string
@@ -12,6 +25,9 @@ export interface VisitHistoryEntry {
   visitedAt: string
   visitType: StoreVisitType | 'route_completion'
   completedActivityKeys: StoreVisitActivityKey[]
+  completedActivityDetails: StoreVisitActivityDetails
+  completedActivityPayloads: StoreVisitActivityPayloads
+  evidenceFiles: StoreVisitEvidenceFile[]
   notes: string | null
   createdByName: string | null
   needScoreSnapshot: number | null
@@ -23,6 +39,8 @@ export interface VisitTrackerRow {
   storeCode: string | null
   storeName: string
   region: string | null
+  city: string | null
+  postcode: string | null
   assignedManager: string | null
   lastVisitDate: string | null
   lastVisitType: string | null

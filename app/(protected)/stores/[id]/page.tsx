@@ -5,12 +5,28 @@ import { StoreDetailWorkspace } from '@/components/stores/store-detail-workspace
 import { getMissingStoreCrmTables, getStoreCrmUnavailableMessage } from '@/lib/store-crm-schema'
 import { getStoreVisitsUnavailableMessage, isMissingStoreVisitsTableError } from '@/lib/store-visits-schema'
 import {
+  isStoreVisitActivityKey,
+  normalizeStoreVisitActivityDetails,
+  normalizeStoreVisitActivityPayloads,
+} from '@/lib/visit-needs'
+import {
   buildStoreMergeContext,
   getStoreIdsIncludingAliases,
   shouldHideStore,
   StoreMergeContext,
 } from '@/lib/store-normalization'
 import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
+
+type StoreVisitEvidenceRow = {
+  id: string
+  visit_id: string
+  activity_key: string
+  file_name: string
+  file_path: string
+  file_type: string | null
+  file_size: number | null
+  created_at: string
+}
 
 async function getStore(storeId: string) {
   const supabase = createClient()
@@ -242,7 +258,9 @@ async function getStoreVisits(storeIds: string[]) {
   const [storeVisitsResult, routeVisitLogsResult] = await Promise.all([
     supabase
       .from('tfs_store_visits')
-      .select('id, store_id, visited_at, visit_type, completed_activity_keys, notes, need_score_snapshot, need_level_snapshot, created_by_user_id')
+      .select(
+        'id, store_id, visited_at, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, need_score_snapshot, need_level_snapshot, created_by_user_id'
+      )
       .in('store_id', storeIds)
       .order('visited_at', { ascending: false }),
     supabase
@@ -271,8 +289,10 @@ async function getStoreVisits(storeIds: string[]) {
   }
 
   const userIds = new Set<string>()
+  const visitIds: string[] = []
   ;(storeVisitsResult.data || []).forEach((visit: any) => {
     if (visit.created_by_user_id) userIds.add(visit.created_by_user_id)
+    if (visit.id) visitIds.push(visit.id)
   })
   ;(routeVisitLogsResult.data || []).forEach((visit: any) => {
     if (visit.performed_by_user_id) userIds.add(visit.performed_by_user_id)
@@ -294,25 +314,83 @@ async function getStoreVisits(storeIds: string[]) {
     }
   }
 
-  const visits: VisitHistoryEntry[] = [
-    ...((storeVisitsResult.data || []) as any[]).map((visit) => ({
+  const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
+
+  if (visitIds.length > 0) {
+    const { data: evidenceRows, error: evidenceError } = await supabase
+      .from('tfs_store_visit_evidence')
+      .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
+      .in('visit_id', visitIds)
+      .order('created_at', { ascending: false })
+
+    if (evidenceError) {
+      console.error('Error fetching store visit evidence:', evidenceError)
+    } else {
+      const signedUrls = await Promise.all(
+        ((evidenceRows || []) as StoreVisitEvidenceRow[]).map(async (row) => {
+          const { data } = await supabase.storage.from('tfs-attachments').createSignedUrl(row.file_path, 3600)
+          return [row.id, data?.signedUrl || null] as const
+        })
+      )
+
+      const signedUrlMap = new Map<string, string | null>(signedUrls)
+
+      for (const row of (evidenceRows || []) as StoreVisitEvidenceRow[]) {
+        if (!isStoreVisitActivityKey(row.activity_key)) continue
+
+        const existing = evidenceByVisitId.get(row.visit_id) || []
+        existing.push({
+          id: row.id,
+          activityKey: row.activity_key,
+          fileName: row.file_name,
+          fileType: row.file_type || null,
+          fileSize: typeof row.file_size === 'number' ? row.file_size : null,
+          filePath: row.file_path,
+          createdAt: row.created_at,
+          downloadUrl: signedUrlMap.get(row.id) || null,
+        })
+        evidenceByVisitId.set(row.visit_id, existing)
+      }
+    }
+  }
+
+  const visitsFromLogs: VisitHistoryEntry[] = ((storeVisitsResult.data || []) as any[]).map((visit) => {
+    const completedActivityKeys = Array.isArray(visit.completed_activity_keys) ? visit.completed_activity_keys : []
+
+    return {
       id: visit.id,
       source: 'visit_log' as const,
       visitedAt: visit.visited_at,
       visitType: visit.visit_type,
-      completedActivityKeys: Array.isArray(visit.completed_activity_keys) ? visit.completed_activity_keys : [],
+      completedActivityKeys,
+      completedActivityDetails: normalizeStoreVisitActivityDetails(
+        visit.completed_activity_details,
+        completedActivityKeys
+      ),
+      completedActivityPayloads: normalizeStoreVisitActivityPayloads(
+        visit.completed_activity_payloads,
+        completedActivityKeys
+      ),
+      evidenceFiles: evidenceByVisitId.get(visit.id) || [],
       notes: visit.notes || null,
       createdByName: userMap.get(visit.created_by_user_id) || null,
       needScoreSnapshot:
         typeof visit.need_score_snapshot === 'number' ? visit.need_score_snapshot : null,
       needLevelSnapshot: visit.need_level_snapshot || null,
-    })),
+    }
+  })
+
+  const visits: VisitHistoryEntry[] = [
+    ...visitsFromLogs,
     ...((routeVisitLogsResult.data || []) as any[]).map((visit) => ({
       id: visit.id,
       source: 'route_completion' as const,
       visitedAt: visit.details?.completed_at || visit.created_at,
       visitType: 'route_completion' as const,
       completedActivityKeys: [],
+      completedActivityDetails: {},
+      completedActivityPayloads: {},
+      evidenceFiles: [],
       notes: visit.details?.planned_date
         ? `Route visit completed for plan date ${visit.details.planned_date}.`
         : 'Route visit completed.',

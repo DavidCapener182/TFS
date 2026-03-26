@@ -2,8 +2,15 @@ function normalize(value: string | null | undefined): string {
   return String(value || '').trim().toLowerCase()
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function includesAny(text: string, terms: string[]): boolean {
-  return terms.some((term) => text.includes(term))
+  return terms.some((term) => {
+    const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegex(term)}($|[^a-z0-9])`)
+    return pattern.test(text)
+  })
 }
 
 function getPostcodePrefix(postcode: string | null | undefined): string {
@@ -32,6 +39,35 @@ export function getStoreRegionGroup(
 
   if (!combined) return 'Other'
 
+  // Explicit store/city overrides for edge cases that do not fit the broad postcode buckets.
+  if (includesAny(combined, ['chesterfield'])) {
+    return 'Yorkshire'
+  }
+
+  if (includesAny(combined, ['newcastle under lyme', 'newcastle-under-lyme', 'under lyme'])) {
+    return 'Midlands'
+  }
+
+  if (includesAny(combined, ['carlisle'])) {
+    return 'Scotland'
+  }
+
+  if (includesAny(combined, ['hereford'])) {
+    return 'Midlands'
+  }
+
+  if (includesAny(combined, ['basingstoke'])) {
+    return 'South West'
+  }
+
+  if (includesAny(combined, ['shrewsbury'])) {
+    return 'Midlands'
+  }
+
+  if (includesAny(combined, ['salisbury', 'wiltshire'])) {
+    return 'South West'
+  }
+
   if (includesAny(combined, ['scotland', 'glasgow', 'edinburgh', 'dundee', 'stirling', 'inverness', 'ayr', 'dumfries', 'livingston', 'kilbride', 'gretna'])) {
     return 'Scotland'
   }
@@ -47,15 +83,16 @@ export function getStoreRegionGroup(
     return 'North West'
   }
 
+  // Manchester-area stores sit better under the wider North West bucket.
   if (includesAny(combined, ['manchester', 'salford', 'trafford', 'rochdale', 'oldham', 'stockport', 'ashton under lyne', 'bury'])) {
-    return 'Manchester'
+    return 'North West'
   }
 
   if (includesAny(combined, ['liverpool', 'merseyside', 'birkenhead', 'bootle', 'huyton', 'st helens', 'runcorn', 'southport'])) {
     return 'Liverpool'
   }
 
-  if (includesAny(combined, ['birmingham', 'solihull', 'walsall', 'perry barr', 'bull ring', 'sutton coldfield', 'halesowen'])) {
+  if (includesAny(combined, ['birmingham', 'perry barr', 'bull ring'])) {
     return 'Birmingham'
   }
 
@@ -71,12 +108,33 @@ export function getStoreRegionGroup(
     return 'London'
   }
 
-  if (includesAny(combined, ['west midlands', 'coventry', 'wolverhampton', 'dudley', 'staffordshire', 'tamworth', 'telford', 'shropshire', 'warwickshire', 'worcestershire', 'stoke'])) {
-    return 'West Midlands'
-  }
-
-  if (includesAny(combined, ['east midlands', 'nottingham', 'leicester', 'derby', 'lincolnshire', 'northampton', 'nuneaton', 'leicestershire', 'derbyshire', 'rugby', 'spalding', 'lincoln'])) {
-    return 'East Midlands'
+  if (
+    includesAny(combined, [
+      'west midlands',
+      'east midlands',
+      'coventry',
+      'wolverhampton',
+      'dudley',
+      'staffordshire',
+      'tamworth',
+      'telford',
+      'shropshire',
+      'warwickshire',
+      'worcestershire',
+      'stoke',
+      'herefordshire',
+      'nottingham',
+      'leicester',
+      'derby',
+      'lincolnshire',
+      'northampton',
+      'leicestershire',
+      'derbyshire',
+      'spalding',
+      'lincoln',
+    ])
+  ) {
+    return 'Midlands'
   }
 
   if (includesAny(combined, ['kent', 'surrey', 'sussex', 'hampshire', 'berkshire', 'oxfordshire', 'portsmouth', 'southampton', 'brighton', 'maidstone', 'ashford', 'fareham', 'newbury', 'didcot', 'staines', 'guildford', 'redhill', 'epsom'])) {
@@ -100,8 +158,7 @@ export function getStoreRegionGroup(
   if (isPrefixIn(postcodePrefix, ['BD', 'DN', 'HD', 'HG', 'HU', 'HX', 'LS', 'S', 'WF', 'YO'])) return 'Yorkshire'
   if (isPrefixIn(postcodePrefix, ['CF', 'LL', 'NP', 'SA'])) return 'Wales'
   if (isPrefixIn(postcodePrefix, ['E', 'EC', 'N', 'NW', 'SE', 'SW', 'W', 'WC', 'CR', 'HA', 'IG', 'RM', 'UB', 'EN', 'TW'])) return 'London'
-  if (isPrefixIn(postcodePrefix, ['B', 'CV', 'DY', 'ST', 'TF', 'WS', 'WV'])) return 'West Midlands'
-  if (isPrefixIn(postcodePrefix, ['DE', 'LE', 'LN', 'NG', 'NN', 'PE'])) return 'East Midlands'
+  if (isPrefixIn(postcodePrefix, ['B', 'CV', 'DE', 'DY', 'HR', 'LE', 'LN', 'NG', 'NN', 'PE', 'ST', 'SY', 'TF', 'WS', 'WV'])) return 'Midlands'
   if (isPrefixIn(postcodePrefix, ['BN', 'BR', 'CT', 'DA', 'GU', 'HP', 'KT', 'ME', 'MK', 'OX', 'PO', 'RG', 'RH', 'SL', 'SM', 'SO', 'TN'])) return 'South East'
   if (isPrefixIn(postcodePrefix, ['BA', 'BH', 'BS', 'DT', 'EX', 'GL', 'PL', 'SN', 'TA', 'TQ', 'TR'])) return 'South West'
   if (isPrefixIn(postcodePrefix, ['AL', 'CB', 'CM', 'CO', 'IP', 'LU', 'NR', 'SG', 'SS', 'WD'])) return 'East of England'

@@ -96,7 +96,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
                 placeholder="Search by name, code, city, group, postcode"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 w-full rounded-2xl border-slate-200 bg-white pl-10 pr-4 text-base focus-visible:ring-2 focus-visible:ring-indigo-500 sm:h-10 sm:rounded-xl sm:text-sm"
+              className="h-11 w-full rounded-2xl border-slate-200 bg-white pl-12 pr-4 text-base focus-visible:ring-2 focus-visible:ring-indigo-500 sm:h-10 sm:rounded-xl sm:pl-12 sm:text-sm"
             />
           </div>
         </div>

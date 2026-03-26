@@ -772,7 +772,7 @@ export default async function IncidentsPage({
                 name="q"
                 defaultValue={searchParams.q || ''}
                 placeholder="Search incidents"
-                className="bg-white pl-10"
+                className="bg-white pl-12 sm:pl-12"
               />
             </div>
 
@@ -858,7 +858,7 @@ export default async function IncidentsPage({
                 name="q"
                 defaultValue={searchParams.q || ''}
                 placeholder="Search reference, root cause, store..."
-                className="pl-9 bg-white"
+                className="bg-white pl-12 sm:pl-12"
               />
             </div>
 

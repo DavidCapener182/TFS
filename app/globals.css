@@ -132,6 +132,69 @@
   }
 }
 
+@layer components {
+  .tfs-page-hero {
+    background: linear-gradient(145deg, #1c0259 0%, #232154 52%, #2f2b72 100%);
+    box-shadow: 0 20px 44px rgba(28, 2, 89, 0.18);
+  }
+
+  .tfs-page-hero-orb-top {
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 20rem;
+    width: 20rem;
+    transform: translate(33%, -50%);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.1);
+    filter: blur(64px);
+  }
+
+  .tfs-page-hero-orb-bottom {
+    pointer-events: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 14rem;
+    width: 14rem;
+    transform: translate(-33%, 33%);
+    border-radius: 9999px;
+    background: rgba(42, 135, 66, 0.2);
+    filter: blur(64px);
+  }
+
+  .tfs-page-hero-body {
+    position: relative;
+    z-index: 10;
+  }
+
+  .tfs-page-hero-glass {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: saturate(1.1) blur(10px);
+  }
+
+  .tfs-page-hero-pill {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(240, 235, 255, 0.92);
+    backdrop-filter: saturate(1.1) blur(10px);
+  }
+}
+
+@media (min-width: 768px) {
+  .tfs-page-hero-orb-top {
+    height: 24rem;
+    width: 24rem;
+  }
+
+  .tfs-page-hero-orb-bottom {
+    height: 16rem;
+    width: 16rem;
+  }
+}
+
 @layer utilities {
   .shadow-soft {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -596,6 +659,18 @@
 }
 
 @media (max-width: 767px) {
+  body.reports-sheet-mode header.no-print {
+    display: none !important;
+  }
+
+  body.reports-sheet-mode main {
+    padding-top: 1rem !important;
+  }
+
+  body.reports-sheet-mode nav[aria-label="Primary navigation"] {
+    display: none !important;
+  }
+
   [data-table-wrapper] {
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;

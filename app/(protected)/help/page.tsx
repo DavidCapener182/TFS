@@ -231,16 +231,20 @@ export default async function GdprPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white">
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-200">
-          <ShieldCheck className="h-3.5 w-3.5" /> GDPR Policy
+      <section className="relative overflow-hidden rounded-3xl tfs-page-hero p-6 text-white">
+        <div className="tfs-page-hero-orb-top" />
+        <div className="tfs-page-hero-orb-bottom" />
+        <div className="tfs-page-hero-body">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider tfs-page-hero-pill">
+            <ShieldCheck className="h-3.5 w-3.5" /> GDPR Policy
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">GDPR Data-Point Policy</h1>
+          <p className="mt-2 max-w-4xl text-sm text-white/75 sm:text-base">
+            This policy defines GDPR handling for each core data point used in the platform, including purpose,
+            lawful basis, access scope, retention expectation, and control requirements.
+          </p>
+          <p className="mt-3 text-xs text-white/65">Last updated: 5 March 2026</p>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">GDPR Data-Point Policy</h1>
-        <p className="mt-2 max-w-4xl text-sm text-slate-300 sm:text-base">
-          This policy defines GDPR handling for each core data point used in the platform, including purpose,
-          lawful basis, access scope, retention expectation, and control requirements.
-        </p>
-        <p className="mt-3 text-xs text-slate-400">Last updated: 5 March 2026</p>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 md:hidden">

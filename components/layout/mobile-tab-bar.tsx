@@ -18,6 +18,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
   const featuredHref = userRole === 'admin' || userRole === 'ops' ? '/visit-tracker' : null
   const [moreOpen, setMoreOpen] = useState(false)
   const morePanelRef = useRef<HTMLDivElement | null>(null)
+  const hideForFullscreenReports = currentPath === '/reports' || currentPath.startsWith('/reports/')
 
   useEffect(() => {
     setMoreOpen(false)
@@ -38,6 +39,10 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [moreOpen])
+
+  if (hideForFullscreenReports) {
+    return null
+  }
 
   return (
     <nav

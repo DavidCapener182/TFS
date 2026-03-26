@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet'
+import { getRouteStopMarkerIcon } from './map-marker-icons'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -291,20 +292,11 @@ export default function RouteMapComponent({ stores, managerHome }: RouteMapCompo
 
       {/* Store Markers */}
       {storesWithCoords.map((store, index) => {
-        const storeIcon = L.icon({
-          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-          iconSize: [25, 41],
-          iconAnchor: [12, 41],
-          popupAnchor: [1, -34],
-          shadowSize: [41, 41],
-        })
-        
         return (
           <Marker
             key={store.id}
             position={[store.latitude!, store.longitude!]}
-            icon={storeIcon}
+            icon={getRouteStopMarkerIcon(index + 1)}
           >
             <Popup>
               <div className="font-semibold">{formatStoreName(store.store_name)}</div>

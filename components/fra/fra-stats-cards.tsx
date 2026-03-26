@@ -56,10 +56,10 @@ export function FRAStatsCards({ stores, selectedArea }: FRAStatsCardsProps) {
 
   return (
     <>
-      <div className="col-span-2 rounded-lg border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:col-span-1 md:rounded-2xl md:p-5">
+      <div className="col-span-2 rounded-lg border p-3 tfs-page-hero-glass md:col-span-1 md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 md:text-xs md:tracking-wider">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-white/65 md:text-xs md:tracking-wider">
               Stores Requiring FRA
             </p>
             <p className="mt-0.5 text-2xl font-black text-white md:mt-1 md:text-4xl">{stats.storesRequiringFRA}</p>
@@ -70,10 +70,10 @@ export function FRAStatsCards({ stores, selectedArea }: FRAStatsCardsProps) {
         </div>
       </div>
       
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-5">
+      <div className="rounded-lg border p-3 tfs-page-hero-glass md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 md:text-xs md:tracking-wider">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-white/65 md:text-xs md:tracking-wider">
               FRAs Completed
             </p>
             <p className="mt-0.5 text-2xl font-black text-white md:mt-1 md:text-4xl">{stats.frasCompleted}</p>
@@ -84,10 +84,10 @@ export function FRAStatsCards({ stores, selectedArea }: FRAStatsCardsProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-3 backdrop-blur-sm md:rounded-2xl md:p-5">
+      <div className="rounded-lg border p-3 tfs-page-hero-glass md:rounded-2xl md:p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 md:text-xs md:tracking-wider">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-white/65 md:text-xs md:tracking-wider">
               Due / Overdue
             </p>
             <p className="mt-0.5 text-2xl font-black text-white md:mt-1 md:text-4xl">{stats.frasDueOrOverdue}</p>

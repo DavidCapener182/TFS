@@ -19,19 +19,19 @@ export function AuditTrackerClient({ stores, userRole }: AuditTrackerClientProps
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-3 text-white shadow-xl shadow-slate-200/50 sm:p-4 md:rounded-3xl md:p-8">
-        <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 text-white sm:p-4 md:rounded-3xl md:p-8">
+        <div className="tfs-page-hero-orb-top" />
+        <div className="tfs-page-hero-orb-bottom" />
 
-        <div className="relative z-10 space-y-3 md:space-y-6">
+        <div className="tfs-page-hero-body space-y-3 md:space-y-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-blue-400 md:text-xs">
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
                 <ClipboardCheck size={14} />
                 Compliance Monitoring
               </div>
               <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Visit Tracker</h1>
-              <p className="mt-1 max-w-2xl text-xs leading-snug text-slate-400 sm:text-sm">
+              <p className="mt-1 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm">
                 Track visit progress, review recent history, and monitor network activity across all regions.
               </p>
             </div>

@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserRole } from '@/lib/auth'
+import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
 import { getStoreVisitNeedLevelLabel } from '@/lib/visit-needs'
 import { formatStoreName } from '@/lib/store-display'
 import { getStoreRegionGroup } from '@/lib/store-region-groups'
@@ -27,6 +28,7 @@ import { cn, formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 
 interface VisitTrackerClientProps {
   rows: VisitTrackerRow[]
+  productCatalog: StoreVisitProductCatalogItem[]
   userRole: UserRole
   currentUserName: string | null
   visitsAvailable: boolean
@@ -77,6 +79,10 @@ function sortRows(rows: VisitTrackerRow[]): VisitTrackerRow[] {
     if (a.visitNeedScore !== b.visitNeedScore) return b.visitNeedScore - a.visitNeedScore
     return formatStoreName(a.storeName).localeCompare(formatStoreName(b.storeName))
   })
+}
+
+function getVisitTrackerRowGroup(row: VisitTrackerRow): string {
+  return getStoreRegionGroup(row.region, row.storeName, row.city, row.postcode)
 }
 
 function VisitNeedBadge({ level, score }: { level: VisitTrackerRow['visitNeedLevel']; score: number }) {
@@ -225,6 +231,7 @@ function VisitTable({
 
 export function VisitTrackerClient({
   rows,
+  productCatalog,
   userRole,
   currentUserName,
   visitsAvailable,
@@ -242,7 +249,7 @@ export function VisitTrackerClient({
   const groupOptions = useMemo(() => {
     const values = new Set<string>()
     rows.forEach((row) => {
-      values.add(getStoreRegionGroup(row.region, row.storeName))
+      values.add(getVisitTrackerRowGroup(row))
     })
     return Array.from(values).sort()
   }, [rows])
@@ -251,7 +258,7 @@ export function VisitTrackerClient({
     const term = search.trim().toLowerCase()
 
     return rows.filter((row) => {
-      const rowGroup = getStoreRegionGroup(row.region, row.storeName)
+      const rowGroup = getVisitTrackerRowGroup(row)
       const matchesGroup = groupFilter === 'all' || rowGroup === groupFilter
       const matchesSearch =
         term.length === 0 ||
@@ -270,7 +277,7 @@ export function VisitTrackerClient({
   const groupedRows = useMemo(() => {
     const groups = new Map<string, VisitTrackerRow[]>()
     sortRows(filteredRows).forEach((row) => {
-      const key = getStoreRegionGroup(row.region, row.storeName)
+      const key = getVisitTrackerRowGroup(row)
       const existing = groups.get(key) || []
       existing.push(row)
       groups.set(key, existing)
@@ -282,7 +289,7 @@ export function VisitTrackerClient({
     const source =
       groupFilter === 'all'
         ? rows
-        : rows.filter((row) => getStoreRegionGroup(row.region, row.storeName) === groupFilter)
+        : rows.filter((row) => getVisitTrackerRowGroup(row) === groupFilter)
 
     return {
       needed: source.filter((row) => row.visitNeeded).length,
@@ -353,7 +360,7 @@ export function VisitTrackerClient({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search store name or code..."
-                className="min-h-[44px] pl-9"
+                className="min-h-[44px] pl-12 sm:pl-12"
               />
             </div>
 
@@ -488,6 +495,7 @@ export function VisitTrackerClient({
           if (!open) setSelectedRow(null)
         }}
         row={selectedRow}
+        productCatalog={productCatalog}
         canEdit={userRole === 'admin' || userRole === 'ops'}
         currentUserName={currentUserName}
         visitsAvailable={visitsAvailable}

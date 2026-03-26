@@ -176,7 +176,7 @@ export function FRACompletedTable({
               placeholder="Search store name or code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="min-h-[44px] bg-white pl-9"
+              className="min-h-[44px] bg-white pl-12 sm:pl-12"
             />
           </div>
           <Select value={area} onValueChange={setArea}>

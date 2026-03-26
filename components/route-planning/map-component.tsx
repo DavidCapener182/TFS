@@ -5,6 +5,7 @@ import { formatStoreName } from '@/lib/store-display'
 import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { getGroupMarkerIcon } from './map-marker-icons'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -42,53 +43,9 @@ interface MapComponentProps {
   filteredArea: string | null
 }
 
-// Color mapping for higher-level store groups.
-const areaColors: Record<string, string> = {
-  Scotland: 'blue',
-  'North East': 'red',
-  Manchester: 'green',
-  Liverpool: 'orange',
-  Birmingham: 'gold',
-  Yorkshire: 'violet',
-  Wales: 'yellow',
-  London: 'grey',
-  'West Midlands': 'darkblue',
-  'East Midlands': 'darkgreen',
-  'South East': 'black',
-  'South West': 'pink',
-  'East of England': 'blue',
-  Ireland: 'red',
-  Other: 'grey',
-}
-
 function getAreaIcon(area: string | null, storeName: string, city: string | null | undefined, postcode: string | null | undefined, isSelected: boolean) {
   const group = getStoreRegionGroup(area, storeName, city, postcode)
-  const color = areaColors[group] || 'blue'
-  
-  // If selected, use a larger icon with a border effect
-  if (isSelected) {
-    // Create a custom icon with a border for selected stores
-    const iconSize: [number, number] = [35, 55] // Larger for selected
-    return L.icon({
-      iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: iconSize,
-      iconAnchor: [iconSize[0] / 2, iconSize[1]],
-      popupAnchor: [1, -iconSize[1] + 10],
-      shadowSize: [50, 50],
-      className: 'selected-store-marker', // Add class for custom styling
-    })
-  }
-  
-  // Regular icon for unselected stores
-  return L.icon({
-    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-  })
+  return getGroupMarkerIcon(group, { selected: isSelected })
 }
 
 // Component to fit map bounds

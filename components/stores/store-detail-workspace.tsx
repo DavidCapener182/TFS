@@ -13,13 +13,13 @@ import {
 } from '@/components/stores/store-crm-panel'
 import { StoreActionsModal } from '@/components/audit/store-actions-modal'
 import { AuditRow } from '@/components/audit/audit-table-helpers'
+import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
 import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
 import { getInternalAreaDisplayName, getReportingAreaDisplayName } from '@/lib/areas'
 import { formatStoreName } from '@/lib/store-display'
 import {
-  getStoreVisitActivityLabel,
   getStoreVisitNeedLevelLabel,
   getStoreVisitTypeLabel,
 } from '@/lib/visit-needs'
@@ -641,15 +641,15 @@ export function StoreDetailWorkspace({
                       {format(new Date(visit.visitedAt), 'dd MMM yyyy HH:mm')}
                     </p>
                     {visit.completedActivityKeys.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {visit.completedActivityKeys.map((key) => (
-                          <Badge
-                            key={key}
-                            variant="outline"
-                            className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                          >
-                            {getStoreVisitActivityLabel(key)}
-                          </Badge>
+                      <div className="mt-3 space-y-2">
+                        {visit.completedActivityKeys.map((activityKey) => (
+                          <StoreVisitActivitySummary
+                            key={`${visit.id}-${activityKey}`}
+                            activityKey={activityKey}
+                            detailText={visit.completedActivityDetails[activityKey]}
+                            payload={visit.completedActivityPayloads[activityKey]}
+                            evidenceFiles={visit.evidenceFiles.filter((file) => file.activityKey === activityKey)}
+                          />
                         ))}
                       </div>
                     ) : null}

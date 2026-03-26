@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, LogOut, Menu } from 'lucide-react'
 import { useSidebar } from './sidebar-provider'
@@ -321,6 +321,8 @@ function pickBestPresenceMeta(
 export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   const { isOpen, setIsOpen } = useSidebar()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isReportsSheetMode = pathname === '/reports' && searchParams?.get('sheet') === '1'
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([
     { id: currentUser.id, name: currentUser.name, page: pathname || '/', lastSeen: null },
   ])
@@ -343,6 +345,10 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   }
 
   useEffect(() => {
+    if (isReportsSheetMode) {
+      document.documentElement.style.setProperty('--mobile-header-height', '0px')
+      return
+    }
     const root = document.documentElement
     const updateMobileHeaderHeight = () => {
       const headerHeight =
@@ -370,7 +376,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
       resizeObserver?.disconnect()
       root.style.setProperty('--mobile-header-height', '0px')
     }
-  }, [])
+  }, [isReportsSheetMode])
 
   // Absolute session timeout: warn at 9 hours, auto-logout at 10 hours.
   useEffect(() => {
@@ -560,7 +566,10 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   return (
     <header
       ref={headerRef}
-      className="no-print fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:pt-0 lg:px-8"
+      className={cn(
+        'no-print fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:pt-0 lg:px-8',
+        isReportsSheetMode ? 'hidden' : ''
+      )}
     >
       <div className="flex w-full flex-col gap-3.5 pb-4 pt-3 md:flex-row md:items-center md:justify-between md:gap-4 md:pb-0 md:pt-0">
         <div className="flex items-center gap-3 md:hidden">

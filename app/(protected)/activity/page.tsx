@@ -548,41 +548,41 @@ export default async function ActivityPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3 sm:p-4 md:rounded-3xl md:p-7 shadow-lg">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 left-8 h-56 w-56 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 sm:p-4 md:rounded-3xl md:p-7">
+        <div className="tfs-page-hero-orb-top" />
+        <div className="tfs-page-hero-orb-bottom" />
+        <div className="tfs-page-hero-body flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest text-slate-200 md:px-3 md:text-[11px]">
+            <div className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest md:px-3 md:text-[11px] tfs-page-hero-pill">
               <ShieldCheck className="h-3.5 w-3.5" />
               System Audit Trail
             </div>
             <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">Recent Activity</h1>
-            <p className="mt-1.5 max-w-2xl text-xs leading-snug text-slate-300 sm:text-sm md:text-base">
+            <p className="mt-1.5 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm md:text-base">
               Live timeline of system events, record changes, and user actions across incidents, stores, and tasks.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 md:rounded-xl md:px-3 md:py-2 md:text-xs">
+          <div className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold md:rounded-xl md:px-3 md:py-2 md:text-xs tfs-page-hero-pill">
             <Clock3 className="h-3.5 w-3.5 text-slate-300" />
             Last 24h: {last24HoursCount}
           </div>
         </div>
 
-        <div className="relative z-10 mt-3 grid grid-cols-2 gap-2 md:mt-5 md:grid-cols-4 md:gap-2.5">
-          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
-            <p className="text-[10px] uppercase tracking-widest text-slate-300">Events</p>
+        <div className="tfs-page-hero-body mt-3 grid grid-cols-2 gap-2 md:mt-5 md:grid-cols-4 md:gap-2.5">
+          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
+            <p className="text-[10px] uppercase tracking-widest text-white/65">Events</p>
             <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{totalActivities}</p>
           </div>
-          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
-            <p className="text-[10px] uppercase tracking-widest text-slate-300">Created</p>
+          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
+            <p className="text-[10px] uppercase tracking-widest text-white/65">Created</p>
             <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{actionCounts.created}</p>
           </div>
-          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
-            <p className="text-[10px] uppercase tracking-widest text-slate-300">Updated</p>
+          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
+            <p className="text-[10px] uppercase tracking-widest text-white/65">Updated</p>
             <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{actionCounts.updated}</p>
           </div>
-          <div className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 backdrop-blur-sm md:rounded-xl md:px-3 md:py-2">
-            <p className="text-[10px] uppercase tracking-widest text-slate-300">Active Users</p>
+          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
+            <p className="text-[10px] uppercase tracking-widest text-white/65">Active Users</p>
             <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{activeUsers}</p>
           </div>
         </div>

@@ -4,8 +4,12 @@ import { getStoreVisitsUnavailableMessage, isMissingStoreVisitsTableError } from
 import {
   computeStoreVisitNeed,
   getStoreVisitTypeLabel,
+  normalizeStoreVisitActivityDetails,
+  normalizeStoreVisitActivityPayloads,
+  isStoreVisitActivityKey,
   type StoreVisitNeedLevel,
 } from '@/lib/visit-needs'
+import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
 import { createClient } from '@/lib/supabase/server'
 import { VisitTrackerClient } from '@/components/visit-tracker/visit-tracker-client'
 import type { VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
@@ -38,10 +42,23 @@ type StoreVisitRow = {
   visited_at: string
   visit_type: string
   completed_activity_keys: string[] | null
+  completed_activity_details: Record<string, string> | null
+  completed_activity_payloads: Record<string, unknown> | null
   notes: string | null
   need_score_snapshot: number | null
   need_level_snapshot: StoreVisitNeedLevel | null
   created_by_user_id: string
+}
+
+type StoreVisitEvidenceRow = {
+  id: string
+  visit_id: string
+  activity_key: string
+  file_name: string
+  file_path: string
+  file_type: string | null
+  file_size: number | null
+  created_at: string
 }
 
 type RouteVisitLogRow = {
@@ -100,6 +117,8 @@ async function getVisitTrackerData(): Promise<{
       store_code,
       store_name,
       region,
+      city,
+      postcode,
       is_active,
       compliance_audit_2_planned_date,
       assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(full_name)
@@ -122,6 +141,7 @@ async function getVisitTrackerData(): Promise<{
   const openStoreActionsByStore = new Map<string, StoreActionRow[]>()
   const openIncidentsByStore = new Map<string, IncidentRow[]>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
+  const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
   const profileMap = new Map<string, string | null>()
   let visitsAvailable = true
   let visitsUnavailableMessage: string | null = null
@@ -173,7 +193,9 @@ async function getVisitTrackerData(): Promise<{
     const [storeVisitsResult, routeVisitLogsResult] = await Promise.all([
       supabase
         .from('tfs_store_visits')
-        .select('id, store_id, visited_at, visit_type, completed_activity_keys, notes, need_score_snapshot, need_level_snapshot, created_by_user_id')
+        .select(
+          'id, store_id, visited_at, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, need_score_snapshot, need_level_snapshot, created_by_user_id'
+        )
         .in('store_id', storeIds)
         .order('visited_at', { ascending: false }),
       supabase
@@ -199,9 +221,11 @@ async function getVisitTrackerData(): Promise<{
     }
 
     const userIds = new Set<string>()
+    const visitIds: string[] = []
 
     for (const row of ((storeVisitsResult.data || []) as StoreVisitRow[])) {
       if (row.created_by_user_id) userIds.add(row.created_by_user_id)
+      if (row.id) visitIds.push(row.id)
     }
 
     for (const row of ((routeVisitLogsResult.data || []) as RouteVisitLogRow[])) {
@@ -223,17 +247,65 @@ async function getVisitTrackerData(): Promise<{
       }
     }
 
+    if (visitIds.length > 0) {
+      const { data: evidenceRows, error: evidenceError } = await supabase
+        .from('tfs_store_visit_evidence')
+        .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
+        .in('visit_id', visitIds)
+        .order('created_at', { ascending: false })
+
+      if (evidenceError) {
+        console.error('Error fetching visit evidence:', evidenceError)
+      } else {
+        const signedUrls = await Promise.all(
+          ((evidenceRows || []) as StoreVisitEvidenceRow[]).map(async (row) => {
+            const { data } = await supabase.storage.from('tfs-attachments').createSignedUrl(row.file_path, 3600)
+            return [row.id, data?.signedUrl || null] as const
+          })
+        )
+
+        const signedUrlMap = new Map<string, string | null>(signedUrls)
+
+        for (const row of (evidenceRows || []) as StoreVisitEvidenceRow[]) {
+          if (!isStoreVisitActivityKey(row.activity_key)) continue
+
+          const existing = evidenceByVisitId.get(row.visit_id) || []
+          existing.push({
+            id: row.id,
+            activityKey: row.activity_key,
+            fileName: row.file_name,
+            fileType: row.file_type || null,
+            fileSize: typeof row.file_size === 'number' ? row.file_size : null,
+            filePath: row.file_path,
+            createdAt: row.created_at,
+            downloadUrl: signedUrlMap.get(row.id) || null,
+          })
+          evidenceByVisitId.set(row.visit_id, existing)
+        }
+      }
+    }
+
     for (const row of ((storeVisitsResult.data || []) as StoreVisitRow[])) {
       const storeId = String(row.store_id || '')
       if (!storeId) continue
+      const completedActivityKeys = Array.isArray(row.completed_activity_keys)
+        ? (row.completed_activity_keys as VisitHistoryEntry['completedActivityKeys'])
+        : []
       const entry: VisitHistoryEntry = {
         id: row.id,
         source: 'visit_log',
         visitedAt: row.visited_at,
         visitType: row.visit_type as VisitHistoryEntry['visitType'],
-        completedActivityKeys: Array.isArray(row.completed_activity_keys)
-          ? (row.completed_activity_keys as VisitHistoryEntry['completedActivityKeys'])
-          : [],
+        completedActivityKeys,
+        completedActivityDetails: normalizeStoreVisitActivityDetails(
+          row.completed_activity_details,
+          completedActivityKeys
+        ),
+        completedActivityPayloads: normalizeStoreVisitActivityPayloads(
+          row.completed_activity_payloads,
+          completedActivityKeys
+        ),
+        evidenceFiles: evidenceByVisitId.get(row.id) || [],
         notes: row.notes || null,
         createdByName: profileMap.get(row.created_by_user_id) || null,
         needScoreSnapshot:
@@ -256,6 +328,9 @@ async function getVisitTrackerData(): Promise<{
         visitedAt,
         visitType: 'route_completion',
         completedActivityKeys: [],
+        completedActivityDetails: {},
+        completedActivityPayloads: {},
+        evidenceFiles: [],
         notes: row.details?.planned_date
           ? `Route visit completed for plan date ${row.details.planned_date}.`
           : 'Route visit completed.',
@@ -311,6 +386,8 @@ async function getVisitTrackerData(): Promise<{
       storeCode: store.store_code || null,
       storeName: store.store_name,
       region: store.region || null,
+      city: store.city || null,
+      postcode: store.postcode || null,
       assignedManager: assignedManagerRelation?.full_name || null,
       lastVisitDate,
       lastVisitType: getLastVisitType(lastVisit),
@@ -336,11 +413,15 @@ async function getVisitTrackerData(): Promise<{
 
 export default async function VisitTrackerPage() {
   const { profile } = await requireRole(['admin', 'ops', 'readonly'])
-  const { rows, visitsAvailable, visitsUnavailableMessage } = await getVisitTrackerData()
+  const [{ rows, visitsAvailable, visitsUnavailableMessage }, productCatalog] = await Promise.all([
+    getVisitTrackerData(),
+    getStoreVisitProductCatalog(),
+  ])
 
   return (
     <VisitTrackerClient
       rows={rows}
+      productCatalog={productCatalog}
       userRole={profile.role}
       currentUserName={profile.full_name}
       visitsAvailable={visitsAvailable}

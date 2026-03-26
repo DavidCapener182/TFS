@@ -232,33 +232,33 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-3 text-white shadow-xl shadow-slate-200/50 sm:p-4 md:rounded-3xl md:p-8">
-        <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 text-white sm:p-4 md:rounded-3xl md:p-8">
+        <div className="tfs-page-hero-orb-top" />
+        <div className="tfs-page-hero-orb-bottom" />
 
-        <div className="relative z-10 flex flex-col gap-3 md:gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="tfs-page-hero-body flex flex-col gap-3 md:gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-blue-400 md:text-xs">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
               <CalendarIcon size={14} />
               Calendar Overview
             </div>
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">{format(currentDate, 'MMMM yyyy')}</h1>
-            <p className="mt-1 max-w-xl text-xs leading-snug text-slate-400 sm:text-sm">
+            <p className="mt-1 max-w-xl text-xs leading-snug text-white/75 sm:text-sm">
               Monthly schedule for planned visits and completed compliance activity across your managed regions.
             </p>
           </div>
 
           <div className="grid w-full grid-cols-3 gap-1.5 md:gap-3 lg:w-auto">
-            <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Routes</p>
+            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Routes</p>
               <p className="text-lg font-bold leading-none text-white md:text-2xl">{totalPlannedRoutes}</p>
             </div>
-            <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed</p>
+            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Completed</p>
               <p className="text-lg font-bold leading-none text-white md:text-2xl">{totalCompletedStores}</p>
             </div>
-            <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 text-center backdrop-blur-sm md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Days</p>
+            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Active Days</p>
               <p className="text-lg font-bold leading-none text-white md:text-2xl">{activeDays}</p>
             </div>
           </div>

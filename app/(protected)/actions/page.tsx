@@ -795,7 +795,7 @@ export default async function ActionsPage({
                   name="q"
                   defaultValue={searchParams.q || ''}
                   placeholder="Search action groups"
-                  className="bg-white pl-10"
+                  className="bg-white pl-12 sm:pl-12"
                 />
               </div>
 
@@ -892,7 +892,7 @@ export default async function ActionsPage({
                   name="q"
                   defaultValue={searchParams.q || ''}
                   placeholder="Search title/question, store, assignee..."
-                  className="pl-9 bg-white"
+                  className="bg-white pl-12 sm:pl-12"
                 />
               </div>
 

@@ -16,6 +16,7 @@ import {
   deleteStoreNote,
 } from '@/app/actions/store-crm'
 import {
+  Activity,
   ChevronRight,
   ClipboardList,
   History,
@@ -896,33 +897,58 @@ export function StoreCrmPanel({
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-4 text-white shadow-xl shadow-slate-200 md:rounded-2xl md:p-6">
-          <div className="relative z-10">
-            <h3 className="mb-1 text-base font-bold md:text-lg">Operational Health</h3>
-            <p className="mb-4 text-[11px] text-slate-400 md:mb-6 md:text-xs">Real-time status tracking</p>
+        <div className="relative overflow-hidden rounded-[28px] tfs-page-hero p-4 text-white md:rounded-3xl md:p-6">
+          <div className="tfs-page-hero-orb-top" />
+          <div className="tfs-page-hero-orb-bottom" />
 
-            <div className="space-y-3 md:space-y-4">
-              <div>
-                <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-slate-300">Safety Compliance</span>
-                  <span className="font-bold text-blue-400">{safetyPct}%</span>
+          <div className="tfs-page-hero-body">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest tfs-page-hero-pill">
+                  <Activity className="h-3.5 w-3.5" />
+                  Live Metrics
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div className="h-full bg-blue-500" style={{ width: `${safetyPct}%` }} />
+                <h3 className="mt-3 text-lg font-bold md:text-xl">Operational Health</h3>
+                <p className="mt-1 text-xs text-white/70 md:text-sm">Real-time status tracking</p>
+              </div>
+
+              <div className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 tfs-page-hero-glass">
+                Live
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3 md:mt-5">
+              <div className="rounded-[22px] border p-3 tfs-page-hero-glass md:p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                    Safety Compliance
+                  </span>
+                  <span className="text-base font-bold leading-none text-cyan-200">{safetyPct}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-950/20">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-400"
+                    style={{ width: `${safetyPct}%` }}
+                  />
                 </div>
               </div>
-              <div>
-                <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-slate-300">Action Resolution</span>
-                  <span className="font-bold text-green-400">{resolutionPct}%</span>
+
+              <div className="rounded-[22px] border p-3 tfs-page-hero-glass md:p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                    Action Resolution
+                  </span>
+                  <span className="text-base font-bold leading-none text-emerald-200">{resolutionPct}%</span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div className="h-full bg-green-500" style={{ width: `${resolutionPct}%` }} />
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-950/20">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-green-400 to-lime-300"
+                    style={{ width: `${resolutionPct}%` }}
+                  />
                 </div>
               </div>
             </div>
           </div>
-          <div className="absolute -bottom-4 -right-4 h-32 w-32 rounded-full bg-blue-500/10 blur-2xl" />
         </div>
       </div>
     </div>

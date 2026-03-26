@@ -4,10 +4,15 @@ import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { createClient } from '@/lib/supabase/server'
 import {
+  buildStoreVisitActivityDetailText,
+  normalizeStoreVisitActivityDetails,
+  normalizeStoreVisitActivityPayloads,
   STORE_VISIT_ACTIVITY_OPTIONS,
   STORE_VISIT_TYPE_OPTIONS,
+  type StoreVisitActivityDetails,
   type StoreVisitActivityKey,
   type StoreVisitNeedLevel,
+  type StoreVisitActivityPayloads,
   type StoreVisitType,
 } from '@/lib/visit-needs'
 import { formatStoreVisitsActionError } from '@/lib/store-visits-schema'
@@ -22,6 +27,8 @@ export interface LogStoreVisitInput {
   visitType: StoreVisitType
   visitedAt?: string
   completedActivityKeys: StoreVisitActivityKey[]
+  completedActivityDetails?: StoreVisitActivityDetails
+  completedActivityPayloads?: StoreVisitActivityPayloads
   notes?: string
   followUpRequired?: boolean
   needScoreSnapshot?: number
@@ -60,10 +67,35 @@ export async function logStoreVisit(input: LogStoreVisitInput) {
   }
 
   const completedActivityKeys = normalizeActivityKeys(input.completedActivityKeys)
+  const normalizedInputDetails = normalizeStoreVisitActivityDetails(
+    input.completedActivityDetails,
+    completedActivityKeys
+  )
+  const completedActivityPayloads = normalizeStoreVisitActivityPayloads(
+    input.completedActivityPayloads,
+    completedActivityKeys
+  )
+  const completedActivityDetails = completedActivityKeys.reduce<StoreVisitActivityDetails>((details, key) => {
+    const detailText = buildStoreVisitActivityDetailText(
+      key,
+      normalizedInputDetails[key],
+      completedActivityPayloads[key]
+    )
+
+    if (detailText) {
+      details[key] = detailText
+    }
+
+    return details
+  }, {})
   const trimmedNotes = String(input.notes || '').trim()
 
   if (completedActivityKeys.length === 0 && trimmedNotes.length === 0) {
     throw new Error('Select at least one on-site activity or add a note.')
+  }
+
+  if (completedActivityKeys.includes('other') && !completedActivityDetails.other) {
+    throw new Error('Add details for the Other activity before saving the visit.')
   }
 
   const supabase = createClient()
@@ -102,6 +134,8 @@ export async function logStoreVisit(input: LogStoreVisitInput) {
     visit_type: input.visitType,
     visited_at: parseVisitTimestamp(input.visitedAt),
     completed_activity_keys: completedActivityKeys,
+    completed_activity_details: completedActivityDetails,
+    completed_activity_payloads: completedActivityPayloads,
     notes: trimmedNotes || null,
     follow_up_required: Boolean(input.followUpRequired),
     need_score_snapshot: needScoreSnapshot,
@@ -129,6 +163,8 @@ export async function logStoreVisit(input: LogStoreVisitInput) {
       visit_type: input.visitType,
       visited_at: visit.visited_at,
       completed_activity_keys: completedActivityKeys,
+      completed_activity_details: completedActivityDetails,
+      completed_activity_payloads: completedActivityPayloads,
       follow_up_required: Boolean(input.followUpRequired),
       need_score_snapshot: needScoreSnapshot,
       need_level_snapshot: needLevelSnapshot,

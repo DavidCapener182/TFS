@@ -859,54 +859,54 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl bg-[#0f172a] p-3 text-white shadow-xl shadow-slate-200/50 sm:p-4 md:rounded-3xl md:p-8">
-        <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 text-white sm:p-4 md:rounded-3xl md:p-8">
+        <div className="tfs-page-hero-orb-top" />
+        <div className="tfs-page-hero-orb-bottom" />
 
-        <div className="relative z-10">
+        <div className="tfs-page-hero-body">
           <div className="mb-4 flex flex-col items-start justify-between gap-3 md:mb-8 md:flex-row md:items-center">
             <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-blue-400 md:text-xs">
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
                 <Navigation size={14} /> Route Optimization
               </div>
               <h1 className="mb-1 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Route Planning</h1>
-              <p className="max-w-2xl text-xs leading-snug text-slate-400 sm:text-sm">
+              <p className="max-w-2xl text-xs leading-snug text-white/75 sm:text-sm">
                 Build daily compliance routes, optimize store selection, and track planned rounds by group and manager.
               </p>
             </div>
-            <button className="flex min-h-[44px] items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-700 sm:text-sm md:rounded-lg md:px-4 md:py-2">
+            <button className="flex min-h-[44px] items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/15 sm:text-sm md:rounded-lg md:px-4 md:py-2 tfs-page-hero-glass">
               Live Planner
               <Navigation size={14} className="ml-1" />
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-            <div className="flex flex-col justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 backdrop-blur-sm md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-slate-400">
+            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <div className="mb-2 flex items-center gap-2 text-white/65">
                 <StoreIcon size={14} className="text-blue-400" />
                 <span className="text-[10px] font-bold uppercase md:text-xs">Available Stores</span>
               </div>
               <p className="text-xl font-bold text-white md:text-3xl">{availableStoreCount}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 backdrop-blur-sm md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-slate-400">
+            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <div className="mb-2 flex items-center gap-2 text-white/65">
                 <MapIcon size={14} className="text-emerald-400" />
                 <span className="text-[10px] font-bold uppercase md:text-xs">Planned Routes</span>
               </div>
               <p className="text-xl font-bold text-white md:text-3xl">{plannedRouteCount}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 backdrop-blur-sm md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-slate-400">
+            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <div className="mb-2 flex items-center gap-2 text-white/65">
                 <CheckCircle2 size={14} className="text-violet-400" />
                 <span className="text-[10px] font-bold uppercase md:text-xs">Planned Stores</span>
               </div>
               <p className="text-xl font-bold text-white md:text-3xl">{plannedStoreCount}</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-lg border border-slate-700/50 bg-slate-800/50 p-2.5 backdrop-blur-sm md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-slate-400">
+            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
+              <div className="mb-2 flex items-center gap-2 text-white/65">
                 <Users size={14} className="text-amber-400" />
                 <span className="text-[10px] font-bold uppercase md:text-xs">Managers</span>
               </div>
