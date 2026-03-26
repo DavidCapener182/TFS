@@ -85,19 +85,19 @@ type BooleanFieldKey<T> = Extract<
 const INCIDENT_OVERVIEW_PROMPTS: PromptSection = {
   title: 'Ask and confirm',
   prompts: [
-    'What happened in the latest incident, step by step (entry, action, exit)?',
-    'What time/day did it happen, and is there a repeat pattern?',
-    'Which products or areas were targeted first?',
-    'How long did the incident take from entry to exit?',
+    'Can the latest incident be clearly described step by step (entry, action, exit)?',
+    'Is the incident timing (day/time) known and repeatable?',
+    'Can the first targeted products or areas be identified?',
+    'Can the entry-to-exit duration be confirmed?',
   ],
 }
 
 const STORE_LAYOUT_PROMPTS: PromptSection = {
   title: 'Observe and test',
   prompts: [
-    'From the entrance, what high-risk stock or zones are immediately accessible?',
+    'Is high-risk stock or are high-risk zones immediately accessible from the entrance?',
     'Can the counter or controlled areas be easily reached or bypassed?',
-    'Where are the blind spots and easiest exit paths?',
+    'Are blind spots and easy exit paths clearly identified?',
   ],
 }
 
@@ -106,14 +106,14 @@ const PRODUCT_CONTROL_PROMPTS: PromptSection = {
   prompts: [
     'Are display controls in place (testers/empty boxes/limited live stock)?',
     'Are frequently targeted lines overstocked on the shop floor?',
-    'What stock can be moved or protected immediately?',
+    'Can vulnerable stock be moved or protected immediately?',
   ],
 }
 
 const STAFF_BEHAVIOUR_PROMPTS: PromptSection = {
   title: 'Observe team behaviour',
   prompts: [
-    'Who owns the front-of-store response when risk enters?',
+    'Is ownership of front-of-store response clear when risk enters?',
     'Is there an immediate greeting and visible deterrent presence?',
     'Do staff keep clear visibility across floor and till areas?',
   ],
@@ -122,8 +122,8 @@ const STAFF_BEHAVIOUR_PROMPTS: PromptSection = {
 const STAFF_SAFETY_PROMPTS: PromptSection = {
   title: 'Test response',
   prompts: [
-    'What is the team response for a high-risk group entry?',
-    'When do staff disengage, and who escalates to emergency services?',
+    'Is the team response for a high-risk group entry clearly understood?',
+    'Are disengagement points and emergency escalation ownership clear?',
     'Is the no-physical-intervention policy understood and followed?',
   ],
 }
@@ -157,17 +157,17 @@ const ENVIRONMENT_PROMPTS: PromptSection = {
 const IMMEDIATE_ACTION_PROMPTS: PromptSection = {
   title: 'Record immediate fixes',
   prompts: [
-    'What was changed before leaving the site?',
-    'Which product, layout, staffing, or process actions were completed immediately?',
+    'Were immediate fixes completed before leaving the site?',
+    'Were product, layout, staffing, or process actions completed immediately?',
   ],
 }
 
 const RECOMMENDATION_PROMPTS: PromptSection = {
   title: 'Set next actions',
   prompts: [
-    'What physical controls are required next?',
-    'What staff/process changes reduce risk and repeat loss?',
-    'What intelligence-sharing or external escalation is required now?',
+    'Are physical controls required next?',
+    'Are staff/process changes required to reduce risk and repeat loss?',
+    'Is intelligence-sharing or external escalation required now?',
   ],
 }
 
@@ -441,38 +441,53 @@ function ChecklistGrid<T extends string>({
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {fields.map((field) => (
-        <button
+        <div
           key={field.key}
-          type="button"
-          onClick={() => onToggle(field.key)}
-          disabled={disabled}
           className={cn(
-            'rounded-2xl border px-4 py-3 text-left transition-colors',
+            'rounded-2xl border px-4 py-3',
             values[field.key]
               ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
-              : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-            disabled ? 'cursor-not-allowed opacity-60' : ''
+              : 'border-slate-200 bg-slate-50 text-slate-700',
+            disabled ? 'opacity-60' : ''
           )}
         >
-          <div className="flex items-start gap-3">
-            <div
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">{field.label}</div>
+            {field.description ? (
+              <div className="mt-1 text-xs text-slate-500">{field.description}</div>
+            ) : null}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => {
+                if (!values[field.key]) onToggle(field.key)
+              }}
               className={cn(
-                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[11px] font-bold',
-                values[field.key]
-                  ? 'border-[#232154] bg-[#232154] text-white'
-                  : 'border-slate-300 bg-white text-transparent'
+                'min-h-[38px] rounded-xl',
+                values[field.key] ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''
               )}
             >
-              ✓
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold">{field.label}</div>
-              {field.description ? (
-                <div className="mt-1 text-xs text-slate-500">{field.description}</div>
-              ) : null}
-            </div>
+              Yes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => {
+                if (values[field.key]) onToggle(field.key)
+              }}
+              className={cn(
+                'min-h-[38px] rounded-xl',
+                !values[field.key] ? 'border-rose-300 bg-rose-50 text-rose-700' : ''
+              )}
+            >
+              No
+            </Button>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   )
@@ -980,7 +995,7 @@ export function VisitReportsWorkspace({
         <TabsContent value="builder" className="mt-4">
           <div className="grid gap-6 xl:grid-cols-12">
             <div className="space-y-6 xl:col-span-12">
-              <div className="h-[72px] md:hidden" aria-hidden />
+              <div className="h-[112px] md:hidden" aria-hidden />
               <div className="fixed inset-x-3.5 top-[calc(var(--mobile-header-height,0px)+1rem)] z-20 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:inset-x-4 md:static md:inset-auto md:top-auto md:p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-start justify-between gap-3">
