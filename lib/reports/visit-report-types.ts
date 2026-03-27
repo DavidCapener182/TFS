@@ -539,40 +539,41 @@ function truncateText(value: string, maxLength = 120): string {
 }
 
 export function buildTargetedTheftVisitSummary(
-  payload: TargetedTheftVisitPayload
+  payload: TargetedTheftVisitPayload | unknown
 ): string {
+  const normalized = normalizeTargetedTheftVisitPayload(payload)
   const summaryParts: string[] = []
 
-  if (payload.riskRating) {
-    summaryParts.push(`Risk ${payload.riskRating.toUpperCase()}`)
+  if (normalized.riskRating) {
+    summaryParts.push(`Risk ${normalized.riskRating.toUpperCase()}`)
   }
 
-  if (payload.incidentOverview.incidentCount) {
-    summaryParts.push(`${payload.incidentOverview.incidentCount} recent incident(s) reviewed`)
+  if (normalized.incidentOverview.incidentCount) {
+    summaryParts.push(`${normalized.incidentOverview.incidentCount} recent incident(s) reviewed`)
   }
 
-  if (payload.incidentPeople.people.length > 0) {
-    summaryParts.push(`${payload.incidentPeople.people.length} people logged`)
+  if (normalized.incidentPeople.people.length > 0) {
+    summaryParts.push(`${normalized.incidentPeople.people.length} people logged`)
   }
 
-  if (payload.incidentPeople.someoneInjured) {
+  if (normalized.incidentPeople.someoneInjured) {
     summaryParts.push('Injury reported')
   }
 
-  if (payload.incidentOverview.primaryProducts.trim()) {
-    summaryParts.push(`Targeted products: ${truncateText(payload.incidentOverview.primaryProducts)}`)
+  if (normalized.incidentOverview.primaryProducts.trim()) {
+    summaryParts.push(`Targeted products: ${truncateText(normalized.incidentOverview.primaryProducts)}`)
   }
 
-  if (payload.immediateActionsTaken.actionsCompleted.trim()) {
-    summaryParts.push(`Immediate actions: ${truncateText(payload.immediateActionsTaken.actionsCompleted)}`)
+  if (normalized.immediateActionsTaken.actionsCompleted.trim()) {
+    summaryParts.push(`Immediate actions: ${truncateText(normalized.immediateActionsTaken.actionsCompleted)}`)
   }
 
-  if (payload.recommendations.details.trim()) {
-    summaryParts.push(`Recommendations: ${truncateText(payload.recommendations.details)}`)
+  if (normalized.recommendations.details.trim()) {
+    summaryParts.push(`Recommendations: ${truncateText(normalized.recommendations.details)}`)
   }
 
-  if (summaryParts.length === 0 && payload.incidentOverview.summary.trim()) {
-    summaryParts.push(truncateText(payload.incidentOverview.summary))
+  if (summaryParts.length === 0 && normalized.incidentOverview.summary.trim()) {
+    summaryParts.push(truncateText(normalized.incidentOverview.summary))
   }
 
   return summaryParts.join(' • ')

@@ -37,6 +37,7 @@ import {
   buildVisitReportTitle,
   getEmptyTargetedTheftVisitPayload,
   getVisitReportTypeLabel,
+  normalizeTargetedTheftVisitPayload,
   VISIT_REPORT_TYPE_OPTIONS,
   type VisitReportIncidentPerson,
   type VisitReportIncidentPersonRole,
@@ -633,6 +634,10 @@ export function VisitReportsWorkspace({
         setDraft((current) => ({
           ...current,
           ...parsed.draft,
+          payload: normalizeTargetedTheftVisitPayload(
+            (parsed.draft as { payload?: unknown })?.payload,
+            currentUserName
+          ),
         }))
         setSelectedTemplate(parsed.draft.reportType || 'targeted_theft_visit')
       }
