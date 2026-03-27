@@ -125,7 +125,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    columnGap: 8,
   },
   rowLabel: {
     fontSize: 8,
@@ -134,11 +133,35 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     fontWeight: 700,
     width: '34%',
+    paddingRight: 8,
   },
   rowValue: {
     fontSize: 9.5,
     color: '#0f172a',
     width: '66%',
+  },
+  rowColumns: {
+    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  rowLabelColumn: {
+    width: '34%',
+    paddingRight: 8,
+  },
+  rowLabelPlain: {
+    fontSize: 8,
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    fontWeight: 700,
+  },
+  rowValueColumn: {
+    width: '66%',
+  },
+  rowValueFlow: {
+    fontSize: 9.5,
+    color: '#0f172a',
   },
   bullet: {
     fontSize: 9.5,
@@ -177,6 +200,88 @@ function formatPersonRole(value: string): string {
   const normalized = String(value || '').trim()
   if (!normalized) return 'Unknown'
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function splitValueLines(value: unknown): string[] {
+  const lines = String(value || 'N/A')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  return lines.length > 0 ? lines : ['N/A']
+}
+
+function chunkAnswerForRows(value: string, maxLength = 260): string[] {
+  const text = String(value || '').trim()
+  if (!text) return ['N/A']
+
+  const sentenceParts = text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (sentenceParts.length === 0) return [text]
+
+  const chunks: string[] = []
+  let current = ''
+
+  for (const part of sentenceParts) {
+    const candidate = current ? `${current} ${part}` : part
+    if (candidate.length <= maxLength) {
+      current = candidate
+      continue
+    }
+
+    if (current) {
+      chunks.push(current)
+      current = ''
+    }
+
+    if (part.length <= maxLength) {
+      current = part
+      continue
+    }
+
+    // Fallback for very long sentence fragments.
+    for (let i = 0; i < part.length; i += maxLength) {
+      chunks.push(part.slice(i, i + maxLength).trim())
+    }
+  }
+
+  if (current) chunks.push(current)
+  return chunks.length > 0 ? chunks : ['N/A']
+}
+
+function parseDetailedRecommendations(value: unknown): Array<{ label: string; value: string }> {
+  const lines = splitValueLines(value)
+  const sections: Array<{ label: string; value: string }> = []
+  let currentLabel = 'Summary'
+  let currentParts: string[] = []
+
+  const flush = () => {
+    const text = currentParts.join(' ').trim()
+    if (!text) return
+    sections.push({ label: currentLabel, value: text })
+    currentParts = []
+  }
+
+  const headingPattern = /^([A-Za-z][A-Za-z0-9\s/&\-]{1,50}):$/
+
+  for (const line of lines) {
+    const headingMatch = line.match(headingPattern)
+    const isStandaloneHeading = headingMatch || line.toLowerCase() === 'costings'
+    if (isStandaloneHeading) {
+      flush()
+      currentLabel = headingMatch ? headingMatch[1] : 'Costings'
+      continue
+    }
+    currentParts.push(line)
+  }
+
+  flush()
+  if (sections.length === 0) {
+    return [{ label: 'Detailed recommendations', value: 'N/A' }]
+  }
+  return sections
 }
 
 export function VisitReportPdfDocument(props: VisitReportPdfProps) {
@@ -278,7 +383,7 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
     <Document>
       <Page size="A4" style={styles.page} wrap>
         <View style={styles.header} fixed>
-          <Text style={styles.headerTitle}>TFS VISIT REPORT</Text>
+          <Text style={styles.headerTitle}>KSS NW LTD - TFS VISIT REPORT</Text>
           <Text style={styles.headerMeta}>{formatDate(generatedAt)}</Text>
         </View>
 
@@ -325,22 +430,84 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.items.map(([label, value]) => (
-              <View key={`${section.title}-${label}`} style={styles.row}>
-                <Text style={styles.rowLabel}>{label}</Text>
-                <Text style={styles.rowValue}>{value}</Text>
-              </View>
-            ))}
+            {section.items.map(([label, value]) => {
+              const isDetailedRecommendations =
+                section.title === 'Recommendations and sign-off' && label === 'Detailed recommendations'
+              const useWrappedColumns =
+                section.title === 'Recommendations and sign-off' &&
+                (label === 'Risk justification' || label === 'Detailed recommendations')
+
+              if (isDetailedRecommendations) {
+                const parsedSections = parseDetailedRecommendations(value)
+                return (
+                  <View key={`${section.title}-${label}`}>
+                    {parsedSections.map((entry, entryIndex) => {
+                      const lines = chunkAnswerForRows(entry.value)
+                      const [firstLine, ...remainingLines] = lines
+                      return (
+                        <View key={`${section.title}-${label}-entry-${entryIndex}`}>
+                          <View style={styles.rowColumns} wrap={false}>
+                            <View style={styles.rowLabelColumn}>
+                              <Text style={styles.rowLabelPlain}>{entry.label}</Text>
+                            </View>
+                            <View style={styles.rowValueColumn}>
+                              <Text style={styles.rowValueFlow}>{firstLine}</Text>
+                            </View>
+                          </View>
+                          {remainingLines.map((line, index) => (
+                            <View key={`${section.title}-${label}-entry-${entryIndex}-line-${index}`} style={styles.rowColumns} wrap={false}>
+                              <View style={styles.rowLabelColumn}>
+                                <Text style={styles.rowLabelPlain}>{' '}</Text>
+                              </View>
+                              <View style={styles.rowValueColumn}>
+                                <Text style={styles.rowValueFlow}>{line}</Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )
+                    })}
+                  </View>
+                )
+              }
+
+              if (useWrappedColumns) {
+                const [firstLine, ...remainingLines] = chunkAnswerForRows(String(value || 'N/A'))
+                return (
+                  <View key={`${section.title}-${label}`}>
+                    <View style={styles.rowColumns} wrap={false}>
+                      <View style={styles.rowLabelColumn}>
+                        <Text style={styles.rowLabelPlain}>{label}</Text>
+                      </View>
+                      <View style={styles.rowValueColumn}>
+                        <Text style={styles.rowValueFlow}>{firstLine}</Text>
+                      </View>
+                    </View>
+
+                    {remainingLines.map((line, index) => (
+                      <View key={`${section.title}-${label}-line-${index}`} style={styles.rowColumns} wrap={false}>
+                        <View style={styles.rowLabelColumn}>
+                          <Text style={styles.rowLabelPlain}>{' '}</Text>
+                        </View>
+                        <View style={styles.rowValueColumn}>
+                          <Text style={styles.rowValueFlow}>{line}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )
+              }
+
+              return (
+                <View key={`${section.title}-${label}`} style={styles.row} wrap={false}>
+                  <Text style={styles.rowLabel}>{label}</Text>
+                  <Text style={styles.rowValue}>{value}</Text>
+                </View>
+              )
+            })}
           </View>
         ))}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Checklist summary</Text>
-          <Text style={styles.bullet}>- CCTV facial identification possible: {yesNo(payload.cctvSurveillance.facialIdentificationPossible)}</Text>
-          <Text style={styles.bullet}>- Early warning system in place: {yesNo(payload.communicationRadioUse.earlyWarningSystemInPlace)}</Text>
-          <Text style={styles.bullet}>- Staff understand do-not-engage: {yesNo(payload.staffSafetyResponse.staffUnderstandDoNotEngage)}</Text>
-          <Text style={styles.bullet}>- High-risk stock removed: {yesNo(payload.immediateActionsTaken.highRiskStockRemoved)}</Text>
-        </View>
       </Page>
     </Document>
   )

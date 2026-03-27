@@ -17,12 +17,16 @@ import { Pencil } from 'lucide-react'
 const editIncidentSchema = z.object({
   incident_category: z.enum(['accident', 'near_miss', 'security', 'fire', 'health_safety', 'other']),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
-  status: z.enum(['open', 'under_investigation', 'actions_in_progress']),
+  status: z.enum(['open', 'under_investigation', 'actions_in_progress', 'closed', 'cancelled']),
   summary: z.string().min(1, 'Summary is required'),
   description: z.string().optional(),
   occurred_at: z.string().min(1, 'Occurred date is required'),
+  reported_at: z.string().optional(),
+  closed_at: z.string().optional(),
   riddor_reportable: z.enum(['yes', 'no']),
   target_close_date: z.string().optional(),
+  closure_summary: z.string().optional(),
+  assigned_investigator_user_id: z.string().optional(),
 })
 
 type EditIncidentFormValues = z.infer<typeof editIncidentSchema>
@@ -49,12 +53,16 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
     defaultValues: {
       incident_category: incident.incident_category,
       severity: incident.severity,
-      status: incident.status === 'closed' ? 'actions_in_progress' : incident.status,
+      status: incident.status || 'open',
       summary: incident.summary || '',
       description: incident.description || '',
       occurred_at: toLocalDateTimeInput(incident.occurred_at),
+      reported_at: toLocalDateTimeInput(incident.reported_at),
+      closed_at: toLocalDateTimeInput(incident.closed_at),
       riddor_reportable: incident.riddor_reportable ? 'yes' : 'no',
       target_close_date: incident.target_close_date || '',
+      closure_summary: incident.closure_summary || '',
+      assigned_investigator_user_id: incident.assigned_investigator_user_id || '',
     },
   })
 
@@ -68,8 +76,13 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
         summary: values.summary.trim(),
         description: values.description?.trim() || '',
         occurred_at: new Date(values.occurred_at).toISOString(),
+        reported_at: values.reported_at ? new Date(values.reported_at).toISOString() : undefined,
+        closed_at: values.closed_at ? new Date(values.closed_at).toISOString() : undefined,
         riddor_reportable: values.riddor_reportable === 'yes',
         target_close_date: values.target_close_date || null,
+        closure_summary: values.closure_summary?.trim() || null,
+        assigned_investigator_user_id: values.assigned_investigator_user_id?.trim() || null,
+        // Keep structured JSON fields immutable in this modal to avoid accidental schema-breaking edits.
         persons_involved: incident.persons_involved ?? null,
         injury_details: incident.injury_details ?? null,
         witnesses: incident.witnesses ?? null,
@@ -93,7 +106,7 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
           Edit Incident
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[96vw] sm:max-w-[96vw] lg:max-w-[1300px] xl:max-w-[1500px] max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Update Incident</DialogTitle>
         </DialogHeader>
@@ -166,6 +179,8 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
                         <SelectItem value="open">Open</SelectItem>
                         <SelectItem value="under_investigation">Under Investigation</SelectItem>
                         <SelectItem value="actions_in_progress">Actions In Progress</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -195,7 +210,7 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea {...field} rows={3} />
+                    <Textarea {...field} rows={5} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -209,6 +224,20 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Occurred At</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="reported_at"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reported At</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
                     </FormControl>
@@ -253,6 +282,50 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
                 )}
               />
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="closed_at"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Closed At</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="assigned_investigator_user_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assigned Investigator ID</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="UUID (optional)" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="closure_summary"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Closure Summary</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>

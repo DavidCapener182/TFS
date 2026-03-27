@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
 import { revalidatePath } from 'next/cache'
 import { FaIncidentCategory, FaSeverity, FaIncidentStatus } from '@/types/db'
+import { extractLinkedVisitReportId } from '@/lib/incidents/incident-utils'
 
 export interface CreateIncidentInput {
   store_id: string
@@ -16,6 +17,76 @@ export interface CreateIncidentInput {
   injury_details?: unknown
   witnesses?: unknown
   riddor_reportable?: boolean
+}
+
+function toVisitReportRiskRating(
+  severity: string | null | undefined
+): 'low' | 'medium' | 'high' | 'critical' | '' {
+  const normalized = String(severity || '').trim().toLowerCase()
+  if (normalized === 'critical') return 'critical'
+  if (normalized === 'high') return 'high'
+  if (normalized === 'medium') return 'medium'
+  if (normalized === 'low') return 'low'
+  return ''
+}
+
+function isPermissionDeniedError(error: any): boolean {
+  return String(error?.code || '').trim() === '42501'
+}
+
+async function syncLinkedVisitReportFromIncident(supabase: ReturnType<typeof createClient>, incident: any) {
+  const reportId =
+    extractLinkedVisitReportId(incident?.persons_involved) ||
+    extractLinkedVisitReportId(incident)
+
+  if (!reportId) return
+
+  const { data: report, error: reportError } = await supabase
+    .from('tfs_visit_reports')
+    .select('id, payload, summary')
+    .eq('id', reportId)
+    .maybeSingle()
+
+  if (reportError || !report) {
+    if (reportError) {
+      console.error('Failed to fetch linked visit report during incident sync:', reportError)
+    }
+    return
+  }
+
+  const payload =
+    report.payload && typeof report.payload === 'object' && !Array.isArray(report.payload)
+      ? { ...(report.payload as Record<string, any>) }
+      : {}
+  const incidentOverview =
+    payload.incidentOverview &&
+    typeof payload.incidentOverview === 'object' &&
+    !Array.isArray(payload.incidentOverview)
+      ? { ...payload.incidentOverview }
+      : {}
+
+  if (incident.summary) {
+    incidentOverview.summary = incident.summary
+  }
+
+  const mappedRisk = toVisitReportRiskRating(incident.severity)
+  if (mappedRisk) {
+    payload.riskRating = mappedRisk
+  }
+
+  payload.incidentOverview = incidentOverview
+
+  const { error: updateError } = await supabase
+    .from('tfs_visit_reports')
+    .update({
+      summary: incident.summary || report.summary || null,
+      payload,
+    })
+    .eq('id', reportId)
+
+  if (updateError) {
+    console.error('Failed to sync linked visit report after incident update:', updateError)
+  }
 }
 
 export async function createIncident(input: CreateIncidentInput) {
@@ -60,7 +131,19 @@ export async function createIncident(input: CreateIncidentInput) {
   return incident
 }
 
-export async function updateIncident(id: string, updates: Partial<CreateIncidentInput & { status?: FaIncidentStatus; assigned_investigator_user_id?: string | null; target_close_date?: string | null; closure_summary?: string | null }>) {
+export async function updateIncident(
+  id: string,
+  updates: Partial<
+    CreateIncidentInput & {
+      status?: FaIncidentStatus
+      assigned_investigator_user_id?: string | null
+      target_close_date?: string | null
+      closure_summary?: string | null
+      reported_at?: string | null
+      closed_at?: string | null
+    }
+  >
+) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -110,31 +193,56 @@ export async function updateIncident(id: string, updates: Partial<CreateIncident
 
     revalidatePath('/incidents')
     revalidatePath(`/incidents/${id}`)
+    revalidatePath('/reports')
+    await syncLinkedVisitReportFromIncident(supabase, incident)
     return incident
   }
 
   // Regular update for non-closing status changes
   const updateData: Record<string, unknown> = { ...updates }
-  
-  const { data: incident, error } = await supabase
+  let { data: incident, error } = await supabase
     .from('tfs_incidents')
     .update(updateData)
     .eq('id', id)
     .select()
     .single()
 
-  if (error) {
-    throw new Error(`Failed to update incident: ${error.message}`)
+  // Some environments block updates to audit timestamps (e.g. reported_at/closed_at).
+  // Retry without those fields so the rest of the incident still saves.
+  if (error && isPermissionDeniedError(error)) {
+    const retryData = { ...updateData }
+    delete retryData.reported_at
+    delete retryData.closed_at
+
+    const retryResult = await supabase
+      .from('tfs_incidents')
+      .update(retryData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    incident = retryResult.data
+    error = retryResult.error
   }
 
-  // Log activity
-  await logActivity('incident', id, 'UPDATED', {
-    old: currentIncident,
-    new: incident,
-  })
+  if (error || !incident) {
+    throw new Error(`Failed to update incident: ${error?.message || 'Unknown database error'}`)
+  }
 
+  // Log activity, but don't block successful incident saves if logging is denied.
+  try {
+    await logActivity('incident', id, 'UPDATED', {
+      old: currentIncident,
+      new: incident,
+    })
+  } catch (logError) {
+    console.error('Failed to log activity for incident update:', logError)
+  }
+
+  await syncLinkedVisitReportFromIncident(supabase, incident)
   revalidatePath('/incidents')
   revalidatePath(`/incidents/${id}`)
+  revalidatePath('/reports')
   return incident
 }
 
@@ -254,11 +362,15 @@ export async function assignInvestigator(incidentId: string, investigatorId: str
 
   // Only update status if we're assigning (not unassigning)
   if (investigatorId && investigatorId !== 'unassigned') {
-    const { data: currentIncident } = await supabase
+    const { data: currentIncident, error: currentIncidentError } = await supabase
       .from('tfs_incidents')
       .select('status')
       .eq('id', incidentId)
       .single()
+
+    if (currentIncidentError) {
+      console.error('Failed to fetch incident status before assignment:', currentIncidentError)
+    }
 
     // Only change to under_investigation if currently open
     if (currentIncident?.status === 'open') {
@@ -277,10 +389,15 @@ export async function assignInvestigator(incidentId: string, investigatorId: str
     throw new Error(`Failed to assign investigator: ${error.message}`)
   }
 
-  await logActivity('incident', incidentId, 'UPDATED', {
-    action: investigatorId === 'unassigned' || !investigatorId ? 'Investigator unassigned' : 'Investigator assigned',
-    investigator_id: updateData.assigned_investigator_user_id,
-  })
+  try {
+    await logActivity('incident', incidentId, 'UPDATED', {
+      action: investigatorId === 'unassigned' || !investigatorId ? 'Investigator unassigned' : 'Investigator assigned',
+      investigator_id: updateData.assigned_investigator_user_id,
+    })
+  } catch (logError) {
+    // Don't block assignment success if activity logging fails.
+    console.error('Failed to log investigator assignment activity:', logError)
+  }
 
   revalidatePath('/incidents')
   revalidatePath(`/incidents/${incidentId}`)

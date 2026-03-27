@@ -20,8 +20,16 @@ export function FollowUpBanner({ className }: { className?: string }) {
     setLoading(true)
     ;(async () => {
       try {
-        const { getFollowUpCandidate } = await import('@/app/actions/follow-up-banner')
-        const next = await getFollowUpCandidate()
+        const res = await fetch('/api/follow-up-banner', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+        })
+        if (!res.ok) {
+          throw new Error(`Failed to fetch follow-up candidate (${res.status})`)
+        }
+        const json = (await res.json()) as { candidate: FollowUpCandidate | null }
+        const next = json?.candidate || null
         if (!cancelled) setCandidate(next)
       } catch (e) {
         console.error('Failed to load follow-up candidate:', e)
@@ -45,8 +53,15 @@ export function FollowUpBanner({ className }: { className?: string }) {
   const handleNo = () => {
     startTransition(async () => {
       try {
-        const { declineFollowUp } = await import('@/app/actions/follow-up-banner')
-        await declineFollowUp(candidate.incidentId)
+        const res = await fetch('/api/follow-up-banner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ incidentId: candidate.incidentId }),
+        })
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error(String((json as any)?.error || `Failed to close incident (${res.status})`))
+        }
         setCandidate(null)
         router.refresh()
       } catch (e) {

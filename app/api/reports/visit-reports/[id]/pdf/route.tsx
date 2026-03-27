@@ -13,6 +13,58 @@ function getRelatedRow<T>(value: T | T[] | null | undefined): T | null {
   return value || null
 }
 
+function mapSeverityToRisk(value: unknown): 'low' | 'medium' | 'high' | 'critical' | '' {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'low') return 'low'
+  if (normalized === 'medium') return 'medium'
+  if (normalized === 'high') return 'high'
+  if (normalized === 'critical') return 'critical'
+  return ''
+}
+
+function formatIncidentNarrativeForPdf(value: unknown): string {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  return text
+    // Ensure missing space after colon is fixed (e.g. "Recommendations:Loss")
+    .replace(/:\s*(?=[A-Za-z])/g, ': ')
+    // Keep common section headings visually separated in PDF.
+    .replace(
+      /\b(Incident Overview|Findings|Recommendations|Costings|Conclusion|Risk justification)\s*:/gi,
+      '\n$1:\n'
+    )
+    // Collapse excessive blank lines while preserving paragraph breaks.
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+async function getLatestLinkedIncidentSnapshot(supabase: ReturnType<typeof createClient>, reportId: string) {
+  const fromMetaResult = await supabase
+    .from('tfs_incidents')
+    .select('id, summary, description, severity, updated_at')
+    .eq('persons_involved->>visit_report_id', reportId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  if (!fromMetaResult.error && Array.isArray(fromMetaResult.data) && fromMetaResult.data.length > 0) {
+    return fromMetaResult.data[0]
+  }
+
+  const fromDescriptionResult = await supabase
+    .from('tfs_incidents')
+    .select('id, summary, description, severity, updated_at')
+    .ilike('description', `%Source visit report ID: ${reportId}%`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  if (!fromDescriptionResult.error && Array.isArray(fromDescriptionResult.data) && fromDescriptionResult.data.length > 0) {
+    return fromDescriptionResult.data[0]
+  }
+
+  return null
+}
+
 type Params = {
   params: {
     id: string
@@ -56,6 +108,31 @@ export async function GET(request: NextRequest, { params }: Params) {
     const createdBy = getRelatedRow(report.created_by)
 
     const normalizedPayload = normalizeTargetedTheftVisitPayload(report.payload)
+    const linkedIncident = await getLatestLinkedIncidentSnapshot(supabase, reportId)
+    const payloadForPdf = { ...normalizedPayload }
+
+    if (linkedIncident) {
+      payloadForPdf.incidentOverview = {
+        ...payloadForPdf.incidentOverview,
+        summary: String(linkedIncident.summary || payloadForPdf.incidentOverview.summary || ''),
+      }
+
+      // Use incident description as a single source-of-truth override for
+      // detailed recommendations so inline PDF always reflects latest edits.
+      if (String(linkedIncident.description || '').trim()) {
+        const formattedNarrative = formatIncidentNarrativeForPdf(linkedIncident.description)
+        payloadForPdf.recommendations = {
+          ...payloadForPdf.recommendations,
+          details: formattedNarrative,
+        }
+      }
+
+      const mappedRisk = mapSeverityToRisk(linkedIncident.severity)
+      if (mappedRisk) {
+        payloadForPdf.riskRating = mappedRisk
+      }
+    }
+
     const pdfDocument = (
       <VisitReportPdfDocument
         reportTitle={report.title || 'Visit report'}
@@ -65,7 +142,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         storeCode={store?.store_code || null}
         createdByName={createdBy?.full_name || null}
         generatedAt={new Date().toISOString()}
-        payload={normalizedPayload}
+        payload={payloadForPdf}
       />
     )
 

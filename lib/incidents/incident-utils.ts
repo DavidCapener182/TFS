@@ -147,10 +147,14 @@ function buildFallbackVisitReportPerson(
     readString(source, ['involvement', 'notes', 'summary']) ||
     (hasVisitReportLink ? 'Linked visit report incident.' : null)
 
+  // Legacy visit-report incidents (created before injured person capture)
+  // should default to Employee when injury is recorded but role is missing.
+  const fallbackRole = injured ? 'Employee' : inferIncidentRole(source, incidentCategory)
+
   if (name || directRole || involvement || injured || injuryDetails) {
     return {
       name,
-      role: directRole || inferIncidentRole(source, incidentCategory),
+      role: directRole || fallbackRole,
       involvement,
       injured,
       injuryDetails,

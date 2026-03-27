@@ -38,9 +38,14 @@ export async function createAction(incidentId: string, input: CreateActionInput)
     throw new Error(`Failed to create action: ${error.message}`)
   }
 
-  await logActivity('action', action.id, 'CREATED', {
-    new: action,
-  })
+  try {
+    await logActivity('action', action.id, 'CREATED', {
+      new: action,
+    })
+  } catch (logError) {
+    // Do not fail action creation if activity logging is blocked by RLS/policy.
+    console.error('Failed to log activity for action creation:', logError)
+  }
 
   // Update incident status to 'actions_in_progress' if not already closed/cancelled
   const { data: incident } = await supabase
@@ -50,10 +55,15 @@ export async function createAction(incidentId: string, input: CreateActionInput)
     .single()
 
   if (incident && !['closed', 'cancelled'].includes(incident.status)) {
-    await supabase
+    const { error: incidentStatusError } = await supabase
       .from('tfs_incidents')
       .update({ status: 'actions_in_progress' })
       .eq('id', incidentId)
+
+    if (incidentStatusError) {
+      // Action has already been created; do not surface non-critical status sync failures.
+      console.error('Failed to sync incident status after action creation:', incidentStatusError)
+    }
   }
 
   revalidatePath(`/incidents/${incidentId}`)
@@ -169,10 +179,14 @@ export async function deleteAction(id: string) {
     throw new Error(`Failed to delete action: ${error.message}`)
   }
 
-  // Log activity (trigger will also log, but explicit log for clarity)
-  await logActivity('action', id, 'DELETED', {
-    old: currentAction,
-  })
+  // Log activity (trigger may also log). Do not fail delete if logging is blocked.
+  try {
+    await logActivity('action', id, 'DELETED', {
+      old: currentAction,
+    })
+  } catch (logError) {
+    console.error('Failed to log activity for action deletion:', logError)
+  }
 
   if (currentAction?.incident_id) {
     // Check if we need to update incident status after deleting action
@@ -194,10 +208,15 @@ export async function deleteAction(id: string) {
     if (incident && !['closed', 'cancelled'].includes(incident.status)) {
       if (!hasOpenActions && incident.status === 'actions_in_progress') {
         // No more open actions, revert status
-        await supabase
+        const { error: incidentStatusError } = await supabase
           .from('tfs_incidents')
           .update({ status: 'under_investigation' })
           .eq('id', currentAction.incident_id)
+
+        if (incidentStatusError) {
+          // Action already deleted; keep UX successful and log non-critical sync failure.
+          console.error('Failed to sync incident status after action deletion:', incidentStatusError)
+        }
       }
     }
 

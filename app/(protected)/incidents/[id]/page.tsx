@@ -19,6 +19,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Download,
   FileText,
   MapPin,
   Printer,
@@ -392,9 +393,21 @@ export default async function IncidentDetailPage({
   const injuryObject = normalizeJsonObject(incident.injury_details)
   const incidentPeople = getIncidentPeople(incident, incident.incident_category)
   const linkedVisitReportId = extractLinkedVisitReportId(incident)
-  const linkedVisitReportPdfUrl = linkedVisitReportId
-    ? buildVisitReportPdfUrl(linkedVisitReportId)
-    : null
+  const pdfVersionToken = incident.updated_at || incident.reported_at || incident.occurred_at || ''
+  const linkedVisitReportPdfUrl =
+    linkedVisitReportId && pdfVersionToken
+      ? `${buildVisitReportPdfUrl(linkedVisitReportId)}&v=${encodeURIComponent(pdfVersionToken)}`
+      : linkedVisitReportId
+        ? buildVisitReportPdfUrl(linkedVisitReportId)
+        : null
+  const linkedVisitReportDownloadUrl =
+    linkedVisitReportId && pdfVersionToken
+      ? `/api/reports/visit-reports/${linkedVisitReportId}/pdf?mode=download&v=${encodeURIComponent(
+          pdfVersionToken
+        )}`
+      : linkedVisitReportId
+        ? `/api/reports/visit-reports/${linkedVisitReportId}/pdf?mode=download`
+        : null
   const reportedByLabel = pickString(personsObject, ['reported_by_label', 'reportedByLabel'])
   const incidentActorOverrideName = isStoreManagerLabel(reportedByLabel) ? reportedByLabel : null
   const reportedByDisplay = reportedByLabel || incident.reporter?.full_name || 'Unknown'
@@ -464,17 +477,32 @@ export default async function IncidentDetailPage({
 
         <div className="flex items-center gap-3">
           {linkedVisitReportPdfUrl ? (
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
-            >
-              <Link href={linkedVisitReportPdfUrl} target="_blank">
-                <FileText size={16} className="mr-2" />
-                Open Report PDF
-              </Link>
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
+              >
+                <Link href={linkedVisitReportPdfUrl} target="_blank">
+                  <FileText size={16} className="mr-2" />
+                  Open Report PDF
+                </Link>
+              </Button>
+              {linkedVisitReportDownloadUrl ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
+                >
+                  <Link href={linkedVisitReportDownloadUrl} target="_blank">
+                    <Download size={16} className="mr-2" />
+                    Download PDF
+                  </Link>
+                </Button>
+              ) : null}
+            </>
           ) : null}
           {!isArchivedClosedIncident ? (
             <>
