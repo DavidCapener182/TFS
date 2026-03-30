@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
   ClipboardList,
@@ -237,11 +238,14 @@ export function VisitTrackerClient({
   visitsAvailable,
   visitsUnavailableMessage,
 }: VisitTrackerClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeView, setActiveView] = useState<'by-group' | 'all-stores'>('by-group')
   const [search, setSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
   const [focusFlaggedOnly, setFocusFlaggedOnly] = useState(false)
   const [selectedRow, setSelectedRow] = useState<VisitTrackerRow | null>(null)
+  const requestedStoreId = searchParams?.get('storeId') || ''
 
   const canPlanVisits = userRole === 'admin' || userRole === 'ops'
   const canLogVisits = canPlanVisits && visitsAvailable
@@ -298,6 +302,29 @@ export function VisitTrackerClient({
       recent: source.filter((row) => isRecentVisit(row.lastVisitDate)).length,
     }
   }, [groupFilter, rows])
+
+  useEffect(() => {
+    if (!requestedStoreId) return
+
+    const matchingRow = rows.find((row) => row.storeId === requestedStoreId) || null
+    if (matchingRow) {
+      setSelectedRow(matchingRow)
+    }
+  }, [requestedStoreId, rows])
+
+  const handleModalOpenChange = (open: boolean) => {
+    if (open) return
+
+    setSelectedRow(null)
+
+    if (!requestedStoreId) return
+
+    const nextParams = new URLSearchParams(searchParams?.toString() || '')
+    nextParams.delete('storeId')
+    nextParams.delete('visitId')
+    const nextQuery = nextParams.toString()
+    router.replace(nextQuery ? `/visit-tracker?${nextQuery}` : '/visit-tracker')
+  }
 
   return (
     <div className="space-y-6">
@@ -491,9 +518,7 @@ export function VisitTrackerClient({
 
       <StoreVisitModal
         open={Boolean(selectedRow)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedRow(null)
-        }}
+        onOpenChange={handleModalOpenChange}
         row={selectedRow}
         productCatalog={productCatalog}
         canEdit={userRole === 'admin' || userRole === 'ops'}

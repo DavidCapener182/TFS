@@ -5,8 +5,10 @@ import type {
   StoreVisitNeedLevel,
   StoreVisitType,
 } from '@/lib/visit-needs'
+import type { VisitReportStatus, VisitReportType } from '@/lib/reports/visit-report-types'
 
 export type VisitState = 'planned' | 'recent' | 'random' | 'none'
+export type VisitSessionStatus = 'draft' | 'completed'
 
 export interface StoreVisitEvidenceFile {
   id: string
@@ -19,16 +21,29 @@ export interface StoreVisitEvidenceFile {
   downloadUrl: string | null
 }
 
+export interface LinkedVisitReportSummary {
+  id: string
+  reportType: VisitReportType
+  status: VisitReportStatus
+  title: string
+  summary: string | null
+  visitDate: string
+  updatedAt: string
+}
+
 export interface VisitHistoryEntry {
   id: string
   source: 'visit_log' | 'route_completion'
   visitedAt: string
+  status: VisitSessionStatus | null
   visitType: StoreVisitType | 'route_completion'
   completedActivityKeys: StoreVisitActivityKey[]
   completedActivityDetails: StoreVisitActivityDetails
   completedActivityPayloads: StoreVisitActivityPayloads
   evidenceFiles: StoreVisitEvidenceFile[]
+  linkedReports: LinkedVisitReportSummary[]
   notes: string | null
+  followUpRequired: boolean
   createdByName: string | null
   needScoreSnapshot: number | null
   needLevelSnapshot: StoreVisitNeedLevel | null
@@ -54,4 +69,5 @@ export interface VisitTrackerRow {
   openIncidentCount: number
   isActive: boolean
   recentVisits: VisitHistoryEntry[]
+  activeDraftVisit: VisitHistoryEntry | null
 }

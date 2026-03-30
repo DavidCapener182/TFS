@@ -1,4 +1,14 @@
-export type VisitReportType = 'targeted_theft_visit'
+import {
+  STORE_VISIT_ACTIVITY_OPTIONS,
+  buildStoreVisitActivityDetailText,
+  getStoreVisitActivityLabel,
+  normalizeStoreVisitActivityPayloads,
+  type StoreVisitActivityKey,
+  type StoreVisitActivityPayload,
+} from '@/lib/visit-needs'
+
+export type ActivityVisitReportType = StoreVisitActivityKey
+export type VisitReportType = 'targeted_theft_visit' | ActivityVisitReportType
 
 export type VisitReportStatus = 'draft' | 'final'
 
@@ -20,6 +30,24 @@ export interface VisitReportStoreOption {
   region: string | null
   city: string | null
 }
+
+export interface ActivityVisitReportPayload {
+  preparedBy: string
+  visitDate: string
+  timeIn: string
+  timeOut: string
+  storeManager: string
+  activityKey: ActivityVisitReportType
+  activityPayload: StoreVisitActivityPayload
+  findings: string
+  actionsTaken: string
+  signOff: {
+    visitedBy: string
+    storeRepresentative: string
+  }
+}
+
+export type VisitReportPayload = TargetedTheftVisitPayload | ActivityVisitReportPayload
 
 export interface TargetedTheftVisitPayload {
   preparedBy: string
@@ -137,6 +165,7 @@ export interface TargetedTheftVisitPayload {
 export interface VisitReportRecord {
   id: string
   storeId: string
+  storeVisitId: string | null
   storeName: string
   storeCode: string | null
   reportType: VisitReportType
@@ -145,24 +174,42 @@ export interface VisitReportRecord {
   summary: string | null
   visitDate: string
   riskRating: VisitReportRiskLevel | ''
-  payload: TargetedTheftVisitPayload
+  payload: VisitReportPayload
   createdAt: string
   updatedAt: string
   createdByName: string | null
 }
 
-export const VISIT_REPORT_TYPE_OPTIONS: Array<{
+export interface VisitReportTemplateDefinition {
   value: VisitReportType
   label: string
   description: string
-}> = [
+  kind: 'targeted_theft' | 'activity'
+  activityKey?: ActivityVisitReportType
+}
+
+export const VISIT_REPORT_TEMPLATES: VisitReportTemplateDefinition[] = [
   {
     value: 'targeted_theft_visit',
     label: 'Targeted Theft Visit Report',
     description:
       'Structured LP visit report for repeat theft, violence escalation, layout exposure, staff response, and immediate actions.',
+    kind: 'targeted_theft',
   },
+  ...STORE_VISIT_ACTIVITY_OPTIONS.map<VisitReportTemplateDefinition>((option) => ({
+    value: option.key,
+    label: option.label,
+    description: option.description,
+    kind: 'activity',
+    activityKey: option.key,
+  })),
 ]
+
+export const VISIT_REPORT_TYPE_OPTIONS = VISIT_REPORT_TEMPLATES.map(({ value, label, description }) => ({
+  value,
+  label,
+  description,
+}))
 
 function normalizeBoolean(value: unknown): boolean {
   return value === true
@@ -212,7 +259,15 @@ function normalizeIncidentPeople(value: unknown): VisitReportIncidentPerson[] {
 }
 
 export function getVisitReportTypeLabel(value: VisitReportType): string {
-  return VISIT_REPORT_TYPE_OPTIONS.find((option) => option.value === value)?.label || 'Visit Report'
+  return VISIT_REPORT_TEMPLATES.find((option) => option.value === value)?.label || 'Visit Report'
+}
+
+export function getVisitReportTemplate(value: VisitReportType): VisitReportTemplateDefinition | undefined {
+  return VISIT_REPORT_TEMPLATES.find((option) => option.value === value)
+}
+
+export function isActivityVisitReportType(value: VisitReportType): value is ActivityVisitReportType {
+  return VISIT_REPORT_TEMPLATES.some((option) => option.kind === 'activity' && option.value === value)
 }
 
 export function getEmptyTargetedTheftVisitPayload(
@@ -328,6 +383,30 @@ export function getEmptyTargetedTheftVisitPayload(
     riskJustification: '',
     signOff: {
       visitedBy: '',
+      storeRepresentative: '',
+    },
+  }
+}
+
+export function getEmptyActivityVisitReportPayload(
+  reportType: ActivityVisitReportType,
+  preparedBy: string | null | undefined,
+  referenceDate = new Date()
+): ActivityVisitReportPayload {
+  const preparedByValue = typeof preparedBy === 'string' ? preparedBy : ''
+
+  return {
+    preparedBy: preparedByValue,
+    visitDate: referenceDate.toISOString().slice(0, 10),
+    timeIn: '',
+    timeOut: '',
+    storeManager: '',
+    activityKey: reportType,
+    activityPayload: {},
+    findings: '',
+    actionsTaken: '',
+    signOff: {
+      visitedBy: preparedByValue,
       storeRepresentative: '',
     },
   }
@@ -523,6 +602,67 @@ export function normalizeTargetedTheftVisitPayload(
   }
 }
 
+function normalizeActivityPayload(
+  activityKey: ActivityVisitReportType,
+  input: unknown
+): StoreVisitActivityPayload {
+  return normalizeStoreVisitActivityPayloads(
+    {
+      [activityKey]:
+        input && typeof input === 'object' && !Array.isArray(input) && 'activityPayload' in (input as Record<string, unknown>)
+          ? (input as Record<string, unknown>).activityPayload
+          : input,
+    },
+    [activityKey]
+  )[activityKey] || {}
+}
+
+export function normalizeActivityVisitReportPayload(
+  reportType: ActivityVisitReportType,
+  input: unknown,
+  preparedBy?: string | null
+): ActivityVisitReportPayload {
+  const defaults = getEmptyActivityVisitReportPayload(reportType, preparedBy)
+
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return defaults
+  }
+
+  const payload = input as Record<string, unknown>
+  const signOff =
+    payload.signOff && typeof payload.signOff === 'object' && !Array.isArray(payload.signOff)
+      ? (payload.signOff as Record<string, unknown>)
+      : {}
+
+  return {
+    preparedBy: normalizeString(payload.preparedBy) || defaults.preparedBy,
+    visitDate: normalizeString(payload.visitDate) || defaults.visitDate,
+    timeIn: normalizeString(payload.timeIn),
+    timeOut: normalizeString(payload.timeOut),
+    storeManager: normalizeString(payload.storeManager),
+    activityKey: reportType,
+    activityPayload: normalizeActivityPayload(reportType, payload.activityPayload ?? payload),
+    findings: normalizeString(payload.findings),
+    actionsTaken: normalizeString(payload.actionsTaken),
+    signOff: {
+      visitedBy: normalizeString(signOff.visitedBy) || normalizeString(payload.preparedBy) || defaults.signOff.visitedBy,
+      storeRepresentative: normalizeString(signOff.storeRepresentative),
+    },
+  }
+}
+
+export function normalizeVisitReportPayload(
+  reportType: VisitReportType,
+  input: unknown,
+  preparedBy?: string | null
+): VisitReportPayload {
+  if (reportType === 'targeted_theft_visit') {
+    return normalizeTargetedTheftVisitPayload(input, preparedBy)
+  }
+
+  return normalizeActivityVisitReportPayload(reportType, input, preparedBy)
+}
+
 export function buildVisitReportTitle(
   reportType: VisitReportType,
   storeName: string,
@@ -577,4 +717,46 @@ export function buildTargetedTheftVisitSummary(
   }
 
   return summaryParts.join(' • ')
+}
+
+export function buildActivityVisitReportSummary(
+  reportType: ActivityVisitReportType,
+  payload: ActivityVisitReportPayload | unknown
+): string {
+  const normalized = normalizeActivityVisitReportPayload(reportType, payload)
+  const summaryParts: string[] = []
+  const detailText = buildStoreVisitActivityDetailText(
+    reportType,
+    undefined,
+    normalized.activityPayload
+  )
+
+  if (detailText) {
+    summaryParts.push(detailText)
+  }
+
+  if (normalized.findings.trim()) {
+    summaryParts.push(`Findings: ${truncateText(normalized.findings)}`)
+  }
+
+  if (normalized.actionsTaken.trim()) {
+    summaryParts.push(`Action: ${truncateText(normalized.actionsTaken)}`)
+  }
+
+  if (summaryParts.length === 0) {
+    summaryParts.push(`${getStoreVisitActivityLabel(reportType)} report`)
+  }
+
+  return summaryParts.join(' • ')
+}
+
+export function buildVisitReportSummary(
+  reportType: VisitReportType,
+  payload: VisitReportPayload | unknown
+): string {
+  if (reportType === 'targeted_theft_visit') {
+    return buildTargetedTheftVisitSummary(payload)
+  }
+
+  return buildActivityVisitReportSummary(reportType, payload)
 }

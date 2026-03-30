@@ -2,7 +2,13 @@ import React from 'react'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeTargetedTheftVisitPayload } from '@/lib/reports/visit-report-types'
+import {
+  normalizeVisitReportPayload,
+  type ActivityVisitReportPayload,
+  type TargetedTheftVisitPayload,
+  type VisitReportType,
+} from '@/lib/reports/visit-report-types'
+import { ActivityVisitReportPdfDocument } from '@/lib/pdf/activity-visit-report-document'
 import { VisitReportPdfDocument } from '@/lib/pdf/visit-report-document'
 
 export const dynamic = 'force-dynamic'
@@ -90,6 +96,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       .select(`
         id,
         title,
+        report_type,
         status,
         visit_date,
         payload,
@@ -106,45 +113,67 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     const store = getRelatedRow(report.store)
     const createdBy = getRelatedRow(report.created_by)
+    const reportType = report.report_type as VisitReportType
 
-    const normalizedPayload = normalizeTargetedTheftVisitPayload(report.payload)
-    const linkedIncident = await getLatestLinkedIncidentSnapshot(supabase, reportId)
-    const payloadForPdf = { ...normalizedPayload }
+    const normalizedPayload = normalizeVisitReportPayload(reportType, report.payload)
 
-    if (linkedIncident) {
-      payloadForPdf.incidentOverview = {
-        ...payloadForPdf.incidentOverview,
-        summary: String(linkedIncident.summary || payloadForPdf.incidentOverview.summary || ''),
+    let pdfDocument: React.ReactElement
+
+    if (reportType === 'targeted_theft_visit') {
+      const linkedIncident = await getLatestLinkedIncidentSnapshot(supabase, reportId)
+      const payloadForPdf: TargetedTheftVisitPayload = {
+        ...(normalizedPayload as TargetedTheftVisitPayload),
       }
 
-      // Use incident description as a single source-of-truth override for
-      // detailed recommendations so inline PDF always reflects latest edits.
-      if (String(linkedIncident.description || '').trim()) {
-        const formattedNarrative = formatIncidentNarrativeForPdf(linkedIncident.description)
-        payloadForPdf.recommendations = {
-          ...payloadForPdf.recommendations,
-          details: formattedNarrative,
+      if (linkedIncident) {
+        payloadForPdf.incidentOverview = {
+          ...payloadForPdf.incidentOverview,
+          summary: String(linkedIncident.summary || payloadForPdf.incidentOverview.summary || ''),
+        }
+
+        // Use incident description as a single source-of-truth override for
+        // detailed recommendations so inline PDF always reflects latest edits.
+        if (String(linkedIncident.description || '').trim()) {
+          const formattedNarrative = formatIncidentNarrativeForPdf(linkedIncident.description)
+          payloadForPdf.recommendations = {
+            ...payloadForPdf.recommendations,
+            details: formattedNarrative,
+          }
+        }
+
+        const mappedRisk = mapSeverityToRisk(linkedIncident.severity)
+        if (mappedRisk) {
+          payloadForPdf.riskRating = mappedRisk
         }
       }
 
-      const mappedRisk = mapSeverityToRisk(linkedIncident.severity)
-      if (mappedRisk) {
-        payloadForPdf.riskRating = mappedRisk
-      }
+      pdfDocument = (
+        <VisitReportPdfDocument
+          reportTitle={report.title || 'Visit report'}
+          status={report.status === 'final' ? 'final' : 'draft'}
+          visitDate={report.visit_date}
+          storeName={store?.store_name || 'Unknown store'}
+          storeCode={store?.store_code || null}
+          createdByName={createdBy?.full_name || null}
+          generatedAt={new Date().toISOString()}
+          payload={payloadForPdf}
+        />
+      )
+    } else {
+      pdfDocument = (
+        <ActivityVisitReportPdfDocument
+          reportTitle={report.title || 'Visit report'}
+          reportType={reportType}
+          status={report.status === 'final' ? 'final' : 'draft'}
+          visitDate={report.visit_date}
+          storeName={store?.store_name || 'Unknown store'}
+          storeCode={store?.store_code || null}
+          createdByName={createdBy?.full_name || null}
+          generatedAt={new Date().toISOString()}
+          payload={normalizedPayload as ActivityVisitReportPayload}
+        />
+      )
     }
-
-    const pdfDocument = (
-      <VisitReportPdfDocument
-        reportTitle={report.title || 'Visit report'}
-        status={report.status === 'final' ? 'final' : 'draft'}
-        visitDate={report.visit_date}
-        storeName={store?.store_name || 'Unknown store'}
-        storeCode={store?.store_code || null}
-        createdByName={createdBy?.full_name || null}
-        generatedAt={new Date().toISOString()}
-        payload={payloadForPdf}
-      />
-    )
 
     const buffer = await renderToBuffer(pdfDocument)
     const safeFile = (report.title || 'visit-report')
@@ -169,4 +198,3 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: error?.message || 'Failed to generate PDF' }, { status: 500 })
   }
 }
-

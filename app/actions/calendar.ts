@@ -195,6 +195,7 @@ export async function getCalendarData(month: number, year: number): Promise<Cale
         notes,
         tfs_stores:store_id(store_name, store_code)
       `)
+      .eq('status', 'completed')
       .gte('visited_at', startTs)
       .lte('visited_at', endTs),
   ])

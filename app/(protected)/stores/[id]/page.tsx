@@ -16,6 +16,7 @@ import {
   StoreMergeContext,
 } from '@/lib/store-normalization'
 import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
+import type { VisitReportType } from '@/lib/reports/visit-report-types'
 
 type StoreVisitEvidenceRow = {
   id: string
@@ -26,6 +27,17 @@ type StoreVisitEvidenceRow = {
   file_type: string | null
   file_size: number | null
   created_at: string
+}
+
+type VisitReportRow = {
+  id: string
+  store_visit_id: string | null
+  report_type: string
+  status: string
+  title: string
+  summary: string | null
+  visit_date: string
+  updated_at: string
 }
 
 async function getStore(storeId: string) {
@@ -307,8 +319,9 @@ async function getStoreVisits(storeIds: string[]) {
     supabase
       .from('tfs_store_visits')
       .select(
-        'id, store_id, visited_at, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, need_score_snapshot, need_level_snapshot, created_by_user_id'
+        'id, store_id, visited_at, status, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, follow_up_required, need_score_snapshot, need_level_snapshot, created_by_user_id'
       )
+      .eq('status', 'completed')
       .in('store_id', storeIds)
       .order('visited_at', { ascending: false }),
     supabase
@@ -363,19 +376,27 @@ async function getStoreVisits(storeIds: string[]) {
   }
 
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
+  const linkedReportsByVisitId = new Map<string, VisitHistoryEntry['linkedReports']>()
 
   if (visitIds.length > 0) {
-    const { data: evidenceRows, error: evidenceError } = await supabase
-      .from('tfs_store_visit_evidence')
-      .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
-      .in('visit_id', visitIds)
-      .order('created_at', { ascending: false })
+    const [evidenceResult, linkedReportsResult] = await Promise.all([
+      supabase
+        .from('tfs_store_visit_evidence')
+        .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
+        .in('visit_id', visitIds)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('tfs_visit_reports')
+        .select('id, store_visit_id, report_type, status, title, summary, visit_date, updated_at')
+        .in('store_visit_id', visitIds)
+        .order('updated_at', { ascending: false }),
+    ])
 
-    if (evidenceError) {
-      console.error('Error fetching store visit evidence:', evidenceError)
+    if (evidenceResult.error) {
+      console.error('Error fetching store visit evidence:', evidenceResult.error)
     } else {
       const signedUrls = await Promise.all(
-        ((evidenceRows || []) as StoreVisitEvidenceRow[]).map(async (row) => {
+        ((evidenceResult.data || []) as StoreVisitEvidenceRow[]).map(async (row) => {
           const { data } = await supabase.storage.from('tfs-attachments').createSignedUrl(row.file_path, 3600)
           return [row.id, data?.signedUrl || null] as const
         })
@@ -383,7 +404,7 @@ async function getStoreVisits(storeIds: string[]) {
 
       const signedUrlMap = new Map<string, string | null>(signedUrls)
 
-      for (const row of (evidenceRows || []) as StoreVisitEvidenceRow[]) {
+      for (const row of (evidenceResult.data || []) as StoreVisitEvidenceRow[]) {
         if (!isStoreVisitActivityKey(row.activity_key)) continue
 
         const existing = evidenceByVisitId.get(row.visit_id) || []
@@ -400,6 +421,26 @@ async function getStoreVisits(storeIds: string[]) {
         evidenceByVisitId.set(row.visit_id, existing)
       }
     }
+
+    if (linkedReportsResult.error) {
+      console.error('Error fetching linked visit reports:', linkedReportsResult.error)
+    } else {
+      for (const report of (linkedReportsResult.data || []) as VisitReportRow[]) {
+        if (!report.store_visit_id) continue
+
+        const existing = linkedReportsByVisitId.get(report.store_visit_id) || []
+        existing.push({
+          id: report.id,
+          reportType: report.report_type as VisitReportType,
+          status: report.status === 'final' ? 'final' : 'draft',
+          title: report.title || 'Untitled report',
+          summary: report.summary || null,
+          visitDate: report.visit_date,
+          updatedAt: report.updated_at,
+        })
+        linkedReportsByVisitId.set(report.store_visit_id, existing)
+      }
+    }
   }
 
   const visitsFromLogs: VisitHistoryEntry[] = ((storeVisitsResult.data || []) as any[]).map((visit) => {
@@ -409,6 +450,7 @@ async function getStoreVisits(storeIds: string[]) {
       id: visit.id,
       source: 'visit_log' as const,
       visitedAt: visit.visited_at,
+      status: 'completed',
       visitType: visit.visit_type,
       completedActivityKeys,
       completedActivityDetails: normalizeStoreVisitActivityDetails(
@@ -420,7 +462,9 @@ async function getStoreVisits(storeIds: string[]) {
         completedActivityKeys
       ),
       evidenceFiles: evidenceByVisitId.get(visit.id) || [],
+      linkedReports: linkedReportsByVisitId.get(visit.id) || [],
       notes: visit.notes || null,
+      followUpRequired: Boolean(visit.follow_up_required),
       createdByName: userMap.get(visit.created_by_user_id) || null,
       needScoreSnapshot:
         typeof visit.need_score_snapshot === 'number' ? visit.need_score_snapshot : null,
@@ -434,14 +478,17 @@ async function getStoreVisits(storeIds: string[]) {
       id: visit.id,
       source: 'route_completion' as const,
       visitedAt: visit.details?.completed_at || visit.created_at,
+      status: null,
       visitType: 'route_completion' as const,
       completedActivityKeys: [],
       completedActivityDetails: {},
       completedActivityPayloads: {},
       evidenceFiles: [],
+      linkedReports: [],
       notes: visit.details?.planned_date
         ? `Route visit completed for plan date ${visit.details.planned_date}.`
         : 'Route visit completed.',
+      followUpRequired: false,
       createdByName: visit.performed_by_user_id ? userMap.get(visit.performed_by_user_id) || null : null,
       needScoreSnapshot: null,
       needLevelSnapshot: null,

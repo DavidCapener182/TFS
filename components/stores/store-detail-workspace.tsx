@@ -21,6 +21,7 @@ import { UserRole } from '@/lib/auth'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
 import { getInternalAreaDisplayName, getReportingAreaDisplayName } from '@/lib/areas'
 import { formatStoreName } from '@/lib/store-display'
+import { getVisitReportTypeLabel } from '@/lib/reports/visit-report-types'
 import {
   getStoreVisitNeedLevelLabel,
   getStoreVisitTypeLabel,
@@ -890,6 +891,10 @@ export function StoreDetailWorkspace({
                           {getStoreVisitNeedLevelLabel(visit.needLevelSnapshot)}
                           {typeof visit.needScoreSnapshot === 'number' ? ` (${visit.needScoreSnapshot})` : ''}
                         </Badge>
+                      ) : visit.followUpRequired ? (
+                        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                          Follow-up required
+                        </Badge>
                       ) : (
                         <p className="text-sm font-semibold text-[#4b3a78]">Completed</p>
                       )}
@@ -897,6 +902,41 @@ export function StoreDetailWorkspace({
                     <p className="mt-1 text-xs text-slate-500">
                       {format(new Date(visit.visitedAt), 'dd MMM yyyy HH:mm')}
                     </p>
+                    {visit.linkedReports.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {visit.linkedReports.map((report) => (
+                          <div
+                            key={report.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                          >
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div>
+                                <p className="font-semibold text-slate-900">{report.title}</p>
+                                <p className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                                  <span>{getVisitReportTypeLabel(report.reportType)}</span>
+                                  <span>{report.status === 'final' ? 'Final' : 'Draft'}</span>
+                                  <span>{format(new Date(report.updatedAt), 'dd MMM yyyy HH:mm')}</span>
+                                </p>
+                                {report.summary ? (
+                                  <p className="mt-2 text-sm text-slate-600">{report.summary}</p>
+                                ) : null}
+                              </div>
+                              <Link
+                                href={
+                                  report.status === 'final'
+                                    ? `/api/reports/visit-reports/${report.id}/pdf?mode=view`
+                                    : `/reports?sheet=1&reportId=${report.id}`
+                                }
+                                target={report.status === 'final' ? '_blank' : undefined}
+                                className="inline-flex items-center rounded border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                              >
+                                Open report
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {visit.completedActivityKeys.length > 0 ? (
                       <div className="mt-3 space-y-2">
                         {visit.completedActivityKeys.map((activityKey) => (

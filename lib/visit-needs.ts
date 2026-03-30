@@ -34,6 +34,7 @@ export interface StoreVisitActivityFieldDefinition {
   label: string
   placeholder: string
   input: 'text' | 'textarea'
+  section?: 'what_checked' | 'findings' | 'actions'
 }
 
 export interface StoreVisitActivityOption {
@@ -48,6 +49,71 @@ export interface StoreVisitActivityOption {
   legacyFieldMap?: Partial<Record<StoreVisitLegacyPayloadField, string>>
 }
 
+const COMMON_ACTIVITY_CONTEXT_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'lpObjective',
+    label: 'LP objective / trigger',
+    placeholder: 'What incident, action, trend, audit gap, complaint, or intelligence triggered this report?',
+    input: 'textarea',
+    section: 'what_checked',
+  },
+  {
+    key: 'peoplePresent',
+    label: 'People present / involved',
+    placeholder: 'Manager, keyholder, sales advisor, guard, courier, witness, contractor...',
+    input: 'text',
+    section: 'what_checked',
+  },
+  {
+    key: 'recordsReviewed',
+    label: 'Records / evidence reviewed',
+    placeholder: 'CCTV, paperwork, till reports, stock files, statements, delivery notes, alarm logs...',
+    input: 'textarea',
+    section: 'what_checked',
+  },
+]
+
+const COMMON_ACTIVITY_FINDINGS_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'lossValueImpact',
+    label: 'Loss / value impact',
+    placeholder: 'Known shortage, units missing, cash discrepancy, value at risk, or potential exposure.',
+    input: 'text',
+    section: 'findings',
+  },
+  {
+    key: 'rootCauseOrWeakness',
+    label: 'Root cause / control weakness',
+    placeholder: 'What control or process weakness allowed the issue to happen or continue?',
+    input: 'textarea',
+    section: 'findings',
+  },
+]
+
+const COMMON_ACTIVITY_ACTION_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'immediateContainment',
+    label: 'Immediate containment completed',
+    placeholder: 'What was secured, removed, corrected, coached, or contained before leaving site?',
+    input: 'textarea',
+    section: 'actions',
+  },
+  {
+    key: 'escalatedTo',
+    label: 'Escalated to',
+    placeholder: 'Manager, area manager, finance, investigations, HR, security provider, police...',
+    input: 'text',
+    section: 'actions',
+  },
+  {
+    key: 'followUpOwnerDeadline',
+    label: 'Follow-up owner / timescale',
+    placeholder: 'Who owns the next step and by when?',
+    input: 'text',
+    section: 'actions',
+  },
+]
+
 export const STORE_VISIT_ACTIVITY_OPTIONS = [
   {
     key: 'checked_banking',
@@ -57,32 +123,53 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'cash-check',
     evidenceLabel: 'Banking document',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'bankingReference',
         label: 'Banking reference',
         placeholder: 'Deposit number, bag reference, banking slip...',
         input: 'text',
+        section: 'what_checked',
+      },
+      {
+        key: 'reviewCompletedWith',
+        label: 'Reviewed with',
+        placeholder: 'Manager, keyholder, cash office colleague...',
+        input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'bankingItemsChecked',
         label: 'Banking items checked',
         placeholder: 'List the bags, envelopes, safe contents, or deposits reviewed.',
         input: 'textarea',
+        section: 'what_checked',
       },
       {
         key: 'paperworkReviewed',
         label: 'Paperwork reviewed',
         placeholder: 'Banking sheet, handover log, pay-in slips, safe records...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'discrepancyType',
+        label: 'Discrepancy / irregularity found',
+        placeholder: 'Missing slip, short banking, bag mismatch, late banking, paperwork gap...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'discrepancyAction',
         label: 'Discrepancy notes / action taken',
         placeholder: 'Record any shortfall, overage, missing paperwork, or action taken on site.',
         input: 'textarea',
+        section: 'actions',
       },
     ],
-    detailFieldKeys: ['bankingItemsChecked', 'discrepancyAction', 'bankingReference'],
+    detailFieldKeys: ['bankingItemsChecked', 'discrepancyType', 'bankingReference'],
     legacyFieldMap: {
       summary: 'bankingItemsChecked',
       findings: 'paperworkReviewed',
@@ -99,23 +186,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'cash-check',
     evidenceLabel: 'Till document',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'tillsChecked',
         label: 'Tills checked',
         placeholder: 'List the tills, floats, or terminals reviewed.',
         input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'reviewCompletedWith',
+        label: 'Reviewed with',
+        placeholder: 'Manager, supervisor, cash office colleague...',
+        input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'cashControlsReviewed',
         label: 'Cash controls reviewed',
         placeholder: 'Describe the till processes or controls checked during the visit.',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'spotCheckWindow',
+        label: 'Period / shift checked',
+        placeholder: 'Opening, mid-day, close, shift handover, float set-up...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'variancePattern',
+        label: 'Variance pattern / concern',
+        placeholder: 'Repeat till mismatch, poor paperwork, training issue, refund risk, keying error...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'varianceAction',
         label: 'Variance / action taken',
         placeholder: 'Record mismatches found and what was done on site.',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['tillsChecked', 'varianceAction'],
@@ -133,6 +247,40 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     detailPlaceholder: 'Capture which line checks were reviewed and any compliance gaps or coaching given.',
     formVariant: 'line-check',
     evidenceLabel: 'Line-check evidence',
+    fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
+      {
+        key: 'linesChecked',
+        label: 'Lines / ranges checked',
+        placeholder: 'Which brands, bays, cabinets, drawers, or high-risk ranges were checked?',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'areasChecked',
+        label: 'Areas checked',
+        placeholder: 'Sales floor, stockroom, till point, fragrance wall, promo table...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'countMethod',
+        label: 'Count method / stock source used',
+        placeholder: 'Stock system, report, blind count, re-count, manual spot check...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'highRiskProductsChecked',
+        label: 'High-risk products checked',
+        placeholder: 'List the key fragrances or stock lines prioritised during the check.',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
+    ],
+    detailFieldKeys: ['linesChecked', 'areasChecked', 'highRiskProductsChecked'],
   },
   {
     key: 'supported_investigation',
@@ -142,35 +290,57 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Investigation evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'caseReference',
         label: 'Case reference',
         placeholder: 'Incident, case, or investigation reference...',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'investigationFocus',
         label: 'Investigation focus',
         placeholder: 'What allegation, loss event, or concern was investigated?',
         input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'subjectsInvolved',
+        label: 'Subjects / people involved',
+        placeholder: 'Offender, employee, witness, contractor, customer...',
+        input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'evidenceReviewed',
         label: 'Evidence reviewed',
         placeholder: 'CCTV, till records, statements, refunds, stock movements...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'keyLPConcern',
+        label: 'Key LP concern identified',
+        placeholder: 'Fraud indicator, repeat theft method, process bypass, collusion concern...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'workCompleted',
         label: 'Work completed on site',
         placeholder: 'Explain what the LP officer did during the visit.',
         input: 'textarea',
+        section: 'actions',
       },
       {
         key: 'outcomeOrEscalation',
         label: 'Outcome / escalation',
         placeholder: 'Record the current outcome or who it was escalated to.',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['investigationFocus', 'workCompleted', 'caseReference'],
@@ -179,7 +349,7 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
       findings: 'evidenceReviewed',
       actionsTaken: 'workCompleted',
       nextSteps: 'outcomeOrEscalation',
-      peopleInvolved: 'outcomeOrEscalation',
+      peopleInvolved: 'subjectsInvolved',
       reference: 'caseReference',
     },
   },
@@ -191,29 +361,57 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'CCTV / alarm evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'systemsChecked',
         label: 'Systems checked',
         placeholder: 'Which cameras, alarm points, DVRs, or panic systems were reviewed?',
         input: 'textarea',
+        section: 'what_checked',
       },
       {
         key: 'areasReviewed',
         label: 'Areas reviewed',
         placeholder: 'Sales floor, till area, stockroom, entrance, fire exit...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'functionTestCompleted',
+        label: 'Function / playback test completed',
+        placeholder: 'Playback checked, panic alarm tested, date/time reviewed, engineer status confirmed...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'faultsFound',
         label: 'Faults / blind spots found',
         placeholder: 'Record any dead cameras, blind spots, alarm faults, or usage issues.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'evidenceQuality',
+        label: 'Evidence quality concern',
+        placeholder: 'Facial ID issue, poor angle, poor lighting, export issue, retention concern...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'actionsAgreed',
         label: 'Action agreed',
         placeholder: 'Training given, engineer callout, escalation, or immediate fix.',
         input: 'textarea',
+        section: 'actions',
+      },
+      {
+        key: 'calloutOrTicketReference',
+        label: 'Callout / ticket reference',
+        placeholder: 'Engineer ticket, contractor job number, helpdesk ref...',
+        input: 'text',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['systemsChecked', 'faultsFound'],
@@ -232,29 +430,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Loss-control evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'controlsChecked',
         label: 'Controls checked',
         placeholder: 'Tagging, cabinet locking, tester control, refund control, stockroom security...',
         input: 'textarea',
+        section: 'what_checked',
       },
       {
         key: 'hotspotsReviewed',
         label: 'Hotspots reviewed',
         placeholder: 'Which theft hotspots or risk areas were checked?',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'highRiskProductsReviewed',
+        label: 'High-risk products / areas reviewed',
+        placeholder: 'Which high-risk SKUs, fixtures, or stock locations were prioritised?',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'weaknessesFound',
         label: 'Weaknesses found',
         placeholder: 'Record the control gaps or standards missed.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'deterrenceGap',
+        label: 'Deterrence / visibility gap',
+        placeholder: 'Poor greeting, weak guarding, exposed stock, blind spot, lack of signage...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'correctiveAction',
         label: 'Corrective action agreed',
         placeholder: 'What was fixed on site or agreed with the team?',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['controlsChecked', 'weaknessesFound'],
@@ -273,29 +492,43 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Stop-on-close evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'teamPresent',
         label: 'Team present',
         placeholder: 'Manager, keyholder, staff members, guard...',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'closingChecksCompleted',
         label: 'Closing checks completed',
         placeholder: 'Cash secure, doors checked, stockroom clear, alarm set, keys controlled...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'cashAndKeysVerified',
+        label: 'Cash / keys / alarm verification',
+        placeholder: 'Who held keys, how cash was secured, alarm set confirmation, locking checks...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'issuesAtClose',
         label: 'Issues found at close',
         placeholder: 'Record any missed steps, unsecured stock, or process breaches.',
         input: 'textarea',
+        section: 'findings',
       },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'actionsBeforeLeaving',
         label: 'Actions before leaving',
         placeholder: 'What was corrected or agreed before the store closed?',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['closingChecksCompleted', 'issuesAtClose'],
@@ -314,35 +547,57 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Statement evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'caseReference',
         label: 'Case reference',
         placeholder: 'Incident, statement, or HR reference...',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'peopleSpokenTo',
         label: 'People spoken to',
         placeholder: 'Who provided a statement or interview on site?',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'statementPurpose',
         label: 'Statement purpose',
         placeholder: 'What was the statement or interview for?',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'recordsCaptured',
+        label: 'Records / evidence captured',
+        placeholder: 'Signed statement, audio note, witness notes, CCTV clip, HR notes...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'keyPointsCaptured',
         label: 'Key points captured',
         placeholder: 'Summarise the main account or evidence captured.',
         input: 'textarea',
+        section: 'findings',
       },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'followUpRequired',
         label: 'Follow-up required',
         placeholder: 'Any next interviews, witness requests, or paperwork still needed.',
         input: 'textarea',
+        section: 'actions',
+      },
+      {
+        key: 'evidenceStored',
+        label: 'Evidence stored / handed to',
+        placeholder: 'Who received the statement or where the evidence was stored.',
+        input: 'text',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['peopleSpokenTo', 'statementPurpose', 'caseReference'],
@@ -363,29 +618,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Process review evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'paperworkChecked',
         label: 'Paperwork / processes checked',
         placeholder: 'Weekly paperwork, refunds, damages, deliveries, stockroom process...',
         input: 'textarea',
+        section: 'what_checked',
       },
       {
         key: 'areasReviewed',
         label: 'Areas reviewed',
         placeholder: 'Back office, till point, stockroom, manager files...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'periodCovered',
+        label: 'Period covered',
+        placeholder: 'Today, week ending, previous month, last delivery cycle...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'nonComplianceFound',
         label: 'Non-compliance found',
         placeholder: 'Record any missing paperwork or process breaches.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'repeatProcessGap',
+        label: 'Repeat process gap',
+        placeholder: 'Is this a repeat issue or isolated? Note the control weakness or repeat behaviour.',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'correctionsMade',
         label: 'Corrections made / agreed',
         placeholder: 'What was corrected on site or agreed with the store team?',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['paperworkChecked', 'nonComplianceFound'],
@@ -404,29 +680,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Stock-loss evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'stockAreaReviewed',
         label: 'Stock area / category reviewed',
         placeholder: 'What stock line, area, or category was reviewed?',
         input: 'textarea',
+        section: 'what_checked',
       },
       {
         key: 'lossIssueReviewed',
         label: 'Loss issue reviewed',
         placeholder: 'Explain the shrink trend, adjustment issue, or count concern.',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'countSourceUsed',
+        label: 'Count source / system used',
+        placeholder: 'Stock system, count sheet, adjustment report, delivery variance report...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'countFindings',
         label: 'Count findings',
         placeholder: 'Record the main variances or count findings.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'trendOrPattern',
+        label: 'Trend / repeat pattern',
+        placeholder: 'Repeat SKU loss, ongoing discrepancy, same shift, same delivery pattern...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'actionEscalated',
         label: 'Action / escalation',
         placeholder: 'What was actioned or escalated after the review?',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['lossIssueReviewed', 'countFindings'],
@@ -445,29 +742,57 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Delivery evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'deliveryReference',
         label: 'Delivery reference',
         placeholder: 'Delivery note, carrier reference, parcel ID...',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'issueReviewed',
         label: 'Issue reviewed',
         placeholder: 'What was wrong with the delivery or parcel?',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'carrierOrSupplier',
+        label: 'Carrier / supplier',
+        placeholder: 'Courier, supplier, depot, store transfer source...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'affectedItems',
         label: 'Affected items',
         placeholder: 'List the missing, damaged, or tampered stock.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'sealOrPackagingCondition',
+        label: 'Seal / packaging condition',
+        placeholder: 'Broken seal, re-taped parcel, damaged packaging, count mismatch, empty carton...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'actionsTaken',
         label: 'Action taken',
         placeholder: 'What was done on site or who was notified?',
         input: 'textarea',
+        section: 'actions',
+      },
+      {
+        key: 'claimOrCaseReference',
+        label: 'Claim / escalation reference',
+        placeholder: 'Claim ID, incident ref, supplier escalation ref...',
+        input: 'text',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['issueReviewed', 'affectedItems', 'deliveryReference'],
@@ -487,23 +812,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Security-procedure evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'proceduresChecked',
         label: 'Procedures checked',
         placeholder: 'Search policy, key control, guard deployment, opening / closing...',
         input: 'textarea',
+        section: 'what_checked',
       },
+      {
+        key: 'areasCovered',
+        label: 'Areas / process stages covered',
+        placeholder: 'Entrance, till area, stockroom, back door, key safe, opening, closing...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'guardOrKeyholderPresent',
+        label: 'Guard / keyholder presence',
+        placeholder: 'Who was present while the procedure was reviewed?',
+        input: 'text',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'weaknessesFound',
         label: 'Weaknesses found',
         placeholder: 'Record any missed steps or security weaknesses found.',
         input: 'textarea',
+        section: 'findings',
       },
+      {
+        key: 'breachOrExposure',
+        label: 'Breach / exposure identified',
+        placeholder: 'Key control gap, search not completed, open access, poor guarding, uncontrolled entry...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'actionsAgreed',
         label: 'Action agreed',
         placeholder: 'Training, escalation, or immediate changes agreed with the store.',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['proceduresChecked', 'weaknessesFound'],
@@ -522,29 +874,50 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Training evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'topicCovered',
         label: 'Topic covered',
         placeholder: 'What control, process, or LP topic was covered?',
         input: 'text',
+        section: 'what_checked',
       },
       {
         key: 'deliveredTo',
         label: 'Delivered to',
         placeholder: 'Manager, keyholder, whole team...',
         input: 'text',
+        section: 'what_checked',
       },
+      {
+        key: 'trainingReason',
+        label: 'Reason for support / training',
+        placeholder: 'What concern, incident, audit gap, or request drove the coaching session?',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'observedKnowledgeGap',
+        label: 'Observed knowledge / behaviour gap',
+        placeholder: 'What did the team not understand or apply consistently before the coaching?',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
       {
         key: 'guidanceGiven',
         label: 'Guidance given',
         placeholder: 'Describe the coaching or support delivered on site.',
         input: 'textarea',
+        section: 'actions',
       },
       {
         key: 'followUpNeeded',
         label: 'Follow-up needed',
         placeholder: 'Any return visit, manager action, or further training needed.',
         input: 'textarea',
+        section: 'actions',
       },
     ],
     detailFieldKeys: ['topicCovered', 'guidanceGiven'],
@@ -563,14 +936,32 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     formVariant: 'structured',
     evidenceLabel: 'Supporting evidence',
     fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
+      {
+        key: 'activityType',
+        label: 'Activity type',
+        placeholder: 'What kind of LP work was completed that is not covered by the standard templates?',
+        input: 'text',
+        section: 'what_checked',
+      },
       {
         key: 'details',
         label: 'Details',
         placeholder: 'Describe the additional work completed on site.',
         input: 'textarea',
+        section: 'what_checked',
       },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'lpRiskObserved',
+        label: 'LP risk / issue captured',
+        placeholder: 'What loss risk, concern, or operational weakness was captured during this activity?',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
     ],
-    detailFieldKeys: ['details'],
+    detailFieldKeys: ['activityType', 'details'],
     legacyFieldMap: {
       summary: 'details',
       findings: 'details',
@@ -585,6 +976,7 @@ export type StoreVisitActivityKey = (typeof STORE_VISIT_ACTIVITY_OPTIONS)[number
 export type StoreVisitNeedLevel = 'none' | 'monitor' | 'needed' | 'urgent'
 export type StoreVisitActivityDetails = Partial<Record<StoreVisitActivityKey, string>>
 export type StoreVisitActivityFormVariant = (typeof STORE_VISIT_ACTIVITY_OPTIONS)[number]['formVariant']
+export type StoreVisitActivityFieldSection = 'what_checked' | 'findings' | 'actions'
 
 export interface StoreVisitCountedItem {
   productId?: string
@@ -632,6 +1024,54 @@ export function getStoreVisitActivityFieldDefinitions(
   activityKey: StoreVisitActivityKey
 ): readonly StoreVisitActivityFieldDefinition[] {
   return getStoreVisitActivityOption(activityKey)?.fields || []
+}
+
+export function getStoreVisitActivityFieldSection(
+  activityKey: StoreVisitActivityKey,
+  field: StoreVisitActivityFieldDefinition
+): StoreVisitActivityFieldSection {
+  if (field.section) return field.section
+
+  const option = getStoreVisitActivityOption(activityKey)
+  const legacyEntry = Object.entries(option?.legacyFieldMap || {}).find(
+    ([, mappedField]) => mappedField === field.key
+  )?.[0]
+
+  if (legacyEntry === 'findings') return 'findings'
+  if (legacyEntry === 'actionsTaken' || legacyEntry === 'nextSteps') return 'actions'
+  if (
+    legacyEntry === 'summary' ||
+    legacyEntry === 'peopleInvolved' ||
+    legacyEntry === 'reference'
+  ) {
+    return 'what_checked'
+  }
+
+  const normalizedKey = field.key.toLowerCase()
+  if (
+    normalizedKey.includes('issue') ||
+    normalizedKey.includes('finding') ||
+    normalizedKey.includes('weakness') ||
+    normalizedKey.includes('variance') ||
+    normalizedKey.includes('fault') ||
+    normalizedKey.includes('affected') ||
+    normalizedKey.includes('countfindings') ||
+    normalizedKey.includes('noncompliance')
+  ) {
+    return 'findings'
+  }
+
+  if (
+    normalizedKey.includes('action') ||
+    normalizedKey.includes('followup') ||
+    normalizedKey.includes('outcome') ||
+    normalizedKey.includes('correction') ||
+    normalizedKey.includes('escalation')
+  ) {
+    return 'actions'
+  }
+
+  return 'what_checked'
 }
 
 export function normalizeStoreVisitActivityDetails(

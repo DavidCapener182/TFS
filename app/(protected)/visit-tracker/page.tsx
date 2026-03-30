@@ -11,6 +11,7 @@ import {
 } from '@/lib/visit-needs'
 import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
 import { createClient } from '@/lib/supabase/server'
+import type { VisitReportType } from '@/lib/reports/visit-report-types'
 import { VisitTrackerClient } from '@/components/visit-tracker/visit-tracker-client'
 import type { VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
 
@@ -40,11 +41,13 @@ type StoreVisitRow = {
   id: string
   store_id: string
   visited_at: string
+  status: 'draft' | 'completed' | null
   visit_type: string
   completed_activity_keys: string[] | null
   completed_activity_details: Record<string, string> | null
   completed_activity_payloads: Record<string, unknown> | null
   notes: string | null
+  follow_up_required: boolean | null
   need_score_snapshot: number | null
   need_level_snapshot: StoreVisitNeedLevel | null
   created_by_user_id: string
@@ -70,6 +73,17 @@ type RouteVisitLogRow = {
     completed_at?: string | null
     planned_date?: string | null
   } | null
+}
+
+type VisitReportRow = {
+  id: string
+  store_visit_id: string | null
+  report_type: string
+  status: string
+  title: string
+  summary: string | null
+  visit_date: string
+  updated_at: string
 }
 
 function buildVisitState(lastVisit: VisitHistoryEntry | undefined, nextPlannedVisitDate: string | null): VisitState {
@@ -142,6 +156,7 @@ async function getVisitTrackerData(): Promise<{
   const openIncidentsByStore = new Map<string, IncidentRow[]>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
+  const linkedReportsByVisitId = new Map<string, VisitHistoryEntry['linkedReports']>()
   const profileMap = new Map<string, string | null>()
   let visitsAvailable = true
   let visitsUnavailableMessage: string | null = null
@@ -194,7 +209,7 @@ async function getVisitTrackerData(): Promise<{
       supabase
         .from('tfs_store_visits')
         .select(
-          'id, store_id, visited_at, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, need_score_snapshot, need_level_snapshot, created_by_user_id'
+          'id, store_id, visited_at, status, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, follow_up_required, need_score_snapshot, need_level_snapshot, created_by_user_id'
         )
         .in('store_id', storeIds)
         .order('visited_at', { ascending: false }),
@@ -248,17 +263,24 @@ async function getVisitTrackerData(): Promise<{
     }
 
     if (visitIds.length > 0) {
-      const { data: evidenceRows, error: evidenceError } = await supabase
-        .from('tfs_store_visit_evidence')
-        .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
-        .in('visit_id', visitIds)
-        .order('created_at', { ascending: false })
+      const [evidenceResult, linkedReportsResult] = await Promise.all([
+        supabase
+          .from('tfs_store_visit_evidence')
+          .select('id, visit_id, activity_key, file_name, file_path, file_type, file_size, created_at')
+          .in('visit_id', visitIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('tfs_visit_reports')
+          .select('id, store_visit_id, report_type, status, title, summary, visit_date, updated_at')
+          .in('store_visit_id', visitIds)
+          .order('updated_at', { ascending: false }),
+      ])
 
-      if (evidenceError) {
-        console.error('Error fetching visit evidence:', evidenceError)
+      if (evidenceResult.error) {
+        console.error('Error fetching visit evidence:', evidenceResult.error)
       } else {
         const signedUrls = await Promise.all(
-          ((evidenceRows || []) as StoreVisitEvidenceRow[]).map(async (row) => {
+          ((evidenceResult.data || []) as StoreVisitEvidenceRow[]).map(async (row) => {
             const { data } = await supabase.storage.from('tfs-attachments').createSignedUrl(row.file_path, 3600)
             return [row.id, data?.signedUrl || null] as const
           })
@@ -266,7 +288,7 @@ async function getVisitTrackerData(): Promise<{
 
         const signedUrlMap = new Map<string, string | null>(signedUrls)
 
-        for (const row of (evidenceRows || []) as StoreVisitEvidenceRow[]) {
+        for (const row of (evidenceResult.data || []) as StoreVisitEvidenceRow[]) {
           if (!isStoreVisitActivityKey(row.activity_key)) continue
 
           const existing = evidenceByVisitId.get(row.visit_id) || []
@@ -283,6 +305,25 @@ async function getVisitTrackerData(): Promise<{
           evidenceByVisitId.set(row.visit_id, existing)
         }
       }
+
+      if (linkedReportsResult.error) {
+        console.error('Error fetching linked visit reports:', linkedReportsResult.error)
+      } else {
+        for (const report of (linkedReportsResult.data || []) as VisitReportRow[]) {
+          if (!report.store_visit_id) continue
+          const existing = linkedReportsByVisitId.get(report.store_visit_id) || []
+          existing.push({
+            id: report.id,
+            reportType: report.report_type as VisitReportType,
+            status: report.status === 'final' ? 'final' : 'draft',
+            title: report.title || 'Untitled report',
+            summary: report.summary || null,
+            visitDate: report.visit_date,
+            updatedAt: report.updated_at,
+          })
+          linkedReportsByVisitId.set(report.store_visit_id, existing)
+        }
+      }
     }
 
     for (const row of ((storeVisitsResult.data || []) as StoreVisitRow[])) {
@@ -295,6 +336,7 @@ async function getVisitTrackerData(): Promise<{
         id: row.id,
         source: 'visit_log',
         visitedAt: row.visited_at,
+        status: row.status === 'draft' ? 'draft' : 'completed',
         visitType: row.visit_type as VisitHistoryEntry['visitType'],
         completedActivityKeys,
         completedActivityDetails: normalizeStoreVisitActivityDetails(
@@ -306,7 +348,9 @@ async function getVisitTrackerData(): Promise<{
           completedActivityKeys
         ),
         evidenceFiles: evidenceByVisitId.get(row.id) || [],
+        linkedReports: linkedReportsByVisitId.get(row.id) || [],
         notes: row.notes || null,
+        followUpRequired: Boolean(row.follow_up_required),
         createdByName: profileMap.get(row.created_by_user_id) || null,
         needScoreSnapshot:
           typeof row.need_score_snapshot === 'number' ? row.need_score_snapshot : null,
@@ -326,14 +370,17 @@ async function getVisitTrackerData(): Promise<{
         id: row.id,
         source: 'route_completion',
         visitedAt,
+        status: null,
         visitType: 'route_completion',
         completedActivityKeys: [],
         completedActivityDetails: {},
         completedActivityPayloads: {},
         evidenceFiles: [],
+        linkedReports: [],
         notes: row.details?.planned_date
           ? `Route visit completed for plan date ${row.details.planned_date}.`
           : 'Route visit completed.',
+        followUpRequired: false,
         createdByName: row.performed_by_user_id ? profileMap.get(row.performed_by_user_id) || null : null,
         needScoreSnapshot: null,
         needLevelSnapshot: null,
@@ -349,8 +396,14 @@ async function getVisitTrackerData(): Promise<{
       : store.assigned_manager
 
     const recentVisits = [...(visitHistoryByStore.get(storeId) || [])]
+      .filter((visit) => visit.status !== 'draft')
       .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())
       .slice(0, 5)
+
+    const activeDraftVisit =
+      [...(visitHistoryByStore.get(storeId) || [])]
+        .filter((visit) => visit.status === 'draft')
+        .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())[0] || null
 
     const lastVisit = recentVisits[0]
     const lastVisitDate = lastVisit?.visitedAt || null
@@ -401,6 +454,7 @@ async function getVisitTrackerData(): Promise<{
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
       isActive: Boolean(store.is_active),
       recentVisits,
+      activeDraftVisit,
     } satisfies VisitTrackerRow
   })
 

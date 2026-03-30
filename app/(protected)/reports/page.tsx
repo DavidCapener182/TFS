@@ -1,10 +1,12 @@
 import { VisitReportsWorkspace } from '@/components/reports/visit-reports-workspace'
 import { requireRole } from '@/lib/auth'
 import {
-  normalizeTargetedTheftVisitPayload,
+  normalizeVisitReportPayload,
   type VisitReportRecord,
   type VisitReportStoreOption,
+  type VisitReportType,
 } from '@/lib/reports/visit-report-types'
+import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
 import { shouldHideStore } from '@/lib/store-normalization'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -35,6 +37,7 @@ type RelatedProfileRow = {
 type VisitReportRow = {
   id: string
   store_id: string
+  store_visit_id: string | null
   report_type: string
   status: string
   title: string
@@ -52,7 +55,32 @@ function getRelatedRow<T>(value: T | T[] | null | undefined): T | null {
   return value || null
 }
 
-async function getVisitReportsPageData(): Promise<{
+function mapVisitReportRow(row: VisitReportRow): VisitReportRecord {
+  const store = getRelatedRow(row.store)
+  const createdBy = getRelatedRow(row.created_by)
+  const reportType = row.report_type as VisitReportType
+  const payload = normalizeVisitReportPayload(reportType, row.payload)
+
+  return {
+    id: row.id,
+    storeId: row.store_id,
+    storeVisitId: row.store_visit_id || null,
+    storeName: store?.store_name || 'Unknown Store',
+    storeCode: store?.store_code || null,
+    reportType,
+    status: row.status === 'final' ? 'final' : 'draft',
+    title: row.title || 'Untitled Visit Report',
+    summary: row.summary || null,
+    visitDate: row.visit_date,
+    riskRating: reportType === 'targeted_theft_visit' ? ((payload as { riskRating?: VisitReportRecord['riskRating'] }).riskRating || '') : '',
+    payload,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdByName: createdBy?.full_name || null,
+  }
+}
+
+async function getVisitReportsPageData(reportId?: string | null): Promise<{
   stores: VisitReportStoreOption[]
   reports: VisitReportRecord[]
   reportsAvailable: boolean
@@ -86,6 +114,7 @@ async function getVisitReportsPageData(): Promise<{
     .select(`
       id,
       store_id,
+      store_visit_id,
       report_type,
       status,
       title,
@@ -119,30 +148,33 @@ async function getVisitReportsPageData(): Promise<{
     }
   }
 
-  const reports: VisitReportRecord[] = ((reportRows || []) as VisitReportRow[])
-    .filter((row) => row.report_type === 'targeted_theft_visit')
-    .map((row) => {
-      const store = getRelatedRow(row.store)
-      const createdBy = getRelatedRow(row.created_by)
-      const payload = normalizeTargetedTheftVisitPayload(row.payload)
+  const reports: VisitReportRecord[] = ((reportRows || []) as VisitReportRow[]).map(mapVisitReportRow)
 
-      return {
-        id: row.id,
-        storeId: row.store_id,
-        storeName: store?.store_name || 'Unknown Store',
-        storeCode: store?.store_code || null,
-        reportType: 'targeted_theft_visit',
-        status: row.status === 'final' ? 'final' : 'draft',
-        title: row.title || 'Untitled Visit Report',
-        summary: row.summary || null,
-        visitDate: row.visit_date,
-        riskRating: payload.riskRating,
+  if (reportId && !reports.some((report) => report.id === reportId)) {
+    const { data: requestedRow, error: requestedError } = await supabase
+      .from('tfs_visit_reports')
+      .select(`
+        id,
+        store_id,
+        store_visit_id,
+        report_type,
+        status,
+        title,
+        summary,
+        visit_date,
         payload,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        createdByName: createdBy?.full_name || null,
-      }
-    })
+        created_at,
+        updated_at,
+        store:tfs_stores!tfs_visit_reports_store_id_fkey(store_name, store_code),
+        created_by:fa_profiles!tfs_visit_reports_created_by_user_id_fkey(full_name)
+      `)
+      .eq('id', reportId)
+      .single()
+
+    if (!requestedError && requestedRow) {
+      reports.unshift(mapVisitReportRow(requestedRow as VisitReportRow))
+    }
+  }
 
   return {
     stores,
@@ -152,14 +184,24 @@ async function getVisitReportsPageData(): Promise<{
   }
 }
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>
+}) {
   const { profile } = await requireRole(['admin', 'ops', 'readonly'])
-  const { stores, reports, reportsAvailable, unavailableMessage } = await getVisitReportsPageData()
+  const reportIdParam = searchParams?.reportId
+  const reportId = Array.isArray(reportIdParam) ? reportIdParam[0] : reportIdParam
+  const [{ stores, reports, reportsAvailable, unavailableMessage }, productCatalog] = await Promise.all([
+    getVisitReportsPageData(reportId || null),
+    getStoreVisitProductCatalog(),
+  ])
 
   return (
     <VisitReportsWorkspace
       stores={stores}
       reports={reports}
+      productCatalog={productCatalog}
       currentUserName={profile.full_name}
       canEdit={profile.role === 'admin' || profile.role === 'ops'}
       reportsAvailable={reportsAvailable}

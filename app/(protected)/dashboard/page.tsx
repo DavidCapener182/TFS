@@ -468,6 +468,7 @@ async function getDashboardData(): Promise<DashboardData> {
         need_reasons_snapshot,
         created_by_user_id
       `)
+      .eq('status', 'completed')
       .in('store_id', storeIds)
       .order('visited_at', { ascending: false }),
     supabase

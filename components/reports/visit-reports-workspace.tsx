@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 
 import { saveVisitReport } from '@/app/actions/visit-reports'
+import { ActivityVisitReportBuilder } from '@/components/reports/activity-visit-report-builder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,27 +34,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import {
-  buildTargetedTheftVisitSummary,
+  buildVisitReportSummary,
   buildVisitReportTitle,
+  getEmptyActivityVisitReportPayload,
   getEmptyTargetedTheftVisitPayload,
+  getVisitReportTemplate,
   getVisitReportTypeLabel,
-  normalizeTargetedTheftVisitPayload,
+  isActivityVisitReportType,
+  normalizeVisitReportPayload,
+  VISIT_REPORT_TEMPLATES,
   VISIT_REPORT_TYPE_OPTIONS,
+  type ActivityVisitReportType,
+  type ActivityVisitReportPayload,
   type VisitReportIncidentPerson,
   type VisitReportIncidentPersonRole,
   type TargetedTheftVisitPayload,
+  type VisitReportPayload,
   type VisitReportRecord,
   type VisitReportRiskLevel,
   type VisitReportStatus,
   type VisitReportStoreOption,
   type VisitReportType,
 } from '@/lib/reports/visit-report-types'
+import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
 import { formatStoreName } from '@/lib/store-display'
 import { cn, formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 
 interface VisitReportsWorkspaceProps {
   stores: VisitReportStoreOption[]
   reports: VisitReportRecord[]
+  productCatalog: StoreVisitProductCatalogItem[]
   currentUserName: string | null
   canEdit: boolean
   reportsAvailable: boolean
@@ -62,11 +72,12 @@ interface VisitReportsWorkspaceProps {
 
 type VisitReportDraft = {
   reportId?: string
+  storeVisitId?: string | null
   reportType: VisitReportType
   status: VisitReportStatus
   title: string
   storeId: string
-  payload: TargetedTheftVisitPayload
+  payload: any
 }
 
 type PromptSection = {
@@ -321,13 +332,33 @@ function createEmptyIncidentPerson(): VisitReportIncidentPerson {
   }
 }
 
+function createEmptyPayload(
+  reportType: VisitReportType,
+  currentUserName: string | null
+): VisitReportPayload {
+  if (reportType === 'targeted_theft_visit') {
+    return getEmptyTargetedTheftVisitPayload(currentUserName)
+  }
+
+  return getEmptyActivityVisitReportPayload(reportType, currentUserName)
+}
+
+function isTargetedTheftPayload(payload: VisitReportPayload): payload is TargetedTheftVisitPayload {
+  return 'incidentOverview' in payload
+}
+
+function getPayloadVisitDate(payload: VisitReportPayload): string {
+  return payload.visitDate
+}
+
 function createEmptyDraft(currentUserName: string | null): VisitReportDraft {
   return {
     reportType: 'targeted_theft_visit',
     status: 'draft',
     title: '',
     storeId: '',
-    payload: getEmptyTargetedTheftVisitPayload(currentUserName),
+    storeVisitId: null,
+    payload: createEmptyPayload('targeted_theft_visit', currentUserName),
   }
 }
 
@@ -568,11 +599,20 @@ const REPORT_BUILDER_STEPS = [
   '12. Sign-Off',
 ] as const
 
+const ACTIVITY_REPORT_BUILDER_STEPS = [
+  'Report Setup',
+  '1. What Was Checked',
+  '2. Findings / Variance',
+  '3. Action Taken / Escalation',
+  '4. Sign-Off',
+] as const
+
 const VISIT_REPORT_DRAFT_STORAGE_KEY = 'tfs-visit-report-builder-draft-v1'
 
 export function VisitReportsWorkspace({
   stores,
   reports,
+  productCatalog,
   currentUserName,
   canEdit,
   reportsAvailable,
@@ -592,35 +632,68 @@ export function VisitReportsWorkspace({
 
   const canUseBuilder = canEdit && reportsAvailable
   const selectedStore = stores.find((store) => store.id === draft.storeId) || null
-  const summaryPreview = buildTargetedTheftVisitSummary(draft.payload)
+  const builderSteps = draft.reportType === 'targeted_theft_visit' ? REPORT_BUILDER_STEPS : ACTIVITY_REPORT_BUILDER_STEPS
+  const summaryPreview = buildVisitReportSummary(draft.reportType, draft.payload)
+  const isLinkedVisitFlow = Boolean(draft.storeVisitId && draft.storeId)
+  const templateFromQuery = searchParams?.get('template') as VisitReportType | null
+  const reportIdFromQuery = searchParams?.get('reportId')
+  const visitIdFromQuery = searchParams?.get('visitId')
+  const storeIdFromQuery = searchParams?.get('storeId')
+  const visitedAtFromQuery = searchParams?.get('visitedAt')
+  const hasBuilderIntent = Boolean(
+    searchParams?.get('sheet') === '1' ||
+    templateFromQuery ||
+    reportIdFromQuery ||
+    visitIdFromQuery
+  )
 
   const completionStats = useMemo(() => {
+    if (draft.reportType === 'targeted_theft_visit' && isTargetedTheftPayload(draft.payload)) {
+      const completed = [
+        Boolean(draft.storeId),
+        Boolean(draft.payload.incidentOverview.summary.trim()),
+        Boolean(draft.payload.incidentOverview.primaryProducts.trim()),
+        Boolean(draft.payload.storeLayoutExposure.observations.trim()),
+        Boolean(draft.payload.productControlMeasures.recommendations.trim()),
+        Boolean(draft.payload.staffSafetyResponse.responseDescription.trim()),
+        Boolean(draft.payload.cctvSurveillance.issuesIdentified.trim()),
+        Boolean(draft.payload.immediateActionsTaken.actionsCompleted.trim()),
+        Boolean(draft.payload.recommendations.details.trim()),
+        Boolean(draft.payload.riskRating),
+        Boolean(draft.payload.riskJustification.trim()),
+      ].filter(Boolean).length
+
+      return {
+        completed,
+        total: 11,
+        percent: Math.round((completed / 11) * 100),
+      }
+    }
+
+    const activityPayload = draft.payload as ActivityVisitReportPayload
     const completed = [
       Boolean(draft.storeId),
-      Boolean(draft.payload.incidentOverview.summary.trim()),
-      Boolean(draft.payload.incidentOverview.primaryProducts.trim()),
-      Boolean(draft.payload.storeLayoutExposure.observations.trim()),
-      Boolean(draft.payload.productControlMeasures.recommendations.trim()),
-      Boolean(draft.payload.staffSafetyResponse.responseDescription.trim()),
-      Boolean(draft.payload.cctvSurveillance.issuesIdentified.trim()),
-      Boolean(draft.payload.immediateActionsTaken.actionsCompleted.trim()),
-      Boolean(draft.payload.recommendations.details.trim()),
-      Boolean(draft.payload.riskRating),
-      Boolean(draft.payload.riskJustification.trim()),
+      Boolean(Object.keys(activityPayload.activityPayload?.fields || {}).length),
+      Boolean(activityPayload.activityPayload?.itemsChecked?.length),
+      Boolean(activityPayload.activityPayload?.amountChecks?.length),
+      Boolean(activityPayload.findings.trim()),
+      Boolean(activityPayload.actionsTaken.trim()),
+      Boolean(activityPayload.signOff.visitedBy.trim()),
     ].filter(Boolean).length
 
     return {
       completed,
-      total: 11,
-      percent: Math.round((completed / 11) * 100),
+      total: 7,
+      percent: Math.round((completed / 7) * 100),
     }
   }, [draft])
 
   const isFirstStep = currentStep === 0
-  const isLastStep = currentStep === REPORT_BUILDER_STEPS.length - 1
+  const isLastStep = currentStep === builderSteps.length - 1
   const isSheetMode = searchParams?.get('sheet') === '1'
 
   useEffect(() => {
+    if (!hasBuilderIntent) return
     if (typeof window === 'undefined') return
     try {
       const raw = window.localStorage.getItem(VISIT_REPORT_DRAFT_STORAGE_KEY)
@@ -630,29 +703,109 @@ export function VisitReportsWorkspace({
         storeSearch?: string
         currentStep?: number
       }
+      const parsedReportType = parsed?.draft?.reportType || 'targeted_theft_visit'
+      const stepList = parsedReportType === 'targeted_theft_visit' ? REPORT_BUILDER_STEPS : ACTIVITY_REPORT_BUILDER_STEPS
       if (parsed?.draft) {
         setDraft((current) => ({
           ...current,
           ...parsed.draft,
-          payload: normalizeTargetedTheftVisitPayload(
+          payload: normalizeVisitReportPayload(
+            parsedReportType,
             (parsed.draft as { payload?: unknown })?.payload,
             currentUserName
           ),
         }))
-        setSelectedTemplate(parsed.draft.reportType || 'targeted_theft_visit')
+        setSelectedTemplate(parsedReportType)
       }
       if (typeof parsed?.storeSearch === 'string') {
         setStoreSearch(parsed.storeSearch)
       }
       if (typeof parsed?.currentStep === 'number') {
         setCurrentStep(
-          Math.max(0, Math.min(parsed.currentStep, REPORT_BUILDER_STEPS.length - 1))
+          Math.max(0, Math.min(parsed.currentStep, stepList.length - 1))
         )
       }
     } catch (error) {
       console.error('Failed to restore visit report draft:', error)
     }
-  }, [])
+  }, [currentUserName, hasBuilderIntent])
+
+  useEffect(() => {
+    if (!hasBuilderIntent) return
+
+    if (reportIdFromQuery) {
+      const report = reports.find((entry) => entry.id === reportIdFromQuery)
+      if (report) {
+        setDraft({
+          reportId: report.id,
+          storeVisitId: report.storeVisitId,
+          reportType: report.reportType,
+          status: report.status,
+          title: report.title,
+          storeId: report.storeId,
+          payload: report.payload,
+        })
+        const matchingStore = stores.find((store) => store.id === report.storeId) || null
+        setStoreSearch(getStoreSearchLabel(matchingStore))
+        setSelectedTemplate(report.reportType)
+        setActiveTab('builder')
+      }
+      return
+    }
+
+    if (templateFromQuery && getVisitReportTemplate(templateFromQuery)) {
+      setSelectedTemplate(templateFromQuery)
+      setActiveTab('builder')
+
+      setDraft((current) => {
+        const nextPayload = createEmptyPayload(templateFromQuery, currentUserName)
+
+        const matchingStore = stores.find((store) => store.id === (storeIdFromQuery || current.storeId)) || null
+        const nextVisitedAt = visitedAtFromQuery ? new Date(visitedAtFromQuery) : null
+        const nextVisitDate =
+          nextVisitedAt && !Number.isNaN(nextVisitedAt.getTime())
+            ? nextVisitedAt.toISOString().slice(0, 10)
+            : nextPayload.visitDate
+        const nextTimeIn =
+          nextVisitedAt && !Number.isNaN(nextVisitedAt.getTime())
+            ? nextVisitedAt.toISOString().slice(11, 16)
+            : nextPayload.timeIn
+
+        return {
+          ...current,
+          reportType: templateFromQuery,
+          storeVisitId: visitIdFromQuery || current.storeVisitId || null,
+          storeId: storeIdFromQuery || current.storeId,
+          title:
+            buildVisitReportTitle(
+              templateFromQuery,
+              matchingStore?.storeName || 'Store',
+              nextVisitDate
+            ),
+          payload: {
+            ...nextPayload,
+            visitDate: nextVisitDate,
+            timeIn: nextTimeIn,
+          },
+        }
+      })
+
+      if (storeIdFromQuery) {
+        const matchingStore = stores.find((store) => store.id === storeIdFromQuery) || null
+        setStoreSearch(getStoreSearchLabel(matchingStore))
+      }
+    }
+  }, [
+    currentUserName,
+    hasBuilderIntent,
+    reportIdFromQuery,
+    reports,
+    stores,
+    storeIdFromQuery,
+    templateFromQuery,
+    visitIdFromQuery,
+    visitedAtFromQuery,
+  ])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -674,6 +827,10 @@ export function VisitReportsWorkspace({
   useEffect(() => {
     setMobileStepMenuOpen(false)
   }, [currentStep, selectedTemplate, activeTab])
+
+  useEffect(() => {
+    setCurrentStep((step) => Math.max(0, Math.min(step, builderSteps.length - 1)))
+  }, [builderSteps.length])
 
   useEffect(() => {
     if (!selectedTemplate && isSheetMode) {
@@ -703,7 +860,7 @@ export function VisitReportsWorkspace({
     setDraft((current) => updater(current))
   }
 
-  const updatePayload = (updater: (payload: TargetedTheftVisitPayload) => TargetedTheftVisitPayload) => {
+  const updatePayload = (updater: (payload: any) => any) => {
     updateDraft((current) => ({
       ...current,
       payload: updater(current.payload),
@@ -711,7 +868,15 @@ export function VisitReportsWorkspace({
   }
 
   const handleNewReport = () => {
-    const nextDraft = createEmptyDraft(currentUserName)
+    const nextReportType = selectedTemplate || 'targeted_theft_visit'
+    const nextDraft: VisitReportDraft = {
+      reportType: nextReportType,
+      status: 'draft',
+      title: '',
+      storeId: '',
+      storeVisitId: null,
+      payload: createEmptyPayload(nextReportType, currentUserName),
+    }
     setDraft(nextDraft)
     setStoreSearch('')
     setCurrentStep(0)
@@ -721,14 +886,17 @@ export function VisitReportsWorkspace({
   }
 
   const handleStartTemplate = (reportType: VisitReportType) => {
-    updateDraft((current) => ({
+    setDraft((current) => ({
       ...current,
       reportType,
+      storeVisitId: null,
+      title: '',
+      payload: createEmptyPayload(reportType, currentUserName),
     }))
     setSelectedTemplate(reportType)
     setActiveTab('builder')
     setCurrentStep(0)
-    router.replace('/reports?sheet=1')
+    router.replace(`/reports?sheet=1&template=${reportType}`)
   }
 
   const handleBackToReportHome = () => {
@@ -747,7 +915,7 @@ export function VisitReportsWorkspace({
         buildVisitReportTitle(
           current.reportType,
           store.storeName,
-          current.payload.visitDate
+          getPayloadVisitDate(current.payload)
         ),
     }))
     setStoreSearch(getStoreSearchLabel(store))
@@ -763,6 +931,7 @@ export function VisitReportsWorkspace({
 
     setDraft({
       reportId: report.id,
+      storeVisitId: report.storeVisitId,
       reportType: report.reportType,
       status: report.status,
       title: report.title,
@@ -774,111 +943,170 @@ export function VisitReportsWorkspace({
     setStoreSearch(getStoreSearchLabel(matchingStore))
     setSelectedTemplate(report.reportType)
     setActiveTab('builder')
-    router.replace('/reports?sheet=1')
+    router.replace(`/reports?sheet=1&reportId=${report.id}`)
+  }
+
+  const persistReport = async (options?: {
+    redirectToPdfOnFinal?: boolean
+    refreshAfterSave?: boolean
+    showDraftToast?: boolean
+  }) => {
+    const redirectToPdfOnFinal = options?.redirectToPdfOnFinal ?? true
+    const refreshAfterSave = options?.refreshAfterSave ?? true
+    const showDraftToast = options?.showDraftToast ?? true
+
+    if (!draft.storeId) {
+      throw new Error('Select the store for this report before saving.')
+    }
+
+    const store = stores.find((item) => item.id === draft.storeId)
+    const result = await saveVisitReport({
+      reportId: draft.reportId,
+      storeVisitId: draft.storeVisitId || undefined,
+      storeId: draft.storeId,
+      reportType: draft.reportType,
+      status: draft.status,
+      title:
+        draft.title.trim() ||
+        buildVisitReportTitle(
+          draft.reportType,
+          store?.storeName || 'Store',
+          getPayloadVisitDate(draft.payload)
+        ),
+      payload: draft.payload,
+    })
+
+    const nextStoreVisitId = result.storeVisitId || draft.storeVisitId || null
+    const nextRecord: VisitReportRecord = {
+      id: result.id,
+      storeId: draft.storeId,
+      storeVisitId: nextStoreVisitId,
+      storeName: store?.storeName || 'Unknown Store',
+      storeCode: store?.storeCode || null,
+      reportType: draft.reportType,
+      status: result.status,
+      title: result.title,
+      summary: result.summary,
+      visitDate: result.visitDate,
+      riskRating:
+        draft.reportType === 'targeted_theft_visit' && isTargetedTheftPayload(draft.payload)
+          ? draft.payload.riskRating
+          : '',
+      payload: draft.payload,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+      createdByName: currentUserName,
+    }
+
+    setDraft((current) => ({
+      ...current,
+      reportId: result.id,
+      storeVisitId: result.storeVisitId || current.storeVisitId || null,
+      title: result.title,
+    }))
+    setRecentReports((current) => {
+      const otherReports = current.filter((report) => report.id !== result.id)
+      return [nextRecord, ...otherReports].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+    })
+
+    const savedDraft = {
+      ...draft,
+      reportId: result.id,
+      storeVisitId: nextStoreVisitId,
+      title: result.title,
+    }
+
+    if (result.warning) {
+      toast({
+        variant: 'destructive',
+        title: 'Report saved with warning',
+        description: result.warning,
+      })
+    } else if (showDraftToast && result.status !== 'final') {
+      toast({
+        title: draft.reportId ? 'Report updated' : 'Report saved',
+        description: `${result.title} has been ${draft.reportId ? 'updated' : 'saved'}.`,
+      })
+    } else if (showDraftToast && result.status === 'final' && nextStoreVisitId) {
+      toast({
+        title: 'Report marked final',
+        description: 'Return to the visit session to start another report or complete the visit.',
+      })
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        VISIT_REPORT_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          draft: savedDraft,
+          storeSearch,
+          currentStep,
+          savedAt: new Date().toISOString(),
+        })
+      )
+    }
+
+    if (result.status === 'final' && !result.warning && redirectToPdfOnFinal && !nextStoreVisitId) {
+      if (typeof window !== 'undefined') {
+        window.location.assign(`/api/reports/visit-reports/${result.id}/pdf?mode=view`)
+      }
+      return {
+        redirectedToPdf: true,
+        result,
+      }
+    }
+
+    if (refreshAfterSave) {
+      router.refresh()
+    }
+
+    return {
+      redirectedToPdf: false,
+      result,
+    }
   }
 
   const handleSave = () => {
     if (!canUseBuilder) return
 
-    if (!draft.storeId) {
-      toast({
-        variant: 'destructive',
-        title: 'Store required',
-        description: 'Select the store for this report before saving.',
-      })
-      return
-    }
-
     startSave(async () => {
       try {
-        const store = stores.find((item) => item.id === draft.storeId)
-        const result = await saveVisitReport({
-          reportId: draft.reportId,
-          storeId: draft.storeId,
-          reportType: draft.reportType,
-          status: draft.status,
-          title:
-            draft.title.trim() ||
-            buildVisitReportTitle(
-              draft.reportType,
-              store?.storeName || 'Store',
-              draft.payload.visitDate
-            ),
-          payload: draft.payload,
-        })
-
-        const nextRecord: VisitReportRecord = {
-          id: result.id,
-          storeId: draft.storeId,
-          storeName: store?.storeName || 'Unknown Store',
-          storeCode: store?.storeCode || null,
-          reportType: draft.reportType,
-          status: result.status,
-          title: result.title,
-          summary: result.summary,
-          visitDate: result.visitDate,
-          riskRating: draft.payload.riskRating,
-          payload: draft.payload,
-          createdAt: result.createdAt,
-          updatedAt: result.updatedAt,
-          createdByName: currentUserName,
-        }
-
-        setDraft((current) => ({
-          ...current,
-          reportId: result.id,
-          title: result.title,
-        }))
-        setRecentReports((current) => {
-          const otherReports = current.filter((report) => report.id !== result.id)
-          return [nextRecord, ...otherReports].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )
-        })
-
-        const savedDraft = {
-          ...draft,
-          reportId: result.id,
-          title: result.title,
-        }
-
-        if (result.warning) {
-          toast({
-            variant: 'destructive',
-            title: 'Report saved with warning',
-            description: result.warning,
-          })
-        } else if (result.status !== 'final') {
-          toast({
-            title: draft.reportId ? 'Report updated' : 'Report saved',
-            description: `${result.title} has been ${draft.reportId ? 'updated' : 'saved'}.`,
-          })
-        }
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(
-            VISIT_REPORT_DRAFT_STORAGE_KEY,
-            JSON.stringify({
-              draft: savedDraft,
-              storeSearch,
-              currentStep,
-              savedAt: new Date().toISOString(),
-            })
-          )
-        }
-
-        if (result.status === 'final' && !result.warning) {
-          if (typeof window !== 'undefined') {
-            window.location.assign(`/api/reports/visit-reports/${result.id}/pdf?mode=view`)
-          }
-          return
-        }
-
-        router.refresh()
+        await persistReport()
       } catch (error) {
         toast({
           variant: 'destructive',
           title: 'Save failed',
           description: error instanceof Error ? error.message : 'Failed to save report.',
+        })
+      }
+    })
+  }
+
+  const handleReturnToVisitTracker = () => {
+    if (!draft.storeVisitId || !draft.storeId) return
+
+    startSave(async () => {
+      try {
+        const persisted = await persistReport({
+          redirectToPdfOnFinal: false,
+          refreshAfterSave: false,
+          showDraftToast: false,
+        })
+        const nextParams = new URLSearchParams({
+          storeId: draft.storeId,
+        })
+        const nextVisitId = persisted?.result.storeVisitId || draft.storeVisitId
+        if (nextVisitId) {
+          nextParams.set('visitId', nextVisitId)
+        }
+        router.push(`/visit-tracker?${nextParams.toString()}`)
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Unable to return to visit',
+          description: error instanceof Error ? error.message : 'Save this report before leaving the builder.',
         })
       }
     })
@@ -1021,23 +1249,41 @@ export function VisitReportsWorkspace({
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Targeted Theft Visit Report</h2>
+                <h2 className="text-xl font-bold text-slate-900">Report Templates</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Structured report for theft pattern review, controls, team response, and actions.
+                  Start the correct LP report template from one place. Navbar visits to `/reports` now stay on this home view unless a specific builder route is requested.
                 </p>
               </div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                Live
+                {VISIT_REPORT_TEMPLATES.length} templates
               </span>
             </div>
-            <Button
-              type="button"
-              onClick={() => handleStartTemplate('targeted_theft_visit')}
-              disabled={!canUseBuilder || !reportsAvailable}
-              className="min-h-[46px] w-full rounded-2xl bg-[#232154] text-white hover:bg-[#1c0259]"
-            >
-              Start report
-            </Button>
+            <div className="grid gap-3 md:grid-cols-2">
+              {VISIT_REPORT_TEMPLATES.map((template) => (
+                <div
+                  key={template.value}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-slate-100"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-900">{template.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{template.description}</div>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                      {template.kind === 'targeted_theft' ? 'Specialist' : 'Visit'}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => handleStartTemplate(template.value)}
+                    disabled={!canUseBuilder || !reportsAvailable}
+                    className="mt-4 min-h-[42px] w-full rounded-2xl bg-[#232154] text-white hover:bg-[#1c0259]"
+                  >
+                    Start template
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
@@ -1095,9 +1341,9 @@ export function VisitReportsWorkspace({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Step {currentStep + 1} of {REPORT_BUILDER_STEPS.length}
+                      Step {currentStep + 1} of {builderSteps.length}
                     </p>
-                    <h2 className="mt-1 text-lg font-bold text-slate-900">{REPORT_BUILDER_STEPS[currentStep]}</h2>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">{builderSteps[currentStep]}</h2>
                     <button
                       type="button"
                       onClick={handleDownloadPdf}
@@ -1142,6 +1388,22 @@ export function VisitReportsWorkspace({
                             type="button"
                             onClick={() => {
                               setMobileStepMenuOpen(false)
+                              handleReturnToVisitTracker()
+                            }}
+                            className={cn(
+                              'flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium hover:bg-slate-100',
+                              draft.storeVisitId && draft.storeId
+                                ? 'text-slate-700'
+                                : 'cursor-not-allowed text-slate-400'
+                            )}
+                            disabled={!draft.storeVisitId || !draft.storeId || isSaving}
+                          >
+                            Return to visit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileStepMenuOpen(false)
                               handleNewReport()
                             }}
                             className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
@@ -1163,6 +1425,17 @@ export function VisitReportsWorkspace({
                     </div>
                   </div>
                   <div className="hidden gap-2 md:flex">
+                    {draft.storeVisitId && draft.storeId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleReturnToVisitTracker}
+                        disabled={isSaving}
+                        className="min-h-[44px] rounded-xl"
+                      >
+                        Return to visit
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="outline"
@@ -1176,7 +1449,7 @@ export function VisitReportsWorkspace({
                     <Button
                       type="button"
                       onClick={() =>
-                        setCurrentStep((step) => Math.min(step + 1, REPORT_BUILDER_STEPS.length - 1))
+                        setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))
                       }
                       disabled={isLastStep}
                       className="min-h-[44px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
@@ -1187,6 +1460,19 @@ export function VisitReportsWorkspace({
                   </div>
                 </div>
               </div>
+
+              {isLinkedVisitFlow ? (
+                <div className="rounded-3xl border border-[#dcd6ef] bg-[#f6f2fe] p-4 text-sm shadow-sm md:p-5">
+                  <div className="font-semibold text-[#4b3a78]">Linked visit session</div>
+                  <div className="mt-2 text-slate-700">
+                    This report belongs to an open store visit. Keep it as Draft while you are working, change it to Final when it is complete, then use Return to visit to add more reports or close the visit session.
+                  </div>
+                  <div className="mt-3 text-xs text-slate-600">
+                    Store: {selectedStore ? formatStoreName(selectedStore.storeName) : 'Linked store'}
+                    {selectedStore?.storeCode ? ` • ${selectedStore.storeCode}` : ''}
+                  </div>
+                </div>
+              ) : null}
 
               <SectionCard
                 title="Report Setup"
@@ -1199,12 +1485,16 @@ export function VisitReportsWorkspace({
                       <Label>Report type</Label>
                       <Select
                         value={draft.reportType}
-                        onValueChange={(value) =>
+                        onValueChange={(value) => {
+                          setSelectedTemplate(value as VisitReportType)
+                          setCurrentStep(0)
                           updateDraft((current) => ({
                             ...current,
                             reportType: value as VisitReportType,
+                            title: '',
+                            payload: createEmptyPayload(value as VisitReportType, currentUserName),
                           }))
-                        }
+                        }}
                       >
                         <SelectTrigger className="min-h-[44px]">
                           <SelectValue />
@@ -1241,6 +1531,11 @@ export function VisitReportsWorkspace({
                           <SelectItem value="final">Final</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-slate-500">
+                        {isLinkedVisitFlow
+                          ? 'Draft keeps the visit open. Set this report to Final when it is finished so the visit can be completed.'
+                          : 'Use Draft while working. Final reports are treated as complete records.'}
+                      </p>
                     </div>
                   </div>
 
@@ -1281,7 +1576,7 @@ export function VisitReportsWorkspace({
                           ? buildVisitReportTitle(
                               draft.reportType,
                               selectedStore.storeName,
-                              draft.payload.visitDate
+                              getPayloadVisitDate(draft.payload)
                             )
                           : 'Title will be generated automatically'
                       }
@@ -1364,6 +1659,7 @@ export function VisitReportsWorkspace({
                 </fieldset>
               </SectionCard>
 
+              {draft.reportType === 'targeted_theft_visit' ? (
               <fieldset disabled={!canUseBuilder || isSaving} className="space-y-6">
                 <SectionCard
                   title="1. Incident Overview"
@@ -1537,7 +1833,7 @@ export function VisitReportsWorkspace({
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {draft.payload.incidentPeople.people.map((person, index) => (
+                            {draft.payload.incidentPeople.people.map((person: VisitReportIncidentPerson, index: number) => (
                               <div key={`incident-person-${index}`} className="rounded-xl border border-slate-200 bg-white p-4">
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                   <div className="text-sm font-semibold text-slate-900">
@@ -1551,7 +1847,9 @@ export function VisitReportsWorkspace({
                                         ...payload,
                                         incidentPeople: {
                                           ...payload.incidentPeople,
-                                          people: payload.incidentPeople.people.filter((_, personIndex) => personIndex !== index),
+                                          people: payload.incidentPeople.people.filter(
+                                            (_: VisitReportIncidentPerson, personIndex: number) => personIndex !== index
+                                          ),
                                         },
                                       }))
                                     }
@@ -1571,12 +1869,12 @@ export function VisitReportsWorkspace({
                                       onChange={(event) =>
                                         updatePayload((payload) => ({
                                           ...payload,
-                                          incidentPeople: {
-                                            ...payload.incidentPeople,
-                                            people: payload.incidentPeople.people.map((entry, personIndex) =>
-                                              personIndex === index
-                                                ? { ...entry, name: event.target.value }
-                                                : entry
+                                        incidentPeople: {
+                                          ...payload.incidentPeople,
+                                          people: payload.incidentPeople.people.map((entry: VisitReportIncidentPerson, personIndex: number) =>
+                                            personIndex === index
+                                              ? { ...entry, name: event.target.value }
+                                              : entry
                                             ),
                                           },
                                         }))
@@ -1593,12 +1891,12 @@ export function VisitReportsWorkspace({
                                       onValueChange={(value) =>
                                         updatePayload((payload) => ({
                                           ...payload,
-                                          incidentPeople: {
-                                            ...payload.incidentPeople,
-                                            people: payload.incidentPeople.people.map((entry, personIndex) =>
-                                              personIndex === index
-                                                ? { ...entry, role: value as VisitReportIncidentPersonRole }
-                                                : entry
+                                        incidentPeople: {
+                                          ...payload.incidentPeople,
+                                          people: payload.incidentPeople.people.map((entry: VisitReportIncidentPerson, personIndex: number) =>
+                                            personIndex === index
+                                              ? { ...entry, role: value as VisitReportIncidentPersonRole }
+                                              : entry
                                             ),
                                           },
                                         }))
@@ -1627,7 +1925,7 @@ export function VisitReportsWorkspace({
                                         ...payload,
                                         incidentPeople: {
                                           ...payload.incidentPeople,
-                                          people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                          people: payload.incidentPeople.people.map((entry: VisitReportIncidentPerson, personIndex: number) =>
                                             personIndex === index
                                               ? { ...entry, involvement: event.target.value }
                                               : entry
@@ -1659,7 +1957,7 @@ export function VisitReportsWorkspace({
                                                 ...payload.incidentPeople,
                                                 someoneInjured:
                                                   option.value || payload.incidentPeople.someoneInjured,
-                                                people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                                people: payload.incidentPeople.people.map((entry: VisitReportIncidentPerson, personIndex: number) =>
                                                   personIndex === index
                                                     ? {
                                                         ...entry,
@@ -1696,7 +1994,7 @@ export function VisitReportsWorkspace({
                                             incidentPeople: {
                                               ...payload.incidentPeople,
                                               someoneInjured: true,
-                                              people: payload.incidentPeople.people.map((entry, personIndex) =>
+                                              people: payload.incidentPeople.people.map((entry: VisitReportIncidentPerson, personIndex: number) =>
                                                 personIndex === index
                                                   ? { ...entry, injuryDetails: event.target.value }
                                                   : entry
@@ -2357,6 +2655,21 @@ export function VisitReportsWorkspace({
                   </div>
                 </SectionCard>
               </fieldset>
+              ) : (
+                <ActivityVisitReportBuilder
+                  reportType={draft.reportType as ActivityVisitReportType}
+                  payload={draft.payload as ActivityVisitReportPayload}
+                  currentStep={currentStep}
+                  disabled={!canUseBuilder || isSaving}
+                  productCatalog={productCatalog}
+                  onChange={(updater) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      payload: updater(current.payload as ActivityVisitReportPayload),
+                    }))
+                  }
+                />
+              )}
 
               <div className="hidden justify-between gap-2 md:flex">
                 <Button
@@ -2371,7 +2684,7 @@ export function VisitReportsWorkspace({
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => setCurrentStep((step) => Math.min(step + 1, REPORT_BUILDER_STEPS.length - 1))}
+                  onClick={() => setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))}
                   disabled={isLastStep}
                   className="min-h-[44px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
                 >
@@ -2434,7 +2747,9 @@ export function VisitReportsWorkspace({
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                         {draft.status === 'final' ? 'Final' : 'Draft'}
                       </span>
-                      {draft.payload.riskRating ? (
+                      {draft.reportType === 'targeted_theft_visit' &&
+                      isTargetedTheftPayload(draft.payload) &&
+                      draft.payload.riskRating ? (
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                           Risk {draft.payload.riskRating.toUpperCase()}
                         </span>
@@ -2555,7 +2870,7 @@ export function VisitReportsWorkspace({
             </Button>
             <Button
               type="button"
-              onClick={isLastStep ? handleSave : () => setCurrentStep((step) => Math.min(step + 1, REPORT_BUILDER_STEPS.length - 1))}
+              onClick={isLastStep ? handleSave : () => setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))}
               disabled={isLastStep ? !canUseBuilder || isSaving : isLastStep}
               className="min-h-[46px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
             >

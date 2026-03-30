@@ -14,14 +14,23 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { formatVisitReportsActionError } from '@/lib/visit-reports-schema'
 import {
-  buildTargetedTheftVisitSummary,
+  buildVisitReportSummary,
   buildVisitReportTitle,
-  normalizeTargetedTheftVisitPayload,
+  isActivityVisitReportType,
+  normalizeVisitReportPayload,
   VISIT_REPORT_TYPE_OPTIONS,
+  type ActivityVisitReportPayload,
   type TargetedTheftVisitPayload,
+  type VisitReportPayload,
   type VisitReportStatus,
   type VisitReportType,
 } from '@/lib/reports/visit-report-types'
+import {
+  buildStoreVisitActivityDetailText,
+  type StoreVisitActivityDetails,
+  type StoreVisitActivityPayloads,
+  type StoreVisitNeedLevel,
+} from '@/lib/visit-needs'
 import type { FaIncidentCategory } from '@/types/db'
 
 const WRITABLE_ROLES = new Set(['admin', 'ops'])
@@ -30,11 +39,25 @@ const VALID_STATUSES = new Set<VisitReportStatus>(['draft', 'final'])
 
 export interface SaveVisitReportInput {
   reportId?: string
+  storeVisitId?: string
   storeId: string
   reportType: VisitReportType
   status: VisitReportStatus
   title?: string
-  payload: TargetedTheftVisitPayload
+  payload: VisitReportPayload
+}
+
+type VisitReportStoreVisitDraft = {
+  visitType: 'action_led'
+  visitedAt: string
+  completedActivityKeys: string[]
+  completedActivityDetails: StoreVisitActivityDetails
+  completedActivityPayloads: StoreVisitActivityPayloads
+  notes: string | null
+  followUpRequired: boolean
+  needScoreSnapshot: number
+  needLevelSnapshot: StoreVisitNeedLevel
+  needReasonsSnapshot: string[] | null
 }
 
 function toErrorMessage(error: unknown): string {
@@ -114,15 +137,88 @@ function normalizeDate(value: string): string {
   return trimmed.slice(0, 10)
 }
 
-function addDays(value: string, days: number): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    const fallback = new Date()
-    fallback.setDate(fallback.getDate() + days)
-    return fallback.toISOString().slice(0, 10)
+function getActivityReportOccurredAt(params: {
+  visitDate: string
+  payload: ActivityVisitReportPayload
+  fallbackIso?: string | null
+}) {
+  const { visitDate, payload, fallbackIso } = params
+  const timeIn = String(payload.timeIn || '').trim()
+
+  if (visitDate && /^\d{2}:\d{2}$/.test(timeIn)) {
+    const combined = new Date(`${visitDate}T${timeIn}:00.000Z`)
+    if (!Number.isNaN(combined.getTime())) {
+      return combined.toISOString()
+    }
   }
-  date.setDate(date.getDate() + days)
-  return date.toISOString().slice(0, 10)
+
+  if (visitDate) {
+    const midday = new Date(`${visitDate}T12:00:00.000Z`)
+    if (!Number.isNaN(midday.getTime())) {
+      return midday.toISOString()
+    }
+  }
+
+  const fallback = fallbackIso ? new Date(fallbackIso) : null
+  if (fallback && !Number.isNaN(fallback.getTime())) {
+    return fallback.toISOString()
+  }
+
+  return new Date().toISOString()
+}
+
+function buildActivityVisitReportStoreVisitDraft(params: {
+  reportId: string
+  reportType: VisitReportType
+  reportTitle: string
+  visitDate: string
+  summary: string | null
+  payload: ActivityVisitReportPayload
+  fallbackVisitedAt?: string | null
+}): VisitReportStoreVisitDraft {
+  const {
+    reportId,
+    reportType,
+    reportTitle,
+    visitDate,
+    summary,
+    payload,
+    fallbackVisitedAt,
+  } = params
+  const sourceMarker = buildVisitReportSourceMarker(reportId)
+  const activityKey = isActivityVisitReportType(reportType) ? reportType : 'other'
+  const detailText =
+    buildStoreVisitActivityDetailText(activityKey, undefined, payload.activityPayload) || summary || reportTitle
+  const completedActivityDetails: StoreVisitActivityDetails = detailText
+    ? { [activityKey]: detailText }
+    : {}
+  const completedActivityPayloads: StoreVisitActivityPayloads =
+    Object.keys(payload.activityPayload || {}).length > 0
+      ? { [activityKey]: payload.activityPayload }
+      : {}
+
+  return {
+    visitType: 'action_led',
+    visitedAt: getActivityReportOccurredAt({
+      visitDate,
+      payload,
+      fallbackIso: fallbackVisitedAt || null,
+    }),
+    completedActivityKeys: [activityKey],
+    completedActivityDetails,
+    completedActivityPayloads,
+    notes:
+      joinSections([
+        `Created from final visit report: ${reportTitle}`,
+        payload.findings ? `Findings:\n${payload.findings}` : null,
+        payload.actionsTaken ? `Actions / escalation:\n${payload.actionsTaken}` : null,
+        sourceMarker,
+      ]) || null,
+    followUpRequired: false,
+    needScoreSnapshot: 0,
+    needLevelSnapshot: 'none',
+    needReasonsSnapshot: null,
+  }
 }
 
 async function syncLinkedIncidentAndAction(params: {
@@ -281,6 +377,7 @@ async function syncLinkedStoreVisit(params: {
   summary: string | null
   payload: TargetedTheftVisitPayload
   reportCreatedAt?: string | null
+  storeVisitId?: string | null
 }) {
   const {
     supabase,
@@ -292,7 +389,12 @@ async function syncLinkedStoreVisit(params: {
     summary,
     payload,
     reportCreatedAt,
+    storeVisitId,
   } = params
+  if (storeVisitId) {
+    return storeVisitId
+  }
+
   const visitDraft = buildVisitReportStoreVisitDraft({
     reportId,
     reportTitle,
@@ -339,7 +441,10 @@ async function syncLinkedStoreVisit(params: {
   if (existingVisit?.id) {
     const { error: visitUpdateError } = await supabase
       .from('tfs_store_visits')
-      .update(visitPayload)
+      .update({
+        ...visitPayload,
+        status: 'completed',
+      })
       .eq('id', existingVisit.id)
 
     if (visitUpdateError) {
@@ -353,13 +458,14 @@ async function syncLinkedStoreVisit(params: {
       throw new Error(toErrorMessage(visitUpdateError))
     }
 
-    return
+    return existingVisit.id
   }
 
   const { data: visit, error: visitInsertError } = await supabase
     .from('tfs_store_visits')
     .insert({
       ...visitPayload,
+      status: 'completed',
       store_id: storeId,
       created_by_user_id: userId,
     })
@@ -394,6 +500,128 @@ async function syncLinkedStoreVisit(params: {
   } catch (activityError) {
     console.error('Failed to log linked store visit activity:', activityError)
   }
+
+  return visit.id
+}
+
+async function syncActivityReportStoreVisit(params: {
+  supabase: ReturnType<typeof createClient>
+  userId: string
+  storeId: string
+  reportId: string
+  reportType: VisitReportType
+  reportTitle: string
+  visitDate: string
+  summary: string | null
+  payload: ActivityVisitReportPayload
+  reportCreatedAt?: string | null
+  storeVisitId?: string | null
+}) {
+  const {
+    supabase,
+    userId,
+    storeId,
+    reportId,
+    reportType,
+    reportTitle,
+    visitDate,
+    summary,
+    payload,
+    reportCreatedAt,
+    storeVisitId,
+  } = params
+
+  if (storeVisitId) {
+    return storeVisitId
+  }
+
+  const visitDraft = buildActivityVisitReportStoreVisitDraft({
+    reportId,
+    reportType,
+    reportTitle,
+    visitDate,
+    summary,
+    payload,
+    fallbackVisitedAt: reportCreatedAt || null,
+  })
+  const sourceMarker = buildVisitReportSourceMarker(reportId)
+
+  const { data: existingVisits, error: existingVisitError } = await supabase
+    .from('tfs_store_visits')
+    .select('id')
+    .eq('store_id', storeId)
+    .ilike('notes', `%${sourceMarker}%`)
+    .order('visited_at', { ascending: false })
+    .limit(1)
+
+  if (existingVisitError) {
+    if (isStoreVisitsTableUnavailable(existingVisitError)) {
+      console.warn(
+        'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+        existingVisitError
+      )
+      return null
+    }
+    throw new Error(toErrorMessage(existingVisitError))
+  }
+
+  const visitPayload = {
+    visit_type: visitDraft.visitType,
+    visited_at: visitDraft.visitedAt || reportCreatedAt || new Date().toISOString(),
+    completed_activity_keys: visitDraft.completedActivityKeys,
+    completed_activity_details: visitDraft.completedActivityDetails,
+    completed_activity_payloads: visitDraft.completedActivityPayloads,
+    notes: visitDraft.notes,
+    follow_up_required: visitDraft.followUpRequired,
+    need_score_snapshot: visitDraft.needScoreSnapshot,
+    need_level_snapshot: visitDraft.needLevelSnapshot,
+    need_reasons_snapshot: visitDraft.needReasonsSnapshot,
+    status: 'completed',
+  }
+
+  const existingVisit = existingVisits?.[0]
+  if (existingVisit?.id) {
+    const { error: visitUpdateError } = await supabase
+      .from('tfs_store_visits')
+      .update(visitPayload)
+      .eq('id', existingVisit.id)
+
+    if (visitUpdateError) {
+      if (isStoreVisitsTableUnavailable(visitUpdateError)) {
+        console.warn(
+          'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+          visitUpdateError
+        )
+        return null
+      }
+      throw new Error(toErrorMessage(visitUpdateError))
+    }
+
+    return existingVisit.id
+  }
+
+  const { data: visit, error: visitInsertError } = await supabase
+    .from('tfs_store_visits')
+    .insert({
+      ...visitPayload,
+      store_id: storeId,
+      created_by_user_id: userId,
+    })
+    .select('id')
+    .single()
+
+  if (visitInsertError) {
+    if (isStoreVisitsTableUnavailable(visitInsertError)) {
+      console.warn(
+        'Visit report visit-log sync skipped: tfs_store_visits unavailable.',
+        visitInsertError
+      )
+      return null
+    }
+    throw new Error(toErrorMessage(visitInsertError))
+  }
+
+  return visit.id
 }
 
 async function syncFinalVisitReportRecords(params: {
@@ -401,30 +629,72 @@ async function syncFinalVisitReportRecords(params: {
   userId: string
   storeId: string
   reportId: string
+  reportType: VisitReportType
   reportTitle: string
   visitDate: string
   summary: string | null
-  payload: TargetedTheftVisitPayload
+  payload: VisitReportPayload
   reportCreatedAt?: string | null
+  storeVisitId?: string | null
 }) {
   const warnings: string[] = []
+  let linkedStoreVisitId: string | null = params.storeVisitId || null
 
-  try {
-    await syncLinkedIncidentAndAction(params)
-  } catch (error) {
-    if (isFollowUpTablesUnavailable(error)) {
-      console.warn(
-        'Visit report follow-up skipped: incidents/actions tables unavailable.',
-        error
-      )
-    } else {
-      warnings.push(`Incident/action sync failed: ${toErrorMessage(error)}`)
-      console.error('Visit report incident/action sync failed:', error)
+  if (params.reportType === 'targeted_theft_visit') {
+    try {
+      await syncLinkedIncidentAndAction({
+        supabase: params.supabase,
+        userId: params.userId,
+        storeId: params.storeId,
+        reportId: params.reportId,
+        reportTitle: params.reportTitle,
+        visitDate: params.visitDate,
+        summary: params.summary,
+        payload: params.payload as TargetedTheftVisitPayload,
+        reportCreatedAt: params.reportCreatedAt,
+      })
+    } catch (error) {
+      if (isFollowUpTablesUnavailable(error)) {
+        console.warn(
+          'Visit report follow-up skipped: incidents/actions tables unavailable.',
+          error
+        )
+      } else {
+        warnings.push(`Incident/action sync failed: ${toErrorMessage(error)}`)
+        console.error('Visit report incident/action sync failed:', error)
+      }
     }
   }
 
   try {
-    await syncLinkedStoreVisit(params)
+    if (params.reportType === 'targeted_theft_visit') {
+      linkedStoreVisitId = await syncLinkedStoreVisit({
+        supabase: params.supabase,
+        userId: params.userId,
+        storeId: params.storeId,
+        reportId: params.reportId,
+        reportTitle: params.reportTitle,
+        visitDate: params.visitDate,
+        summary: params.summary,
+        payload: params.payload as TargetedTheftVisitPayload,
+        reportCreatedAt: params.reportCreatedAt,
+        storeVisitId: params.storeVisitId,
+      })
+    } else {
+      linkedStoreVisitId = await syncActivityReportStoreVisit({
+        supabase: params.supabase,
+        userId: params.userId,
+        storeId: params.storeId,
+        reportId: params.reportId,
+        reportType: params.reportType,
+        reportTitle: params.reportTitle,
+        visitDate: params.visitDate,
+        summary: params.summary,
+        payload: params.payload as ActivityVisitReportPayload,
+        reportCreatedAt: params.reportCreatedAt,
+        storeVisitId: params.storeVisitId,
+      })
+    }
   } catch (error) {
     if (isStoreVisitsTableUnavailable(error)) {
       console.warn('Visit report visit-log sync skipped: tfs_store_visits unavailable.', error)
@@ -434,8 +704,13 @@ async function syncFinalVisitReportRecords(params: {
     }
   }
 
-  if (warnings.length === 0) return null
-  return `Report saved, but linked LP records could not fully sync: ${warnings.join(' ')}`
+  return {
+    linkedStoreVisitId,
+    warning:
+      warnings.length === 0
+        ? null
+        : `Report saved, but linked LP records could not fully sync: ${warnings.join(' ')}`,
+  }
 }
 
 export async function saveVisitReport(input: SaveVisitReportInput) {
@@ -484,7 +759,8 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     throw new Error('Store could not be found for this report.')
   }
 
-  const normalizedPayload = normalizeTargetedTheftVisitPayload(
+  const normalizedPayload = normalizeVisitReportPayload(
+    input.reportType,
     input.payload,
     profile.full_name || null
   )
@@ -492,10 +768,11 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   const title =
     String(input.title || '').trim() ||
     buildVisitReportTitle(input.reportType, store.store_name || 'Store', visitDate)
-  const summary = buildTargetedTheftVisitSummary(normalizedPayload) || null
+  const summary = buildVisitReportSummary(input.reportType, normalizedPayload) || null
 
   const payload = {
     store_id: input.storeId,
+    store_visit_id: input.storeVisitId || null,
     report_type: input.reportType,
     status: input.status,
     title,
@@ -506,11 +783,13 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   }
 
   let linkedFollowUpWarning: string | null = null
+  let linkedStoreVisitId: string | null = input.storeVisitId || null
 
   if (input.reportId) {
     const { data: report, error } = await supabase
       .from('tfs_visit_reports')
       .update({
+        store_visit_id: payload.store_visit_id,
         report_type: payload.report_type,
         status: payload.status,
         title: payload.title,
@@ -519,7 +798,7 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
         payload: payload.payload,
       })
       .eq('id', input.reportId)
-      .select('id, title, status, visit_date, summary, created_at, updated_at')
+      .select('id, store_visit_id, title, status, visit_date, summary, created_at, updated_at')
       .single()
 
     if (error) {
@@ -538,17 +817,33 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     }
 
     if (input.status === 'final') {
-      linkedFollowUpWarning = await syncFinalVisitReportRecords({
+      const syncResult = await syncFinalVisitReportRecords({
         supabase,
         userId: user.id,
         storeId: input.storeId,
         reportId: report.id,
+        reportType: input.reportType,
         reportTitle: report.title,
         visitDate: report.visit_date,
         summary: report.summary || null,
         payload: normalizedPayload,
         reportCreatedAt: report.created_at,
+        storeVisitId: input.storeVisitId || report.store_visit_id || null,
       })
+      linkedStoreVisitId = syncResult.linkedStoreVisitId
+      linkedFollowUpWarning = syncResult.warning
+      if (linkedStoreVisitId && linkedStoreVisitId !== report.store_visit_id) {
+        const { error: updateLinkError } = await supabase
+          .from('tfs_visit_reports')
+          .update({ store_visit_id: linkedStoreVisitId })
+          .eq('id', report.id)
+
+        if (updateLinkError) {
+          throw new Error(toErrorMessage(updateLinkError))
+        }
+      }
+    } else {
+      linkedStoreVisitId = input.storeVisitId || report.store_visit_id || null
     }
 
     revalidatePath('/reports')
@@ -561,6 +856,7 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
 
     return {
       id: report.id,
+      storeVisitId: linkedStoreVisitId,
       title: report.title,
       status: report.status as VisitReportStatus,
       visitDate: report.visit_date,
@@ -574,7 +870,7 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   const { data: report, error } = await supabase
     .from('tfs_visit_reports')
     .insert(payload)
-    .select('id, title, status, visit_date, summary, created_at, updated_at')
+    .select('id, store_visit_id, title, status, visit_date, summary, created_at, updated_at')
     .single()
 
   if (error) {
@@ -582,17 +878,33 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
   }
 
   if (input.status === 'final') {
-    linkedFollowUpWarning = await syncFinalVisitReportRecords({
+    const syncResult = await syncFinalVisitReportRecords({
       supabase,
       userId: user.id,
       storeId: input.storeId,
       reportId: report.id,
+      reportType: input.reportType,
       reportTitle: report.title,
       visitDate: report.visit_date,
       summary: report.summary || null,
       payload: normalizedPayload,
       reportCreatedAt: report.created_at,
+      storeVisitId: input.storeVisitId || report.store_visit_id || null,
     })
+    linkedStoreVisitId = syncResult.linkedStoreVisitId
+    linkedFollowUpWarning = syncResult.warning
+    if (linkedStoreVisitId && linkedStoreVisitId !== report.store_visit_id) {
+      const { error: updateLinkError } = await supabase
+        .from('tfs_visit_reports')
+        .update({ store_visit_id: linkedStoreVisitId })
+        .eq('id', report.id)
+
+      if (updateLinkError) {
+        throw new Error(toErrorMessage(updateLinkError))
+      }
+    }
+  } else {
+    linkedStoreVisitId = input.storeVisitId || report.store_visit_id || null
   }
 
   try {
@@ -616,6 +928,7 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
 
   return {
     id: report.id,
+    storeVisitId: linkedStoreVisitId,
     title: report.title,
     status: report.status as VisitReportStatus,
     visitDate: report.visit_date,

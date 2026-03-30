@@ -1,11 +1,17 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
-import { Check, Clock, Plus, Upload, X } from 'lucide-react'
+import { Check, Clock, ExternalLink, Plus, Upload, X } from 'lucide-react'
 
-import { logStoreVisit } from '@/app/actions/store-visits'
+import {
+  completeStoreVisitSession,
+  logStoreVisit,
+  saveDraftStoreVisitSession,
+} from '@/app/actions/store-visits'
+import { saveVisitReport } from '@/app/actions/visit-reports'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
 import type { VisitTrackerRow } from '@/components/visit-tracker/types'
 import { Button } from '@/components/ui/button'
@@ -22,6 +28,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
+import {
+  getEmptyActivityVisitReportPayload,
+  getEmptyTargetedTheftVisitPayload,
+  getVisitReportTypeLabel,
+  VISIT_REPORT_TEMPLATES,
+  type VisitReportType,
+} from '@/lib/reports/visit-report-types'
 import {
   buildStoreVisitActivityDetailText,
   buildStoreVisitCountedItemVarianceNote,
@@ -102,6 +115,14 @@ function formatNullableNumber(value: number | null | undefined): string {
 
 function formatNullableAmount(value: number | null | undefined): string {
   return typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
+}
+
+function createDraftVisitReportPayload(reportType: VisitReportType, preparedBy: string | null) {
+  if (reportType === 'targeted_theft_visit') {
+    return getEmptyTargetedTheftVisitPayload(preparedBy)
+  }
+
+  return getEmptyActivityVisitReportPayload(reportType, preparedBy)
 }
 
 function stripAutoVarianceNote(notes: string | null | undefined): string {
@@ -1019,6 +1040,41 @@ function VisitHistoryList({ row }: { row: VisitTrackerRow }) {
               {visit.createdByName || 'Unknown officer'}
             </div>
 
+            {visit.linkedReports.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {visit.linkedReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-900">{report.title}</div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span>{getVisitReportTypeLabel(report.reportType)}</span>
+                        <span>{report.status === 'final' ? 'Final' : 'Draft'}</span>
+                        <span>{format(new Date(report.updatedAt), 'dd MMM yyyy HH:mm')}</span>
+                      </div>
+                      {report.summary ? (
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">{report.summary}</p>
+                      ) : null}
+                    </div>
+                    <Button asChild size="sm" variant="outline" className="border-slate-200 bg-white">
+                      <Link
+                        href={
+                          report.status === 'final'
+                            ? `/api/reports/visit-reports/${report.id}/pdf?mode=view`
+                            : `/reports?sheet=1&reportId=${report.id}`
+                        }
+                        target={report.status === 'final' ? '_blank' : undefined}
+                      >
+                        Open report
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {visit.completedActivityKeys.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {visit.completedActivityKeys.map((activityKey) => (
@@ -1056,6 +1112,7 @@ export function StoreVisitModal({
   visitsUnavailableMessage,
 }: StoreVisitModalProps) {
   const router = useRouter()
+  const [visitSessionId, setVisitSessionId] = useState<string | null>(null)
   const [visitType, setVisitType] = useState<StoreVisitType>('action_led')
   const [visitedAt, setVisitedAt] = useState(getLocalDateTimeInputValue())
   const [selectedActivityKeys, setSelectedActivityKeys] = useState<StoreVisitActivityKey[]>([])
@@ -1066,16 +1123,27 @@ export function StoreVisitModal({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, startSave] = useTransition()
+  const [isLaunchingReport, startLaunchReport] = useTransition()
+  const [isCompletingVisit, startCompleteVisit] = useTransition()
 
   useEffect(() => {
     if (!row || !open) return
-    setVisitType(getDefaultVisitType(row))
-    setVisitedAt(getLocalDateTimeInputValue())
+    setVisitSessionId(row.activeDraftVisit?.id || null)
+    setVisitType(
+      row.activeDraftVisit?.visitType && row.activeDraftVisit.visitType !== 'route_completion'
+        ? row.activeDraftVisit.visitType
+        : getDefaultVisitType(row)
+    )
+    setVisitedAt(
+      row.activeDraftVisit?.visitedAt
+        ? format(new Date(row.activeDraftVisit.visitedAt), "yyyy-MM-dd'T'HH:mm")
+        : getLocalDateTimeInputValue()
+    )
     setSelectedActivityKeys([])
     setActivityPayloads({})
     setActivityFiles({})
-    setNotes('')
-    setFollowUpRequired(false)
+    setNotes(row.activeDraftVisit?.notes || '')
+    setFollowUpRequired(Boolean(row.activeDraftVisit?.followUpRequired))
     setIsHistoryOpen(false)
     setError(null)
   }, [open, row])
@@ -1083,6 +1151,9 @@ export function StoreVisitModal({
   if (!row) return null
 
   const canSave = canEdit && visitsAvailable
+  const linkedReports = row.activeDraftVisit?.linkedReports || []
+  const outstandingLinkedReports =
+    linkedReports.filter((report) => report.status !== 'final')
 
   const selectedOptions = STORE_VISIT_ACTIVITY_OPTIONS.filter((option) =>
     selectedActivityKeys.includes(option.key)
@@ -1307,31 +1378,101 @@ export function StoreVisitModal({
     return uploadErrors
   }
 
+  const handleStartReport = (reportType: VisitReportType) => {
+    if (!canSave) return
+
+    setError(null)
+    startLaunchReport(async () => {
+      try {
+        const existingDraftReport =
+          row.activeDraftVisit?.linkedReports.find(
+            (report) => report.reportType === reportType && report.status === 'draft'
+          ) || null
+
+        const session = await saveDraftStoreVisitSession({
+          visitId: visitSessionId || undefined,
+          storeId: row.storeId,
+          visitType,
+          visitedAt,
+          notes,
+          followUpRequired,
+          needScoreSnapshot: row.visitNeedScore,
+          needLevelSnapshot: row.visitNeedLevel,
+          needReasonsSnapshot: row.visitNeedReasons,
+        })
+
+        let reportId = existingDraftReport?.id || null
+
+        if (!reportId) {
+          const report = await saveVisitReport({
+            storeVisitId: session.id,
+            storeId: row.storeId,
+            reportType,
+            status: 'draft',
+            payload: createDraftVisitReportPayload(reportType, currentUserName),
+          })
+          reportId = report.id
+        }
+
+        setVisitSessionId(session.id)
+        onOpenChange(false)
+
+        const params = new URLSearchParams({
+          sheet: '1',
+          visitId: session.id,
+          storeId: row.storeId,
+          visitedAt: session.visitedAt,
+        })
+        if (reportId) {
+          params.set('reportId', reportId)
+        } else {
+          params.set('template', reportType)
+        }
+        router.push(`/reports?${params.toString()}`)
+      } catch (launchError) {
+        setError(toErrorMessage(launchError))
+      }
+    })
+  }
+
+  const handleCompleteVisit = () => {
+    if (!canSave || !visitSessionId) return
+
+    setError(null)
+    startCompleteVisit(async () => {
+      try {
+        await completeStoreVisitSession({
+          visitId: visitSessionId,
+          storeId: row.storeId,
+          visitType,
+          visitedAt,
+          notes,
+          followUpRequired,
+          needScoreSnapshot: row.visitNeedScore,
+          needLevelSnapshot: row.visitNeedLevel,
+          needReasonsSnapshot: row.visitNeedReasons,
+        })
+
+        toast({
+          title: 'Visit completed',
+          description: `${formatStoreName(row.storeName)} has been logged in the visit tracker.`,
+          variant: 'success',
+        })
+
+        setVisitSessionId(null)
+        onOpenChange(false)
+        router.refresh()
+      } catch (completeError) {
+        setError(toErrorMessage(completeError))
+      }
+    })
+  }
+
   const handleSubmit = () => {
     if (!canSave) return
 
-    if (selectedActivityKeys.length === 0 && notes.trim().length === 0) {
-      setError('Select at least one on-site activity or add a note.')
-      return
-    }
-
-    const completedActivityDetails = selectedActivityKeys.reduce<Record<string, string>>((details, activityKey) => {
-      const detailText = buildStoreVisitActivityDetailText(
-        activityKey,
-        undefined,
-        activityPayloads[activityKey]
-      )
-
-      if (detailText) {
-        details[activityKey] = detailText
-      }
-
-      return details
-    }, {})
-
-    const otherDetails = String(activityPayloads.other?.fields?.details || '').trim()
-    if (selectedActivityKeys.includes('other') && !otherDetails) {
-      setError('Add details for the Other activity before saving the visit.')
+    if (notes.trim().length === 0) {
+      setError('Add visit notes before saving a note-only visit.')
       return
     }
 
@@ -1342,9 +1483,9 @@ export function StoreVisitModal({
           storeId: row.storeId,
           visitType,
           visitedAt,
-          completedActivityKeys: selectedActivityKeys,
-          completedActivityDetails,
-          completedActivityPayloads: activityPayloads,
+          completedActivityKeys: [],
+          completedActivityDetails: {},
+          completedActivityPayloads: {},
           notes,
           followUpRequired,
           needScoreSnapshot: row.visitNeedScore,
@@ -1352,15 +1493,10 @@ export function StoreVisitModal({
           needReasonsSnapshot: row.visitNeedReasons,
         })
 
-        const uploadErrors = await uploadEvidenceFiles(visit.id)
-
         toast({
-          title: uploadErrors.length > 0 ? 'Visit logged with upload warnings' : 'Visit logged',
-          description:
-            uploadErrors.length > 0
-              ? uploadErrors[0]
-              : `${formatStoreName(row.storeName)} has been updated in the visit tracker.`,
-          variant: uploadErrors.length > 0 ? 'default' : 'success',
+          title: 'Visit logged',
+          description: `${formatStoreName(row.storeName)} has been updated in the visit tracker.`,
+          variant: 'success',
         })
 
         onOpenChange(false)
@@ -1485,79 +1621,35 @@ export function StoreVisitModal({
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <Label>What was completed on site?</Label>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Select each activity completed during the visit. The detail form for each selected section opens on the right.
-                      </p>
+                  {visitSessionId ? (
+                    <div className="rounded-3xl border border-[#dcd6ef] bg-[#f6f2fe] p-5 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-[#4b3a78]">
+                            Draft visit session in progress
+                          </div>
+                          <div className="mt-2 text-sm text-slate-700">
+                            This visit is still open. Launch more report templates below or finish the visit once all linked reports are complete.
+                          </div>
+                          {outstandingLinkedReports.length > 0 ? (
+                            <div className="mt-2 text-xs font-medium text-[#4b3a78]">
+                              {outstandingLinkedReports.length} linked report{outstandingLinkedReports.length === 1 ? '' : 's'} still need to be marked final before this visit can be closed.
+                            </div>
+                          ) : null}
+                          <div className="mt-3 text-xs leading-relaxed text-slate-600">
+                            1. Start or continue each report needed for this visit.
+                            <br />
+                            2. Mark each linked report as Final when it is finished.
+                            <br />
+                            3. Use Complete Visit once every linked report shows Final.
+                          </div>
+                        </div>
+                        <span className="rounded-full border border-[#dcd6ef] bg-white px-3 py-1 text-xs font-semibold text-[#4b3a78]">
+                          {row.activeDraftVisit?.linkedReports.length || 0} linked report{row.activeDraftVisit?.linkedReports.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
                     </div>
-
-                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                      {STORE_VISIT_ACTIVITY_OPTIONS.map((option) => (
-                        <ActivitySelectionCard
-                          key={option.key}
-                          activityKey={option.key}
-                          label={option.label}
-                          description={option.description}
-                          selected={selectedActivityKeys.includes(option.key)}
-                          onToggle={toggleActivity}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              <div className="min-h-0 overflow-y-auto border-t border-slate-200 bg-slate-50 px-6 py-6 md:border-l md:border-t-0 md:px-8">
-                <div className="space-y-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Selected Activity Details</h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Complete the forms for each selected activity here.
-                      </p>
-                    </div>
-                    {selectedOptions.length > 0 ? (
-                      <span className="inline-flex rounded-full border border-[#dcd6ef] bg-[#f6f2fe] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#4b3a78]">
-                        {selectedOptions.length} selected
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {selectedOptions.length > 0 ? (
-                    <div className="space-y-4">
-                      {selectedOptions.map((option) => (
-                        <ActivityFormSection
-                          key={option.key}
-                          activityKey={option.key}
-                          title={option.label}
-                          description={option.description}
-                          formVariant={option.formVariant}
-                          evidenceLabel={option.evidenceLabel}
-                          fields={'fields' in option ? option.fields || [] : []}
-                          payload={activityPayloads[option.key] || {}}
-                          files={activityFiles[option.key] || []}
-                          productCatalog={productCatalog}
-                          onFieldChange={updateStructuredField}
-                          onAmountConfirmedChange={updateAmountConfirmed}
-                          onAddCountedItem={addCountedItem}
-                          onUpdateCountedItem={updateCountedItem}
-                          onRemoveCountedItem={removeCountedItem}
-                          onAddAmountCheck={addAmountCheck}
-                          onUpdateAmountCheck={updateAmountCheck}
-                          onRemoveAmountCheck={removeAmountCheck}
-                          onAddFiles={addActivityFiles}
-                          onRemoveFile={removeActivityFile}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
-                      Select an activity on the left to open its detail form here.
-                    </div>
-                  )}
+                  ) : null}
 
                   <div className="space-y-2 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
                     <Label htmlFor="visit-notes">
@@ -1572,7 +1664,7 @@ export function StoreVisitModal({
                           ? 'List the actions agreed or completed on site. Keep it short and actionable (one per line is ideal).'
                           : 'Add overall visit context, outcomes, escalation points, or anything else the officer found on site.'
                       }
-                      className="min-h-[120px]"
+                      className="min-h-[160px]"
                     />
                   </div>
 
@@ -1590,6 +1682,121 @@ export function StoreVisitModal({
                       </div>
                     </div>
                   </label>
+                </div>
+              </div>
+
+              <div className="min-h-0 overflow-y-auto border-t border-slate-200 bg-slate-50 px-6 py-6 md:border-l md:border-t-0 md:px-8">
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Report Templates</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Start a structured report on the reports page and link it back to this visit session. If a draft already exists for a template, the card will reopen that draft instead of creating a duplicate.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    {VISIT_REPORT_TEMPLATES.map((template) => {
+                      const existingDraft = linkedReports.find(
+                        (report) => report.reportType === template.value && report.status === 'draft'
+                      )
+                      const existingFinalCount = linkedReports.filter(
+                        (report) => report.reportType === template.value && report.status === 'final'
+                      ).length
+                      const cardStateLabel = existingDraft
+                        ? 'Draft started'
+                        : existingFinalCount > 0
+                          ? `${existingFinalCount} final saved`
+                          : 'Not started'
+                      const actionLabel = existingDraft ? 'Continue draft' : 'Start report'
+
+                      return (
+                        <button
+                          key={template.value}
+                          type="button"
+                          onClick={() => handleStartReport(template.value)}
+                          disabled={!canSave || isLaunchingReport || isCompletingVisit}
+                          className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-slate-900">{template.label}</div>
+                              <div className="mt-1 text-xs leading-relaxed text-slate-500">
+                                {template.description}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <span
+                              className={cn(
+                                'rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+                                existingDraft
+                                  ? 'border-[#dcd6ef] bg-[#f6f2fe] text-[#4b3a78]'
+                                  : existingFinalCount > 0
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                              )}
+                            >
+                              {cardStateLabel}
+                            </span>
+                            <span className="text-xs font-semibold text-[#232154]">{actionLabel}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {row.activeDraftVisit?.linkedReports.length ? (
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-base font-semibold text-slate-900">Linked Reports</h4>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Reports already attached to this open visit session.
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                          {row.activeDraftVisit.linkedReports.length}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {row.activeDraftVisit.linkedReports.map((report) => (
+                          <div key={report.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div>
+                                <div className="font-semibold text-slate-900">{report.title}</div>
+                                <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                                  <span>{getVisitReportTypeLabel(report.reportType)}</span>
+                                  <span>{report.status === 'final' ? 'Final' : 'Draft'}</span>
+                                  <span>{format(new Date(report.updatedAt), 'dd MMM yyyy HH:mm')}</span>
+                                </div>
+                                {report.summary ? (
+                                  <p className="mt-2 text-xs leading-relaxed text-slate-600">{report.summary}</p>
+                                ) : null}
+                              </div>
+                              <Button asChild size="sm" variant="outline" className="border-slate-200 bg-white">
+                                <Link
+                                  href={
+                                    report.status === 'final'
+                                      ? `/api/reports/visit-reports/${report.id}/pdf?mode=view`
+                                      : `/reports?sheet=1&reportId=${report.id}`
+                                  }
+                                  target={report.status === 'final' ? '_blank' : undefined}
+                                >
+                                  {report.status === 'final' ? 'View PDF' : 'Continue draft'}
+                                </Link>
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
+                      No structured reports linked yet. Start a report template above, or use the note-only save below for a lightweight visit log.
+                    </div>
+                  )}
 
                   {error ? (
                     <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1609,14 +1816,34 @@ export function StoreVisitModal({
                   <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px]">
                     Cancel
                   </Button>
+                  {visitSessionId ? (
+                    <Button
+                      onClick={handleCompleteVisit}
+                      disabled={
+                        !canSave ||
+                        isCompletingVisit ||
+                        isLaunchingReport ||
+                        outstandingLinkedReports.length > 0
+                      }
+                      variant="outline"
+                      className="min-h-[44px] border-[#232154] text-[#232154] hover:bg-[#f5f1fb]"
+                    >
+                      {isCompletingVisit ? 'Completing...' : 'Complete Visit'}
+                    </Button>
+                  ) : null}
                   <Button
                     onClick={handleSubmit}
-                    disabled={!canSave || isSaving}
+                    disabled={!canSave || isSaving || isLaunchingReport || isCompletingVisit}
                     className="min-h-[44px] bg-[#232154] text-white hover:bg-[#1c0259]"
                   >
-                    {isSaving ? 'Saving...' : 'Log Visit'}
+                    {isSaving ? 'Saving...' : 'Log Note-Only Visit'}
                   </Button>
                 </div>
+                {visitSessionId && outstandingLinkedReports.length > 0 ? (
+                  <div className="text-xs text-slate-500">
+                    Complete Visit unlocks once every linked report above has been marked Final.
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
