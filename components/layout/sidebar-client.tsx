@@ -167,8 +167,8 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
         {/* Mobile Sidebar - hidden when printing */}
         <aside
           className={cn(
-            'no-print fixed left-0 top-0 z-[70] flex h-screen-zoom w-[86vw] max-w-[348px] flex-col rounded-r-[32px] border-r border-slate-200/70 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(236,242,247,0.98)_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.22)] transition-transform duration-300 ease-in-out safe-bottom touch-pan-y md:hidden',
-            isOpen ? 'translate-x-0' : '-translate-x-full'
+            'no-print fixed left-0 top-0 z-[70] flex h-screen-zoom w-[86vw] max-w-[348px] flex-col rounded-r-[32px] border-r border-slate-200/70 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(236,242,247,0.98)_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ease-in-out safe-bottom touch-pan-y md:hidden',
+            isOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-full opacity-0 pointer-events-none'
           )}
           aria-hidden={!isOpen}
           aria-label="Navigation menu"
