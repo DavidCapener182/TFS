@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ExternalLink, MapPin, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 
@@ -78,6 +78,7 @@ function buildAddress(store: StoreSearchResult): string {
 
 export function StoreSearch() {
   const pathname = usePathname()
+  const router = useRouter()
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<StoreSearchResult[]>([])
@@ -203,6 +204,22 @@ export function StoreSearch() {
   }, [query])
 
   const topMatch = results[0] || null
+  const isVisitTrackerPage = pathname?.startsWith('/visit-tracker')
+
+  const openStoreResult = (store: StoreSearchResult) => {
+    setIsDropdownOpen(false)
+    setMobileSearchOpen(false)
+
+    if (isVisitTrackerPage) {
+      const params = new URLSearchParams()
+      params.set('storeId', store.id)
+      router.push(`/visit-tracker?${params.toString()}`)
+      return
+    }
+
+    setSelected(store)
+    setSheetOpen(true)
+  }
 
   const shouldShowDropdown = useMemo(() => {
     if (!query.trim() || !dropdownPosition) return false
@@ -281,12 +298,7 @@ export function StoreSearch() {
                       <StoreDropdownItem
                         key={store.id}
                         store={store}
-                        onSelect={() => {
-                          setSelected(store)
-                          setSheetOpen(true)
-                          setIsDropdownOpen(false)
-                          setMobileSearchOpen(false)
-                        }}
+                        onSelect={() => openStoreResult(store)}
                       />
                     ))
                   )}
@@ -338,11 +350,11 @@ export function StoreSearch() {
                 if (query.trim() || isLoading || results.length > 0) setIsDropdownOpen(true)
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && topMatch) {
+                if (e.key === 'Enter') {
                   e.preventDefault()
-                  setSelected(topMatch)
-                  setSheetOpen(true)
-                  setIsDropdownOpen(false)
+                  if (topMatch) {
+                    openStoreResult(topMatch)
+                  }
                 }
                 if (e.key === 'Escape') {
                   setIsDropdownOpen(false)
@@ -364,12 +376,11 @@ export function StoreSearch() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && topMatch) {
+                  if (e.key === 'Enter') {
                     e.preventDefault()
-                    setSelected(topMatch)
-                    setSheetOpen(true)
-                    setIsDropdownOpen(false)
-                    setMobileSearchOpen(false)
+                    if (topMatch) {
+                      openStoreResult(topMatch)
+                    }
                   }
                   if (e.key === 'Escape') {
                     setMobileSearchOpen(false)
