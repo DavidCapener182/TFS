@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { type MouseEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
@@ -133,6 +133,24 @@ function VisitTable({
   canLogVisits: boolean
   onOpenStore: (row: VisitTrackerRow) => void
 }) {
+  const router = useRouter()
+
+  const openVisitModal = (
+    event: MouseEvent<HTMLButtonElement>,
+    row: VisitTrackerRow,
+    onOpenStore: (row: VisitTrackerRow) => void
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenStore(row)
+  }
+
+  const navigateFromCard = (event: MouseEvent<HTMLButtonElement>, href: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    router.push(href)
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="space-y-3 p-3 md:hidden">
@@ -185,19 +203,32 @@ function VisitTable({
 
               <div className="grid grid-cols-2 gap-2">
                 <Button
+                  type="button"
                   size="sm"
-                  onClick={() => onOpenStore(row)}
+                  onClick={(event) => openVisitModal(event, row, onOpenStore)}
                   disabled={!canLogVisits}
                   className="bg-[#232154] text-white hover:bg-[#1c0259]"
                 >
                   Start Visit
                 </Button>
-                <Button asChild size="sm" variant="outline" className="border-slate-200">
-                  <Link href={`/stores/${row.storeId}`}>Store</Link>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-200"
+                  onClick={(event) => navigateFromCard(event, `/stores/${row.storeId}`)}
+                >
+                  Store
                 </Button>
                 {canPlanVisits ? (
-                  <Button asChild size="sm" variant="outline" className="col-span-2 border-slate-200">
-                    <Link href="/route-planning">Plan Route</Link>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="col-span-2 border-slate-200"
+                    onClick={(event) => navigateFromCard(event, '/route-planning')}
+                  >
+                    Plan Route
                   </Button>
                 ) : null}
               </div>
@@ -274,8 +305,9 @@ function VisitTable({
                   <TableCell className="min-w-[210px] text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
+                        type="button"
                         size="sm"
-                        onClick={() => onOpenStore(row)}
+                        onClick={(event) => openVisitModal(event, row, onOpenStore)}
                         disabled={!canLogVisits}
                         className="bg-[#232154] text-white hover:bg-[#1c0259]"
                       >
@@ -365,12 +397,15 @@ export function VisitTrackerClient({
       groupFilter === 'all'
         ? rows
         : rows.filter((row) => getVisitTrackerRowGroup(row) === groupFilter)
+    const completedRows = source.filter(
+      (row) => !String(row.lastVisitType || '').toLowerCase().includes('draft in progress')
+    )
 
     return {
       needed: source.filter((row) => row.visitNeeded).length,
       planned: source.filter((row) => !!row.nextPlannedVisitDate).length,
-      random: source.filter((row) => row.visitState === 'random').length,
-      recent: source.filter((row) => isRecentVisit(row.lastVisitDate)).length,
+      random: completedRows.filter((row) => row.visitState === 'random').length,
+      recent: completedRows.filter((row) => isRecentVisit(row.lastVisitDate)).length,
     }
   }, [groupFilter, rows])
 
@@ -382,6 +417,13 @@ export function VisitTrackerClient({
       setSelectedRow(matchingRow)
     }
   }, [requestedStoreId, rows])
+
+  useEffect(() => {
+    if (!selectedRow) return
+    const refreshedRow = rows.find((row) => row.storeId === selectedRow.storeId) || null
+    if (!refreshedRow) return
+    setSelectedRow(refreshedRow)
+  }, [rows, selectedRow])
 
   const handleModalOpenChange = (open: boolean) => {
     if (open) return

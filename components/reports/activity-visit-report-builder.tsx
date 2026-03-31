@@ -14,13 +14,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  ActivityFieldGuidance,
+  ActivityGuideCard,
+} from '@/components/visit-tracker/activity-guidance'
 import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
 import {
   buildStoreVisitCountedItemVarianceNote,
   formatStoreVisitCurrency,
+  getStoreVisitActivityAmountChecksGuide,
   getStoreVisitActivityFieldDefinitions,
   getStoreVisitActivityFieldSection,
+  getStoreVisitActivityCountedItemsGuide,
   getStoreVisitActivityOption,
+  getStoreVisitActivitySectionGuide,
   getStoreVisitCountedItemDelta,
   getStoreVisitCountedItemVarianceValue,
   type StoreVisitActivityFieldDefinition,
@@ -474,6 +481,7 @@ function renderStructuredFields(params: {
         return (
           <div key={field.key} className={cn('space-y-2', isTextarea ? 'xl:col-span-2' : '')}>
             <Label htmlFor={fieldId}>{field.label}</Label>
+            <ActivityFieldGuidance field={field} />
             {isTextarea ? (
               <Textarea
                 id={fieldId}
@@ -510,8 +518,15 @@ export function ActivityVisitReportBuilder({
 }: ActivityVisitReportBuilderProps) {
   const option = getStoreVisitActivityOption(reportType)
   const formVariant = option?.formVariant || 'structured'
+  const showsLineChecks = formVariant === 'line-check' || formVariant === 'internal-theft'
+  const showsCashChecks = formVariant === 'cash-check' || formVariant === 'internal-theft'
   const fieldDefinitions = getStoreVisitActivityFieldDefinitions(reportType)
   const activityPayload = payload.activityPayload || {}
+  const whatCheckedGuide = getStoreVisitActivitySectionGuide(reportType, 'what_checked')
+  const findingsGuide = getStoreVisitActivitySectionGuide(reportType, 'findings')
+  const actionsGuide = getStoreVisitActivitySectionGuide(reportType, 'actions')
+  const countedItemsGuide = getStoreVisitActivityCountedItemsGuide(reportType)
+  const amountChecksGuide = getStoreVisitActivityAmountChecksGuide(reportType)
 
   const updateActivityPayload = (
     updater: (current: StoreVisitActivityPayload) => StoreVisitActivityPayload | undefined
@@ -630,6 +645,8 @@ export function ActivityVisitReportBuilder({
         description={`Capture the structured details for ${option?.label || 'this report'} using the same LP workflow as the visit tracker.`}
       >
         <fieldset disabled={disabled} className="space-y-5">
+          <ActivityGuideCard guide={whatCheckedGuide} />
+
           {renderStructuredFields({
             fields: fieldDefinitions,
             payload: activityPayload,
@@ -639,11 +656,15 @@ export function ActivityVisitReportBuilder({
             onFieldChange: updateStructuredField,
           })}
 
-          {formVariant === 'line-check' ? (
+          {showsLineChecks ? (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <ActivityGuideCard guide={countedItemsGuide} />
+
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Items checked</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {formVariant === 'internal-theft' ? 'Fragrances / stock lines checked' : 'Items checked'}
+                  </div>
                   <div className="mt-1 text-xs text-slate-500">
                     Add each fragrance checked in store, the quantity in the system, and the quantity counted.
                   </div>
@@ -779,14 +800,20 @@ export function ActivityVisitReportBuilder({
             </div>
           ) : null}
 
-          {formVariant === 'cash-check' ? (
+          {showsCashChecks ? (
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <ActivityGuideCard guide={amountChecksGuide} />
+
               <div className="space-y-2">
-                <Label>Correct amount present?</Label>
+                <Label>
+                  {formVariant === 'internal-theft'
+                    ? 'Does the cash position reconcile overall?'
+                    : 'Correct amount present?'}
+                </Label>
                 <BooleanChoice
                   value={activityPayload.amountConfirmed}
                   onChange={updateAmountConfirmed}
-                  trueLabel="Correct amount present"
+                  trueLabel={formVariant === 'internal-theft' ? 'Cash reconciles' : 'Correct amount present'}
                   falseLabel="Discrepancy found"
                   idPrefix={`${reportType}-amount-confirmed`}
                 />
@@ -794,9 +821,11 @@ export function ActivityVisitReportBuilder({
 
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Amount checks</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {formVariant === 'internal-theft' ? 'Cash discrepancies reviewed' : 'Amount checks'}
+                  </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    Add each till, banking bag, or cash item reviewed during the visit.
+                    Add each till, banking bag, safe amount, or cash item reviewed during the visit.
                   </div>
                 </div>
                 <Button type="button" variant="outline" onClick={addAmountCheck} className="min-h-[40px]">
@@ -921,6 +950,8 @@ export function ActivityVisitReportBuilder({
         description="Capture the main gaps, variances, or issues identified during the visit."
       >
         <fieldset disabled={disabled} className="space-y-5">
+          <ActivityGuideCard guide={findingsGuide} />
+
           {renderStructuredFields({
             fields: fieldDefinitions,
             payload: activityPayload,
@@ -956,6 +987,8 @@ export function ActivityVisitReportBuilder({
         description="Record what was corrected on site, what still needs follow-up, and any escalation."
       >
         <fieldset disabled={disabled} className="space-y-5">
+          <ActivityGuideCard guide={actionsGuide} />
+
           {renderStructuredFields({
             fields: fieldDefinitions,
             payload: activityPayload,

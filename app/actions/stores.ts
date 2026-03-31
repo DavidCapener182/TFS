@@ -6,15 +6,23 @@ import { revalidatePath } from 'next/cache'
 export async function updateComplianceAudit2Tracking(
   storeId: string,
   assignedManagerUserId: string | null,
-  plannedDate: string | null
+  plannedDate: string | null,
+  plannedPurpose?: string | null,
+  plannedPurposeNote?: string | null
 ) {
   const supabase = createClient()
+  const normalizedPurpose = String(plannedPurpose || '').trim() || null
+  const normalizedPurposeNote = String(plannedPurposeNote || '').trim() || null
 
   const { error } = await supabase
     .from('tfs_stores')
     .update({
       compliance_audit_2_assigned_manager_user_id: assignedManagerUserId || null,
       compliance_audit_2_planned_date: plannedDate || null,
+      compliance_audit_2_planned_purpose:
+        plannedDate === null ? null : normalizedPurpose,
+      compliance_audit_2_planned_note:
+        plannedDate === null ? null : normalizedPurposeNote,
     })
     .eq('id', storeId)
 

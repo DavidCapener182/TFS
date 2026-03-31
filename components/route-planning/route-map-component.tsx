@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet'
@@ -95,7 +95,6 @@ function isLatLngTuple(value: unknown): value is [number, number] {
 }
 
 export default function RouteMapComponent({ stores, managerHome }: RouteMapComponentProps) {
-  const mapRef = useRef<L.Map | null>(null)
   const [roadRouteCoordinates, setRoadRouteCoordinates] = useState<[number, number][]>([])
   const [isFallbackRoute, setIsFallbackRoute] = useState(false)
   const [isLoadingRoute, setIsLoadingRoute] = useState(false)
@@ -109,24 +108,6 @@ export default function RouteMapComponent({ stores, managerHome }: RouteMapCompo
   // Default center (UK)
   const defaultCenter: [number, number] = [54.5, -2.0]
   const defaultZoom = 6
-  const mapKey = useMemo(() => {
-    const homeKey = managerHome ? `${managerHome.latitude},${managerHome.longitude}` : 'no-home'
-    return `${storesWithCoords.length}|${homeKey}`
-  }, [storesWithCoords.length, managerHome])
-
-  useEffect(() => {
-    return () => {
-      if (!mapRef.current) return
-      try {
-        mapRef.current.remove()
-      } catch {
-        // Ignore cleanup race conditions during fast refresh.
-      } finally {
-        mapRef.current = null
-      }
-    }
-  }, [])
-
   // Build waypoint order for the route (home -> stores -> home)
   const routeCoordinates = useMemo(() => {
     const coords: [number, number][] = []
@@ -252,11 +233,9 @@ export default function RouteMapComponent({ stores, managerHome }: RouteMapCompo
 
   return (
     <MapContainer
-      key={mapKey}
       center={defaultCenter}
       zoom={defaultZoom}
       style={{ height: '400px', width: '100%', borderRadius: '0.5rem' }}
-      ref={mapRef}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

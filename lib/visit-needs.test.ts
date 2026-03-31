@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  STORE_VISIT_ACTIVITY_OPTIONS,
   buildStoreVisitCountedItemVarianceNote,
   buildStoreVisitActivityDetailText,
   computeStoreVisitNeed,
+  getStoreVisitActivityAmountChecksGuide,
+  getStoreVisitActivityCountedItemsGuide,
+  getStoreVisitActivityFieldDefinitions,
+  getStoreVisitActivityFieldSection,
+  getStoreVisitActivitySectionGuide,
   normalizeStoreVisitActivityPayloads,
 } from '@/lib/visit-needs'
 
@@ -92,6 +98,34 @@ describe('computeStoreVisitNeed', () => {
 })
 
 describe('store visit activity payloads', () => {
+  it('provides section guides and field scripts for every activity template', () => {
+    for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
+      const fields = getStoreVisitActivityFieldDefinitions(option.key)
+      const sections = new Set(
+        fields.map((field) => getStoreVisitActivityFieldSection(option.key, field))
+      )
+
+      expect(fields.length).toBeGreaterThan(0)
+
+      for (const field of fields) {
+        expect(field.scriptLines?.length || 0).toBeGreaterThan(0)
+        expect(field.captureHint?.trim()).toBeTruthy()
+      }
+
+      for (const section of sections) {
+        expect(getStoreVisitActivitySectionGuide(option.key, section)).toBeDefined()
+      }
+
+      if (option.formVariant === 'line-check' || option.formVariant === 'internal-theft') {
+        expect(getStoreVisitActivityCountedItemsGuide(option.key)).toBeDefined()
+      }
+
+      if (option.formVariant === 'cash-check' || option.formVariant === 'internal-theft') {
+        expect(getStoreVisitActivityAmountChecksGuide(option.key)).toBeDefined()
+      }
+    }
+  })
+
   it('normalizes structured line-check and banking payloads', () => {
     const payloads = normalizeStoreVisitActivityPayloads(
       {
@@ -222,5 +256,168 @@ describe('store visit activity payloads', () => {
 
     expect(detail).toContain('Refund abuse allegation reviewed.')
     expect(detail).toContain('Interviewed manager and checked the refund log.')
+  })
+
+  it('normalizes internal theft interview payloads with both cash and stock evidence', () => {
+    const payloads = normalizeStoreVisitActivityPayloads(
+      {
+        internal_theft_interview: {
+          fields: {
+            interviewSubject: 'Store manager',
+            allegationSummary: 'Suspected stock and cash theft linked to till access and fragrance variances.',
+            interviewAccountSummary: 'Denied taking stock but accepted weak till handovers.',
+          },
+          amountConfirmed: 'false',
+          amountChecks: [
+            {
+              label: 'Till 2 cash-up',
+              systemAmount: '420.10',
+              countedAmount: '370.10',
+              amountMatches: 'false',
+            },
+          ],
+          itemsChecked: [
+            {
+              productLabel: 'Tom Ford Black Orchid',
+              unitPrice: '112',
+              systemQuantity: '3',
+              countedQuantity: '2',
+            },
+          ],
+        },
+      },
+      ['internal_theft_interview']
+    )
+
+    expect(payloads.internal_theft_interview?.amountConfirmed).toBe(false)
+    expect(payloads.internal_theft_interview?.amountChecks).toEqual([
+      expect.objectContaining({
+        label: 'Till 2 cash-up',
+        systemAmount: 420.1,
+        countedAmount: 370.1,
+        amountMatches: false,
+      }),
+    ])
+    expect(payloads.internal_theft_interview?.itemsChecked).toEqual([
+      expect.objectContaining({
+        productLabel: 'Tom Ford Black Orchid',
+        unitPrice: 112,
+        systemQuantity: 3,
+        countedQuantity: 2,
+      }),
+    ])
+  })
+
+  it('builds a compact detail for internal theft interviews', () => {
+    const detail = buildStoreVisitActivityDetailText('internal_theft_interview', '', {
+      fields: {
+        interviewSubject: 'Assistant manager',
+        allegationSummary: 'Suspected fragrance theft and till shortage across two shifts.',
+        interviewAccountSummary: 'Admitted poor stock control but denied taking cash.',
+      },
+      amountConfirmed: false,
+      amountChecks: [
+        {
+          label: 'Safe count',
+          amountMatches: false,
+        },
+      ],
+      itemsChecked: [
+        {
+          productLabel: 'YSL Libre',
+          unitPrice: 98,
+          systemQuantity: 4,
+          countedQuantity: 3,
+        },
+      ],
+    })
+
+    expect(detail).toContain('Assistant manager')
+    expect(detail).toContain('Suspected fragrance theft and till shortage across two shifts.')
+    expect(detail).toContain('1 item check recorded, 1 variance found')
+    expect(detail).toContain('1 cash check recorded, 1 mismatch found')
+    expect(detail).toContain('Amount discrepancy found')
+  })
+
+  it('normalizes CCTV-confirmed internal theft payloads with both cash and stock evidence', () => {
+    const payloads = normalizeStoreVisitActivityPayloads(
+      {
+        internal_theft_cctv_confirmed: {
+          fields: {
+            subjectIdentified: 'Sales advisor',
+            cctvSummary: 'CCTV shows the subject concealing two fragrance units before leaving the stockroom.',
+            theftMethodObserved: 'Concealed stock inside a personal bag while off the shop floor.',
+            supportingEvidence: 'Stock count and rota timing aligned with the footage.',
+          },
+          amountConfirmed: 'false',
+          amountChecks: [
+            {
+              label: 'Till 1 refund movement',
+              systemAmount: '95.00',
+              countedAmount: '0',
+              amountMatches: 'false',
+            },
+          ],
+          itemsChecked: [
+            {
+              productLabel: 'Dior Sauvage',
+              unitPrice: '109',
+              systemQuantity: '4',
+              countedQuantity: '2',
+            },
+          ],
+        },
+      },
+      ['internal_theft_cctv_confirmed']
+    )
+
+    expect(payloads.internal_theft_cctv_confirmed?.amountConfirmed).toBe(false)
+    expect(payloads.internal_theft_cctv_confirmed?.amountChecks).toEqual([
+      expect.objectContaining({
+        label: 'Till 1 refund movement',
+        systemAmount: 95,
+        countedAmount: 0,
+        amountMatches: false,
+      }),
+    ])
+    expect(payloads.internal_theft_cctv_confirmed?.itemsChecked).toEqual([
+      expect.objectContaining({
+        productLabel: 'Dior Sauvage',
+        unitPrice: 109,
+        systemQuantity: 4,
+        countedQuantity: 2,
+      }),
+    ])
+  })
+
+  it('builds a compact detail for CCTV-confirmed internal theft reports', () => {
+    const detail = buildStoreVisitActivityDetailText('internal_theft_cctv_confirmed', '', {
+      fields: {
+        subjectIdentified: 'Assistant manager',
+        cctvSummary: 'CCTV shows the subject removing fragrance stock from the stockroom and concealing it before exit.',
+        theftMethodObserved: 'Concealed stock in a personal bag during close-down.',
+      },
+      amountConfirmed: false,
+      amountChecks: [
+        {
+          label: 'Safe bag review',
+          amountMatches: false,
+        },
+      ],
+      itemsChecked: [
+        {
+          productLabel: 'Paco Rabanne 1 Million',
+          unitPrice: 86,
+          systemQuantity: 3,
+          countedQuantity: 1,
+        },
+      ],
+    })
+
+    expect(detail).toContain('Assistant manager')
+    expect(detail).toContain('CCTV shows the subject removing fragrance stock from the stockroom and concealing it before exit.')
+    expect(detail).toContain('1 item check recorded, 1 variance found')
+    expect(detail).toContain('1 cash check recorded, 1 mismatch found')
+    expect(detail).toContain('Amount discrepancy found')
   })
 })

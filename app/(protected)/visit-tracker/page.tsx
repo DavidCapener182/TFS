@@ -77,6 +77,7 @@ type RouteVisitLogRow = {
 
 type VisitReportRow = {
   id: string
+  store_id: string
   store_visit_id: string | null
   report_type: string
   status: string
@@ -84,6 +85,7 @@ type VisitReportRow = {
   summary: string | null
   visit_date: string
   updated_at: string
+  created_by_user_id: string | null
 }
 
 function buildVisitState(lastVisit: VisitHistoryEntry | undefined, nextPlannedVisitDate: string | null): VisitState {
@@ -135,6 +137,8 @@ async function getVisitTrackerData(): Promise<{
       postcode,
       is_active,
       compliance_audit_2_planned_date,
+      compliance_audit_2_planned_purpose,
+      compliance_audit_2_planned_note,
       assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(full_name)
     `)
     .order('region', { ascending: true })
@@ -245,6 +249,22 @@ async function getVisitTrackerData(): Promise<{
 
     for (const row of ((routeVisitLogsResult.data || []) as RouteVisitLogRow[])) {
       if (row.performed_by_user_id) userIds.add(row.performed_by_user_id)
+    }
+
+    const { data: unlinkedDraftReports, error: unlinkedDraftReportsError } = await supabase
+      .from('tfs_visit_reports')
+      .select('id, store_id, store_visit_id, report_type, status, title, summary, visit_date, updated_at, created_by_user_id')
+      .in('store_id', storeIds)
+      .is('store_visit_id', null)
+      .eq('status', 'draft')
+      .order('updated_at', { ascending: false })
+
+    if (unlinkedDraftReportsError) {
+      console.error('Error fetching unlinked draft visit reports for visit tracker:', unlinkedDraftReportsError)
+    }
+
+    for (const report of ((unlinkedDraftReports || []) as VisitReportRow[])) {
+      if (report.created_by_user_id) userIds.add(report.created_by_user_id)
     }
 
     if (userIds.size > 0) {
@@ -387,6 +407,41 @@ async function getVisitTrackerData(): Promise<{
       })
       visitHistoryByStore.set(storeId, existing)
     }
+
+    for (const report of ((unlinkedDraftReports || []) as VisitReportRow[])) {
+      const storeId = String(report.store_id || '')
+      if (!storeId) continue
+
+      const existing = visitHistoryByStore.get(storeId) || []
+      existing.push({
+        id: `report-draft-${report.id}`,
+        source: 'visit_log',
+        visitedAt: report.updated_at || `${report.visit_date}T12:00:00.000Z`,
+        status: 'draft',
+        visitType: 'action_led',
+        completedActivityKeys: [],
+        completedActivityDetails: {},
+        completedActivityPayloads: {},
+        evidenceFiles: [],
+        linkedReports: [
+          {
+            id: report.id,
+            reportType: report.report_type as VisitReportType,
+            status: 'draft',
+            title: report.title || 'Untitled report',
+            summary: report.summary || null,
+            visitDate: report.visit_date,
+            updatedAt: report.updated_at,
+          },
+        ],
+        notes: 'Draft report created from Reports workspace (not yet linked to a visit session).',
+        followUpRequired: false,
+        createdByName: report.created_by_user_id ? profileMap.get(report.created_by_user_id) || null : null,
+        needScoreSnapshot: null,
+        needLevelSnapshot: null,
+      })
+      visitHistoryByStore.set(storeId, existing)
+    }
   }
 
   const rows = stores.map((store) => {
@@ -395,21 +450,22 @@ async function getVisitTrackerData(): Promise<{
       ? store.assigned_manager[0]
       : store.assigned_manager
 
-    const recentVisits = [...(visitHistoryByStore.get(storeId) || [])]
-      .filter((visit) => visit.status !== 'draft')
-      .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())
-      .slice(0, 5)
+    const allVisits = [...(visitHistoryByStore.get(storeId) || [])].sort(
+      (a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime()
+    )
+    const recentVisits = allVisits.slice(0, 5)
 
     const activeDraftVisit =
-      [...(visitHistoryByStore.get(storeId) || [])]
+      allVisits
         .filter((visit) => visit.status === 'draft')
         .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())[0] || null
 
-    const lastVisit = recentVisits[0]
-    const lastVisitDate = lastVisit?.visitedAt || null
+    const lastCompletedVisit = allVisits.find((visit) => visit.status !== 'draft')
+    const displayLastVisit = lastCompletedVisit || activeDraftVisit || null
+    const lastVisitDate = displayLastVisit?.visitedAt || null
     const nextPlannedVisitDate = getActivePlannedVisitDate(
       store.compliance_audit_2_planned_date || null,
-      lastVisitDate
+      lastCompletedVisit?.visitedAt || null
     )
 
     const assessment = computeStoreVisitNeed({
@@ -430,7 +486,7 @@ async function getVisitTrackerData(): Promise<{
         status: incident.status,
         occurredAt: incident.occurred_at,
       })),
-      lastVisitAt: lastVisitDate,
+      lastVisitAt: lastCompletedVisit?.visitedAt || null,
       nextPlannedVisitDate,
     })
 
@@ -443,13 +499,18 @@ async function getVisitTrackerData(): Promise<{
       postcode: store.postcode || null,
       assignedManager: assignedManagerRelation?.full_name || null,
       lastVisitDate,
-      lastVisitType: getLastVisitType(lastVisit),
+      lastVisitType:
+        displayLastVisit?.status === 'draft'
+          ? `${getLastVisitType(displayLastVisit || undefined) || 'Visit logged'} (Draft in progress)`
+          : getLastVisitType(displayLastVisit || undefined),
       nextPlannedVisitDate,
+      plannedVisitPurpose: String(store.compliance_audit_2_planned_purpose || '').trim() || null,
+      plannedVisitPurposeNote: String(store.compliance_audit_2_planned_note || '').trim() || null,
       visitNeedScore: assessment.score,
       visitNeedLevel: assessment.level,
       visitNeeded: assessment.needsVisit,
       visitNeedReasons: assessment.reasons,
-      visitState: buildVisitState(lastVisit, nextPlannedVisitDate),
+      visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
       openStoreActionCount: (openStoreActionsByStore.get(storeId) || []).length,
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
       isActive: Boolean(store.is_active),

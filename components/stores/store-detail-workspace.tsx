@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ActionForm } from '@/components/incidents/action-form'
@@ -13,8 +12,6 @@ import {
   StoreCrmNote,
   StoreCrmTrackerEntry,
 } from '@/components/stores/store-crm-panel'
-import { StoreActionsModal } from '@/components/audit/store-actions-modal'
-import { AuditRow } from '@/components/audit/audit-table-helpers'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
 import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
@@ -139,10 +136,7 @@ export function StoreDetailWorkspace({
   crmData,
   canEdit,
 }: StoreDetailWorkspaceProps) {
-  const router = useRouter()
   const [activeTab, setActiveTab] = useState('store crm')
-  const [storeActionsModalOpen, setStoreActionsModalOpen] = useState(false)
-  const [actionsMessage, setActionsMessage] = useState<string | null>(null)
   const [selectedActionIncident, setSelectedActionIncident] = useState<any | null>(null)
 
   const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
@@ -236,7 +230,6 @@ export function StoreDetailWorkspace({
 
   const actionResolutionPct = actions.length > 0 ? Math.round((completedActions.length / actions.length) * 100) : 0
   const severityIndex = getSeverityIndexLabel(ongoingIncidents)
-  const canCreateStoreActions = userRole === 'admin' || userRole === 'ops'
   const canManageIncidents = userRole === 'admin' || userRole === 'ops'
   const supplementalContacts = useMemo<StoreCrmDisplayContact[]>(() => {
     if (!store.reporting_area_manager_name && !store.reporting_area_manager_email) {
@@ -267,43 +260,6 @@ export function StoreDetailWorkspace({
     store.reporting_area_manager_email,
     store.reporting_area_manager_name,
   ])
-
-  const storeActionsModalRow = useMemo<AuditRow>(
-    () => ({
-      id: store.id,
-      region: store.region || null,
-      store_code: store.store_code || null,
-      store_name: store.store_name,
-      is_active: Boolean(store.is_active),
-      compliance_audit_1_date: store.compliance_audit_1_date || null,
-      compliance_audit_1_overall_pct: store.compliance_audit_1_overall_pct ?? null,
-      action_plan_1_sent: store.action_plan_1_sent ?? null,
-      compliance_audit_1_pdf_path: store.compliance_audit_1_pdf_path || null,
-      compliance_audit_2_date: store.compliance_audit_2_date || null,
-      compliance_audit_2_overall_pct: store.compliance_audit_2_overall_pct ?? null,
-      action_plan_2_sent: store.action_plan_2_sent ?? null,
-      compliance_audit_2_pdf_path: store.compliance_audit_2_pdf_path || null,
-      compliance_audit_3_date: store.compliance_audit_3_date || null,
-      compliance_audit_3_overall_pct: store.compliance_audit_3_overall_pct ?? null,
-      action_plan_3_sent: store.action_plan_3_sent ?? null,
-      area_average_pct: store.area_average_pct ?? null,
-      total_audits_to_date: store.total_audits_to_date ?? null,
-      fire_risk_assessment_date: store.fire_risk_assessment_date || null,
-      fire_risk_assessment_pdf_path: store.fire_risk_assessment_pdf_path || null,
-      fire_risk_assessment_notes: store.fire_risk_assessment_notes || null,
-      fire_risk_assessment_pct: store.fire_risk_assessment_pct ?? null,
-    }),
-    [store]
-  )
-
-  const handleStoreActionsCreated = (count: number, storeName: string) => {
-    setActionsMessage(
-      count === 1
-        ? `1 action created for ${storeName}.`
-        : `${count} actions created for ${storeName}.`
-    )
-    router.refresh()
-  }
 
   return (
     <div className="space-y-6">
@@ -406,35 +362,13 @@ export function StoreDetailWorkspace({
       {activeTab === 'store actions' ? (
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Store Actions</h3>
-                <p className="text-sm text-slate-500">
-                  Add direct store actions from flagged audit text or review existing open/completed tasks.
-                </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  {directStoreActions.length} direct store actions • {incidentLinkedActions.length} incident-linked actions
-                </p>
-              </div>
-              <Button
-                type="button"
-                onClick={() => setStoreActionsModalOpen(true)}
-                disabled={!canCreateStoreActions}
-                className="w-full sm:w-auto"
-              >
-                Add Actions From Parser
-              </Button>
-            </div>
-            {!canCreateStoreActions ? (
-              <p className="mt-3 text-xs text-amber-700">
-                You have read-only access. Ask an admin or ops user to create store actions.
-              </p>
-            ) : null}
-            {actionsMessage ? (
-              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                {actionsMessage}
-              </div>
-            ) : null}
+            <h3 className="text-lg font-bold text-slate-900">Store Actions</h3>
+            <p className="text-sm text-slate-500">
+              Review direct store actions and incident-linked tasks for this store.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {directStoreActions.length} direct store actions • {incidentLinkedActions.length} incident-linked actions
+            </p>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -891,6 +825,10 @@ export function StoreDetailWorkspace({
                           {getStoreVisitNeedLevelLabel(visit.needLevelSnapshot)}
                           {typeof visit.needScoreSnapshot === 'number' ? ` (${visit.needScoreSnapshot})` : ''}
                         </Badge>
+                      ) : visit.status === 'draft' ? (
+                        <Badge variant="outline" className="border-[#dcd6ef] bg-[#f6f2fe] text-[#4b3a78]">
+                          Draft visit
+                        </Badge>
                       ) : visit.followUpRequired ? (
                         <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                           Follow-up required
@@ -1001,14 +939,6 @@ export function StoreDetailWorkspace({
           </div>
         </div>
       ) : null}
-
-      <StoreActionsModal
-        open={storeActionsModalOpen}
-        onOpenChange={setStoreActionsModalOpen}
-        row={storeActionsModalRow}
-        userRole={userRole}
-        onActionsCreated={handleStoreActionsCreated}
-      />
 
       <Dialog
         open={Boolean(selectedActionIncident)}

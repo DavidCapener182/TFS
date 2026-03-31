@@ -60,6 +60,8 @@ export interface VisitTrackerRow {
   lastVisitDate: string | null
   lastVisitType: string | null
   nextPlannedVisitDate: string | null
+  plannedVisitPurpose: string | null
+  plannedVisitPurposeNote: string | null
   visitNeedScore: number
   visitNeedLevel: StoreVisitNeedLevel
   visitNeeded: boolean

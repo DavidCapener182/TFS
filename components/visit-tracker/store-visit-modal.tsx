@@ -8,11 +8,16 @@ import { Check, Clock, ExternalLink, Plus, Upload, X } from 'lucide-react'
 
 import {
   completeStoreVisitSession,
+  deleteDraftStoreVisitSession,
   logStoreVisit,
   saveDraftStoreVisitSession,
 } from '@/app/actions/store-visits'
 import { saveVisitReport } from '@/app/actions/visit-reports'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
+import {
+  ActivityFieldGuidance,
+  ActivityGuideCard,
+} from '@/components/visit-tracker/activity-guidance'
 import type { VisitTrackerRow } from '@/components/visit-tracker/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,13 +44,16 @@ import {
   buildStoreVisitActivityDetailText,
   buildStoreVisitCountedItemVarianceNote,
   formatStoreVisitCurrency,
+  getStoreVisitActivityAmountChecksGuide,
   getStoreVisitNeedLevelLabel,
   getStoreVisitTypeLabel,
+  getStoreVisitActivityCountedItemsGuide,
   getStoreVisitCountedItemDelta,
   getStoreVisitCountedItemVarianceValue,
   STORE_VISIT_ACTIVITY_OPTIONS,
   STORE_VISIT_TYPE_OPTIONS,
   type StoreVisitActivityFieldDefinition,
+  type StoreVisitActivityFormVariant,
   type StoreVisitActivityKey,
   type StoreVisitActivityPayload,
   type StoreVisitActivityPayloads,
@@ -79,6 +87,14 @@ function getDefaultVisitType(row: VisitTrackerRow): StoreVisitType {
   if (row.nextPlannedVisitDate) return 'planned'
   if (row.visitNeeded) return 'action_led'
   return 'random_area'
+}
+
+function getPlannedTemplateType(row: VisitTrackerRow): VisitReportType | null {
+  const normalized = String(row.plannedVisitPurpose || '').trim().toLowerCase()
+  if (!normalized) return null
+  return VISIT_REPORT_TEMPLATES.some((template) => template.value === normalized)
+    ? (normalized as VisitReportType)
+    : null
 }
 
 function getNeedLevelClasses(level: VisitTrackerRow['visitNeedLevel']): string {
@@ -177,6 +193,12 @@ function getDefaultPayloadForActivity(key: StoreVisitActivityKey): StoreVisitAct
   }
   if (option?.formVariant === 'cash-check') {
     return { amountChecks: [{}] }
+  }
+  if (option?.formVariant === 'internal-theft') {
+    return {
+      itemsChecked: [{}],
+      amountChecks: [{}],
+    }
   }
   return {}
 }
@@ -635,7 +657,7 @@ function ActivityFormSection({
   activityKey: StoreVisitActivityKey
   title: string
   description: string
-  formVariant: 'structured' | 'line-check' | 'cash-check'
+  formVariant: StoreVisitActivityFormVariant
   evidenceLabel: string
   fields: readonly StoreVisitActivityFieldDefinition[]
   payload: StoreVisitActivityPayload
@@ -660,6 +682,11 @@ function ActivityFormSection({
   onAddFiles: (activityKey: StoreVisitActivityKey, files: FileList | null) => void
   onRemoveFile: (activityKey: StoreVisitActivityKey, index: number) => void
 }) {
+  const showsLineChecks = formVariant === 'line-check' || formVariant === 'internal-theft'
+  const showsCashChecks = formVariant === 'cash-check' || formVariant === 'internal-theft'
+  const countedItemsGuide = getStoreVisitActivityCountedItemsGuide(activityKey)
+  const amountChecksGuide = getStoreVisitActivityAmountChecksGuide(activityKey)
+
   return (
     <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -672,11 +699,13 @@ function ActivityFormSection({
         </span>
       </div>
 
-      {(formVariant === 'line-check' || formVariant === 'cash-check') ? (
+      {(showsLineChecks || showsCashChecks) ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">
           {formVariant === 'line-check'
             ? 'Fragrance list is pulled from the live website catalog and revalidated automatically. If a variant or size is missing, enter it manually in the fields below.'
-            : 'Use the amount rows for each bag, till, or banking item checked, then confirm whether the correct amount was present overall.'}
+            : formVariant === 'cash-check'
+              ? 'Use the amount rows for each bag, till, or banking item checked, then confirm whether the correct amount was present overall.'
+              : 'Use the amount rows for cash discrepancies and the fragrance rows for stock lines so both parts of the interview can be captured in one specialist report.'}
         </div>
       ) : null}
 
@@ -693,6 +722,7 @@ function ActivityFormSection({
                 className={cn('space-y-2', isTextarea ? 'xl:col-span-2' : '')}
               >
                 <Label htmlFor={fieldId}>{field.label}</Label>
+                <ActivityFieldGuidance field={field} />
                 {isTextarea ? (
                   <Textarea
                     id={fieldId}
@@ -716,11 +746,15 @@ function ActivityFormSection({
         </div>
       ) : null}
 
-      {formVariant === 'line-check' ? (
+      {showsLineChecks ? (
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <ActivityGuideCard guide={countedItemsGuide} />
+
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-900">Items checked</div>
+              <div className="text-sm font-semibold text-slate-900">
+                {formVariant === 'internal-theft' ? 'Fragrances / stock lines checked' : 'Items checked'}
+              </div>
               <div className="mt-1 text-xs text-slate-500">
                 Add each fragrance checked in store, the quantity in the system, and the quantity counted.
               </div>
@@ -859,14 +893,20 @@ function ActivityFormSection({
         </div>
       ) : null}
 
-      {formVariant === 'cash-check' ? (
+      {showsCashChecks ? (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <ActivityGuideCard guide={amountChecksGuide} />
+
           <div className="space-y-2">
-            <Label>Correct amount present?</Label>
+            <Label>
+              {formVariant === 'internal-theft'
+                ? 'Does the cash position reconcile overall?'
+                : 'Correct amount present?'}
+            </Label>
             <BooleanChoice
               value={payload.amountConfirmed}
               onChange={(value) => onAmountConfirmedChange(activityKey, value)}
-              trueLabel="Correct amount present"
+              trueLabel={formVariant === 'internal-theft' ? 'Cash reconciles' : 'Correct amount present'}
               falseLabel="Discrepancy found"
               idPrefix={`${activityKey}-amount-confirmed`}
             />
@@ -874,9 +914,11 @@ function ActivityFormSection({
 
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-900">Amount checks</div>
+              <div className="text-sm font-semibold text-slate-900">
+                {formVariant === 'internal-theft' ? 'Cash discrepancies reviewed' : 'Amount checks'}
+              </div>
               <div className="mt-1 text-xs text-slate-500">
-                Add each till, banking bag, or cash item reviewed during the visit.
+                Add each till, banking bag, safe amount, or cash item reviewed during the visit.
               </div>
             </div>
             <Button type="button" variant="outline" onClick={() => onAddAmountCheck(activityKey)} className="min-h-[40px]">
@@ -1121,10 +1163,12 @@ export function StoreVisitModal({
   const [notes, setNotes] = useState('')
   const [followUpRequired, setFollowUpRequired] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [mobileStep, setMobileStep] = useState<'details' | 'templates'>('details')
   const [error, setError] = useState<string | null>(null)
   const [isSaving, startSave] = useTransition()
   const [isLaunchingReport, startLaunchReport] = useTransition()
   const [isCompletingVisit, startCompleteVisit] = useTransition()
+  const [isDeletingDraft, startDeleteDraft] = useTransition()
 
   useEffect(() => {
     if (!row || !open) return
@@ -1145,6 +1189,7 @@ export function StoreVisitModal({
     setNotes(row.activeDraftVisit?.notes || '')
     setFollowUpRequired(Boolean(row.activeDraftVisit?.followUpRequired))
     setIsHistoryOpen(false)
+    setMobileStep('details')
     setError(null)
   }, [open, row])
 
@@ -1158,6 +1203,7 @@ export function StoreVisitModal({
   const selectedOptions = STORE_VISIT_ACTIVITY_OPTIONS.filter((option) =>
     selectedActivityKeys.includes(option.key)
   )
+  const plannedTemplateType = getPlannedTemplateType(row)
 
   const updateActivityPayload = (
     key: StoreVisitActivityKey,
@@ -1507,9 +1553,39 @@ export function StoreVisitModal({
     })
   }
 
+  const handleDeleteDraft = () => {
+    if (!canSave || !visitSessionId) return
+    const confirmed = window.confirm(
+      'Delete this draft visit session and any linked draft reports? This cannot be undone.'
+    )
+    if (!confirmed) return
+
+    setError(null)
+    startDeleteDraft(async () => {
+      try {
+        await deleteDraftStoreVisitSession({
+          visitId: visitSessionId,
+          storeId: row.storeId,
+        })
+
+        toast({
+          title: 'Draft visit deleted',
+          description: `${formatStoreName(row.storeName)} draft session was removed.`,
+          variant: 'success',
+        })
+
+        setVisitSessionId(null)
+        onOpenChange(false)
+        router.refresh()
+      } catch (deleteError) {
+        setError(toErrorMessage(deleteError))
+      }
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 md:top-4 md:h-[calc(100vh-2rem)] md:max-h-[calc(100vh-2rem)] md:w-[calc(100vw-2rem)] md:max-w-none md:rounded-[2rem] md:p-0">
+      <DialogContent className="max-h-[92vh] gap-0 overflow-y-auto p-0 md:top-4 md:h-[calc(100vh-2rem)] md:max-h-[calc(100vh-2rem)] md:w-[calc(100vw-2rem)] md:max-w-none md:overflow-hidden md:rounded-[2rem] md:p-0">
         <div className="flex h-full min-h-0 flex-col bg-white">
           <DialogHeader className="border-b border-slate-200 bg-[linear-gradient(145deg,#f8fafc_0%,#ffffff_55%,#f6f2fe_100%)] px-6 py-5 md:px-8 md:py-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -1538,8 +1614,44 @@ export function StoreVisitModal({
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.95fr)]">
-              <div className="min-h-0 overflow-y-auto px-6 py-6 md:px-8">
+            <div className="border-b border-slate-200 px-6 py-3 lg:hidden">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={mobileStep === 'details' ? 'default' : 'outline'}
+                  onClick={() => setMobileStep('details')}
+                  className={cn(
+                    'min-h-[42px]',
+                    mobileStep === 'details'
+                      ? 'bg-[#232154] text-white hover:bg-[#1c0259]'
+                      : 'border-slate-200'
+                  )}
+                >
+                  Visit Details
+                </Button>
+                <Button
+                  type="button"
+                  variant={mobileStep === 'templates' ? 'default' : 'outline'}
+                  onClick={() => setMobileStep('templates')}
+                  className={cn(
+                    'min-h-[42px]',
+                    mobileStep === 'templates'
+                      ? 'bg-[#232154] text-white hover:bg-[#1c0259]'
+                      : 'border-slate-200'
+                  )}
+                >
+                  Report Templates
+                </Button>
+              </div>
+            </div>
+            <div className="grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.95fr)]">
+              <div
+                className={cn(
+                  'px-6 py-6 md:px-8 lg:min-h-0 lg:overflow-y-auto lg:pb-6',
+                  mobileStep === 'templates' ? 'hidden lg:block' : 'block',
+                  'pb-6'
+                )}
+              >
                 <div className="space-y-6">
                   <div className="grid gap-4 xl:grid-cols-2">
                     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1574,6 +1686,26 @@ export function StoreVisitModal({
                       <div className="mt-2 text-xs text-slate-500">
                         {row.openStoreActionCount} open actions • {row.openIncidentCount} open incidents
                       </div>
+                      {row.nextPlannedVisitDate && row.plannedVisitPurpose ? (
+                        <div className="mt-2 text-xs font-medium text-[#232154]">
+                          Planned visit: {row.plannedVisitPurpose.replace(/_/g, ' ')}
+                        </div>
+                      ) : null}
+                      {plannedTemplateType ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 border-[#dcd6ef] bg-[#f6f2fe] text-[#4b3a78] hover:bg-[#efe8fd]"
+                          onClick={() => {
+                            setMobileStep('templates')
+                            handleStartReport(plannedTemplateType)
+                          }}
+                          disabled={!canSave || isLaunchingReport || isCompletingVisit}
+                        >
+                          Start planned template: {getVisitReportTypeLabel(plannedTemplateType)}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1685,7 +1817,7 @@ export function StoreVisitModal({
                 </div>
               </div>
 
-              <div className="min-h-0 overflow-y-auto border-t border-slate-200 bg-slate-50 px-6 py-6 md:border-l md:border-t-0 md:px-8">
+              <div className={cn('bg-white px-6 py-6 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-slate-200 lg:bg-slate-50 lg:px-8', mobileStep === 'details' ? 'hidden lg:block' : 'block')}>
                 <div className="space-y-5">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Report Templates</h3>
@@ -1807,7 +1939,12 @@ export function StoreVisitModal({
               </div>
             </div>
 
-            <div className="border-t border-slate-200 bg-white px-6 py-4 md:px-8">
+            <div
+              className={cn(
+                'border-t border-slate-200 bg-white px-6 py-4 md:px-8',
+                mobileStep === 'details' ? 'block lg:block' : 'hidden lg:block'
+              )}
+            >
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="text-sm text-slate-500">
                   Logging as {currentUserName || 'current user'}
@@ -1818,10 +1955,21 @@ export function StoreVisitModal({
                   </Button>
                   {visitSessionId ? (
                     <Button
+                      onClick={handleDeleteDraft}
+                      disabled={!canSave || isDeletingDraft || isLaunchingReport || isCompletingVisit}
+                      variant="outline"
+                      className="min-h-[44px] border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      {isDeletingDraft ? 'Deleting...' : 'Delete Draft Visit'}
+                    </Button>
+                  ) : null}
+                  {visitSessionId ? (
+                    <Button
                       onClick={handleCompleteVisit}
                       disabled={
                         !canSave ||
                         isCompletingVisit ||
+                        isDeletingDraft ||
                         isLaunchingReport ||
                         outstandingLinkedReports.length > 0
                       }
@@ -1833,7 +1981,7 @@ export function StoreVisitModal({
                   ) : null}
                   <Button
                     onClick={handleSubmit}
-                    disabled={!canSave || isSaving || isLaunchingReport || isCompletingVisit}
+                    disabled={!canSave || isSaving || isLaunchingReport || isCompletingVisit || isDeletingDraft}
                     className="min-h-[44px] bg-[#232154] text-white hover:bg-[#1c0259]"
                   >
                     {isSaving ? 'Saving...' : 'Log Note-Only Visit'}

@@ -185,6 +185,7 @@ export interface VisitReportTemplateDefinition {
   label: string
   description: string
   kind: 'targeted_theft' | 'activity'
+  specialist?: boolean
   activityKey?: ActivityVisitReportType
 }
 
@@ -195,12 +196,14 @@ export const VISIT_REPORT_TEMPLATES: VisitReportTemplateDefinition[] = [
     description:
       'Structured LP visit report for repeat theft, violence escalation, layout exposure, staff response, and immediate actions.',
     kind: 'targeted_theft',
+    specialist: true,
   },
   ...STORE_VISIT_ACTIVITY_OPTIONS.map<VisitReportTemplateDefinition>((option) => ({
     value: option.key,
     label: option.label,
     description: option.description,
     kind: 'activity',
+    specialist: 'specialist' in option ? option.specialist : undefined,
     activityKey: option.key,
   })),
 ]

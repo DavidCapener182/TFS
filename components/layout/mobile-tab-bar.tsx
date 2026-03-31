@@ -46,14 +46,16 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
 
   return (
     <nav
-      className="no-print fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.95rem,env(safe-area-inset-bottom))] pt-3 md:hidden"
+      className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.95rem,env(safe-area-inset-bottom))] pt-3 md:hidden"
       aria-label="Primary navigation"
     >
-      <div className="mx-auto max-w-[392px]" ref={morePanelRef}>
+      <div className="relative mx-auto max-w-[392px]" ref={morePanelRef}>
         <div
           className={cn(
-            'pointer-events-none mb-2 origin-bottom rounded-[28px] border border-slate-200/90 bg-[rgba(248,250,252,0.96)] p-3 shadow-[0_18px_38px_rgba(15,23,42,0.16)] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
-            moreOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-[0.96] opacity-0'
+            'pointer-events-auto absolute inset-x-0 bottom-full mb-2 origin-bottom rounded-[28px] border border-slate-200/90 bg-[rgba(248,250,252,0.96)] p-3 shadow-[0_18px_38px_rgba(15,23,42,0.16)] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+            moreOpen
+              ? 'visible pointer-events-auto translate-y-0 scale-100 opacity-100'
+              : 'invisible pointer-events-none translate-y-3 scale-[0.96] opacity-0'
           )}
           aria-hidden={!moreOpen}
         >
@@ -67,7 +69,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'pointer-events-auto flex min-h-[74px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-2 text-center text-[10px] font-semibold transition-all',
+                    'flex min-h-[74px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-2 text-center text-[10px] font-semibold transition-all',
                     isActive
                       ? 'border-slate-300 bg-white text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.09)]'
                       : 'border-slate-200 bg-slate-50/80 text-slate-600 active:bg-white'
@@ -82,7 +84,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-1 rounded-[32px] border border-slate-200/85 bg-[rgba(248,250,252,0.94)] p-1.5 shadow-[0_16px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[rgba(248,250,252,0.88)]">
+        <div className="pointer-events-auto grid grid-cols-5 gap-1 rounded-[32px] border border-slate-200/85 bg-[rgba(248,250,252,0.94)] p-1.5 shadow-[0_16px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[rgba(248,250,252,0.88)]">
           {tabItems.map((item) => {
             const Icon = item.icon
             const isActive = matchesMobilePath(currentPath, item.href)

@@ -12,6 +12,7 @@ import {
   Calendar,
   Car,
   CheckCircle2,
+  ClipboardList,
   ChevronDown,
   ChevronUp,
   Edit2,
@@ -36,6 +37,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RouteDirectionsModal } from './route-directions-modal'
 import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { formatStoreName } from '@/lib/store-display'
+import { VISIT_REPORT_TEMPLATES } from '@/lib/reports/visit-report-types'
 import { getDisplayStoreCode } from '@/lib/utils'
 // Dynamically import the map component to avoid SSR issues
 const MapComponent = dynamic(() => import('./map-component'), { ssr: false })
@@ -55,6 +57,8 @@ interface Store {
   compliance_audit_2_date: string | null
   compliance_audit_2_planned_date: string | null
   compliance_audit_2_assigned_manager_user_id: string | null
+  compliance_audit_2_planned_purpose: string | null
+  compliance_audit_2_planned_note: string | null
   route_sequence: number | null
   assigned_manager?: {
     id: string
@@ -83,6 +87,27 @@ interface RoutePlanningClientProps {
     stores: Store[]
     profiles: Profile[]
   }
+}
+
+const PLANNED_VISIT_PURPOSE_OPTIONS = [
+  { value: 'general_follow_up', label: 'General follow-up visit' },
+  ...VISIT_REPORT_TEMPLATES.map((template) => ({
+    value: template.value,
+    label: template.label.replace(/\s+report$/i, ''),
+  })),
+]
+
+function getPlannedVisitPurposeLabel(value: string | null | undefined): string | null {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return null
+
+  return (
+    PLANNED_VISIT_PURPOSE_OPTIONS.find((option) => option.value === normalized)?.label ||
+    normalized
+      .split('_')
+      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+      .join(' ')
+  )
 }
 
 function getPlannedRouteGroupKey(plannedDate: string, managerId: string | null | undefined): string {
@@ -126,6 +151,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
   // Route creation state
   const [routeManager, setRouteManager] = useState<string | undefined>(undefined)
   const [routeDate, setRouteDate] = useState<string>('')
+  const [routePurpose, setRoutePurpose] = useState<string>('general_follow_up')
+  const [routePurposeNote, setRoutePurposeNote] = useState<string>('')
   const [routeArea, setRouteArea] = useState<string | null>(null)
   const [routeSelectedStores, setRouteSelectedStores] = useState<Set<string>>(new Set())
   const [routeStopLimit, setRouteStopLimit] = useState<number>(3)
@@ -749,7 +776,13 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             storeIdsArray.map(async (storeId) => {
               // First update the manager assignment
               const { updateComplianceAudit2Tracking } = await import('@/app/actions/stores')
-              await updateComplianceAudit2Tracking(storeId, routeManager, routeDate)
+              await updateComplianceAudit2Tracking(
+                storeId,
+                routeManager,
+                routeDate,
+                routePurpose,
+                routePurposeNote || null
+              )
             })
           )
           
@@ -765,6 +798,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             ...store,
             compliance_audit_2_planned_date: routeDate,
             compliance_audit_2_assigned_manager_user_id: routeManager,
+            compliance_audit_2_planned_purpose: routePurpose,
+            compliance_audit_2_planned_note: routePurposeNote || null,
             assigned_manager: profiles.find(p => p.id === routeManager) || null
           }
         }
@@ -778,6 +813,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
       setRouteArea(null)
       setRouteSelectedStores(new Set())
       setOptimizationSummary(null)
+      setRoutePurpose('general_follow_up')
+      setRoutePurposeNote('')
       
       // Refresh the page data in the background to ensure consistency
       router.refresh()
@@ -853,6 +890,43 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
       setLoading((current) => ({ ...current, [group.stores[0].id]: false }))
     }
   }
+
+  const updateRoutePurposeForGroup = async (
+    group: (typeof plannedRoutes)[number],
+    newPurpose: string,
+    newPurposeNote?: string | null
+  ) => {
+    const normalizedPurpose = String(newPurpose || '').trim() || 'general_follow_up'
+    const normalizedNote =
+      newPurposeNote === undefined
+        ? String(group.stores[0]?.compliance_audit_2_planned_note || '').trim() || null
+        : String(newPurposeNote || '').trim() || null
+    const firstStoreId = group.stores[0]?.id
+    if (!firstStoreId) return
+
+    setLoading((current) => ({ ...current, [firstStoreId]: true }))
+    try {
+      const { updateComplianceAudit2Tracking } = await import('@/app/actions/stores')
+      await Promise.all(
+        group.stores.map((store) =>
+          updateComplianceAudit2Tracking(
+            store.id,
+            group.managerId,
+            group.plannedDate,
+            normalizedPurpose,
+            normalizedNote
+          )
+        )
+      )
+      router.refresh()
+    } catch (error) {
+      console.error('Error updating route purpose:', error)
+      alert('Error updating route purpose. Please try again.')
+    } finally {
+      setLoading((current) => ({ ...current, [firstStoreId]: false }))
+    }
+  }
+
   const plannedStoreCount = plannedRoutes.reduce((total, route) => total + route.stores.length, 0)
   const managerCount = profiles.length
   const storesInRouteAreaMissingCoordsCount = storesInRouteArea.length - storesInRouteAreaWithLocations.length
@@ -1467,7 +1541,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             </div>
           ) : (
             <>
-              <div className="space-y-3 md:hidden">
+              <div className="space-y-3">
                 {plannedRoutes.map((group) => {
                   const groupKey =
                     (group as any)._groupKey ||
@@ -1492,6 +1566,16 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                             <h3 className="mt-1 text-base font-semibold text-slate-900">
                               {group.assignedManager?.full_name || 'Unassigned manager'}
                             </h3>
+                            {getPlannedVisitPurposeLabel(group.stores[0]?.compliance_audit_2_planned_purpose) ? (
+                              <p className="mt-1 text-xs font-medium text-slate-600">
+                                {getPlannedVisitPurposeLabel(group.stores[0]?.compliance_audit_2_planned_purpose)}
+                              </p>
+                            ) : null}
+                            {group.stores[0]?.compliance_audit_2_planned_note ? (
+                              <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                                {group.stores[0].compliance_audit_2_planned_note}
+                              </p>
+                            ) : null}
                           </div>
                           <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
                             {group.stores.length} store{group.stores.length === 1 ? '' : 's'}
@@ -1530,6 +1614,69 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                                 ? format(new Date(group.plannedDate), 'dd/MM/yyyy')
                                 : 'Set date'}
                             </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-[18px] border border-slate-200 bg-white p-3">
+                        <div className="space-y-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Planned Purpose
+                          </span>
+                          {isEditing ? (
+                            <>
+                              <Select
+                                defaultValue={
+                                  String(group.stores[0]?.compliance_audit_2_planned_purpose || 'general_follow_up')
+                                }
+                                onValueChange={(value) => {
+                                  void updateRoutePurposeForGroup(
+                                    group,
+                                    value,
+                                    group.stores[0]?.compliance_audit_2_planned_note || null
+                                  )
+                                }}
+                              >
+                                <SelectTrigger className="h-11 min-h-[44px] rounded-[14px] text-sm">
+                                  <SelectValue placeholder="Select planned purpose" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PLANNED_VISIT_PURPOSE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="text"
+                                defaultValue={group.stores[0]?.compliance_audit_2_planned_note || ''}
+                                placeholder="Optional note (why this visit is planned)"
+                                onBlur={(e) => {
+                                  void updateRoutePurposeForGroup(
+                                    group,
+                                    String(
+                                      group.stores[0]?.compliance_audit_2_planned_purpose || 'general_follow_up'
+                                    ),
+                                    e.target.value
+                                  )
+                                }}
+                                className="h-11 min-h-[44px] rounded-[14px] text-sm"
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-medium text-slate-800">
+                                {getPlannedVisitPurposeLabel(
+                                  group.stores[0]?.compliance_audit_2_planned_purpose
+                                ) || 'General follow-up visit'}
+                              </p>
+                              {group.stores[0]?.compliance_audit_2_planned_note ? (
+                                <p className="text-xs text-slate-500 line-clamp-2">
+                                  {group.stores[0].compliance_audit_2_planned_note}
+                                </p>
+                              ) : null}
+                            </>
                           )}
                         </div>
                       </div>
@@ -1663,7 +1810,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                 })}
               </div>
 
-              <div className="hidden max-w-full rounded-md border border-slate-200 bg-white md:block">
+              <div className="hidden max-w-full rounded-md border border-slate-200 bg-white">
               <div className="max-h-[460px] overflow-auto">
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10 border-b border-slate-200">
@@ -1671,8 +1818,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                       <TableHead>Stores</TableHead>
                       <TableHead>Region</TableHead>
                       <TableHead>Assigned Manager</TableHead>
+                      <TableHead>Purpose</TableHead>
                       <TableHead>Planned Date</TableHead>
-                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1771,57 +1918,117 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                           </TableCell>
                           <TableCell>
                             {editingRouteGroup === groupKey ? (
-                              <Input
-                                type="date"
-                                defaultValue={group.plannedDate || ''}
-                                onBlur={(e) => void updateRouteDateForGroup(group, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    void updateRouteDateForGroup(group, (e.target as HTMLInputElement).value)
-                                  }
-                                }}
-                                className="w-40 h-8 text-sm"
-                                min={new Date().toISOString().split('T')[0]}
-                              />
+                              <div className="min-w-[220px] space-y-2">
+                                <Select
+                                  defaultValue={String(
+                                    group.stores[0]?.compliance_audit_2_planned_purpose || 'general_follow_up'
+                                  )}
+                                  onValueChange={(value) => {
+                                    void updateRoutePurposeForGroup(
+                                      group,
+                                      value,
+                                      group.stores[0]?.compliance_audit_2_planned_note || null
+                                    )
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Select purpose" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {PLANNED_VISIT_PURPOSE_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="text"
+                                  defaultValue={group.stores[0]?.compliance_audit_2_planned_note || ''}
+                                  placeholder="Optional note"
+                                  className="h-8 text-xs"
+                                  onBlur={(e) => {
+                                    void updateRoutePurposeForGroup(
+                                      group,
+                                      String(
+                                        group.stores[0]?.compliance_audit_2_planned_purpose ||
+                                          'general_follow_up'
+                                      ),
+                                      e.target.value
+                                    )
+                                  }}
+                                />
+                              </div>
                             ) : (
-                              <span className="cursor-pointer hover:text-blue-600" onClick={() => setEditingRouteGroup(groupKey)} title="Click to edit date">
-                                {group.plannedDate ? format(new Date(group.plannedDate), 'dd/MM/yyyy') : '-'}
-                              </span>
+                              <div className="space-y-1">
+                                <div className="text-xs text-slate-700">
+                                  {getPlannedVisitPurposeLabel(
+                                    group.stores[0]?.compliance_audit_2_planned_purpose
+                                  ) || 'General follow-up visit'}
+                                </div>
+                                {group.stores[0]?.compliance_audit_2_planned_note ? (
+                                  <div className="text-xs text-slate-500 line-clamp-2">
+                                    {group.stores[0].compliance_audit_2_planned_note}
+                                  </div>
+                                ) : null}
+                              </div>
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
+                            <div className="space-y-2">
                               {editingRouteGroup === groupKey ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setEditingRouteGroup(null)}
-                                  className="h-8"
-                                >
-                                  Done
-                                </Button>
+                                <Input
+                                  type="date"
+                                  defaultValue={group.plannedDate || ''}
+                                  onBlur={(e) => void updateRouteDateForGroup(group, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      void updateRouteDateForGroup(group, (e.target as HTMLInputElement).value)
+                                    }
+                                  }}
+                                  className="w-40 h-8 text-sm"
+                                  min={new Date().toISOString().split('T')[0]}
+                                />
                               ) : (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEditingRouteGroup(groupKey)}
-                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                    title="Edit route"
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteRouteGroup(group)}
-                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    title="Delete entire route"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </>
+                                <span className="cursor-pointer hover:text-blue-600" onClick={() => setEditingRouteGroup(groupKey)} title="Click to edit date">
+                                  {group.plannedDate ? format(new Date(group.plannedDate), 'dd/MM/yyyy') : '-'}
+                                </span>
                               )}
+                              <div className="flex items-center gap-2">
+                                {editingRouteGroup === groupKey ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingRouteGroup(null)}
+                                    className="h-8"
+                                  >
+                                    Done
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setEditingRouteGroup(groupKey)}
+                                      className="h-8 border-slate-200"
+                                      title="Edit route"
+                                    >
+                                      <Edit2 className="mr-1.5 h-4 w-4" />
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteRouteGroup(group)}
+                                      className="h-8 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
+                                      title="Delete entire route"
+                                    >
+                                      <Trash2 className="mr-1.5 h-4 w-4" />
+                                      Delete
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                         </TableRow>

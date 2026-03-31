@@ -57,6 +57,16 @@ interface DashboardRecentFinding {
   createdByName: string | null
 }
 
+interface DashboardPlannedVisit {
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  plannedDate: string | null
+  managerName: string | null
+  purpose: string | null
+  purposeNote: string | null
+}
+
 interface DashboardData {
   openIncidents: number
   underInvestigation: number
@@ -73,6 +83,7 @@ interface DashboardData {
     plannedRoutesNext14Days: number
   }
   priorityStores: DashboardPriorityStore[]
+  plannedVisits: DashboardPlannedVisit[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -115,6 +126,15 @@ function visitNeedClasses(level: StoreVisitNeedLevel): string {
 
 function formatVisitDate(value: string | null): string {
   return value ? formatAppDate(value) : 'Not recorded'
+}
+
+function formatPlannedPurpose(value: string | null): string {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return 'General follow-up visit'
+  return normalized
+    .split('_')
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(' ')
 }
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
@@ -367,6 +387,58 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         </div>
 
         <div className="space-y-6 lg:col-span-4">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <CalendarDays size={18} className="text-cyan-500" /> Planned Visits
+              </h2>
+              <span className="rounded bg-cyan-50 px-2 py-1 text-xs font-bold text-cyan-700">
+                Next up
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {initialData.plannedVisits.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  No planned visits scheduled.
+                </div>
+              ) : (
+                initialData.plannedVisits.map((visit) => (
+                  <Link
+                    key={`${visit.storeId}-${visit.plannedDate || 'undated'}`}
+                    href={`/stores/${visit.storeId}`}
+                    prefetch={false}
+                    className="group block rounded-[22px] border border-slate-100 p-4 transition-all hover:border-slate-200 hover:bg-slate-50/70 md:rounded-xl"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-slate-800">{visit.storeName}</div>
+                        <div className="text-xs font-mono text-slate-400">{getDisplayStoreCode(visit.storeCode) || '—'}</div>
+                      </div>
+                      <span className="text-xs text-slate-500">{formatVisitDate(visit.plannedDate)}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-cyan-700">
+                      {visit.managerName || 'Unassigned'} plans {formatPlannedPurpose(visit.purpose)}.
+                    </p>
+                    {visit.purposeNote ? (
+                      <p className="mt-1 text-xs text-slate-500">{visit.purposeNote}</p>
+                    ) : null}
+                  </Link>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4">
+              <Link
+                href="/route-planning"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#232154] hover:text-[#1c0259]"
+              >
+                Open Route Planning
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+
           <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">

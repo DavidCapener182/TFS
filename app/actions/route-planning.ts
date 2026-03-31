@@ -93,6 +93,10 @@ export async function updateRoutePlannedDate(
 
   const { error } = await updateTfsStoreWithRouteSequenceFallback(supabase, storeId, {
       compliance_audit_2_planned_date: plannedDate || null,
+      ...(plannedDate === null && {
+        compliance_audit_2_planned_purpose: null,
+        compliance_audit_2_planned_note: null,
+      }),
       // Clear route sequence when clearing planned date
       ...(plannedDate === null && { route_sequence: null }),
     })
@@ -138,6 +142,8 @@ export async function completeRoute(storeIds: string[]) {
   const updates = storeIds.map(storeId => {
     return updateTfsStoreWithRouteSequenceFallback(supabase, storeId, {
         compliance_audit_2_planned_date: null,
+        compliance_audit_2_planned_purpose: null,
+        compliance_audit_2_planned_note: null,
         route_sequence: null,
       })
   })

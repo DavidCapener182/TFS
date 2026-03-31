@@ -18,7 +18,7 @@ import {
   Trash2,
 } from 'lucide-react'
 
-import { saveVisitReport } from '@/app/actions/visit-reports'
+import { deleteDraftVisitReport, saveVisitReport } from '@/app/actions/visit-reports'
 import { ActivityVisitReportBuilder } from '@/components/reports/activity-visit-report-builder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,6 +68,12 @@ interface VisitReportsWorkspaceProps {
   canEdit: boolean
   reportsAvailable: boolean
   unavailableMessage: string | null
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error
+  return 'Something went wrong. Please try again.'
 }
 
 type VisitReportDraft = {
@@ -629,6 +635,7 @@ export function VisitReportsWorkspace({
   const [mobileStepMenuOpen, setMobileStepMenuOpen] = useState(false)
   const [isSaving, startSave] = useTransition()
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null)
 
   const canUseBuilder = canEdit && reportsAvailable
   const selectedStore = stores.find((store) => store.id === draft.storeId) || null
@@ -885,6 +892,36 @@ export function VisitReportsWorkspace({
     }
   }
 
+  const handleDeleteDraftReport = (report: VisitReportRecord) => {
+    if (String(report.status || '').toLowerCase() !== 'draft') return
+    const confirmed = window.confirm(`Delete draft report "${report.title}"? This cannot be undone.`)
+    if (!confirmed) return
+
+    setDeletingReportId(report.id)
+    startSave(async () => {
+      try {
+        await deleteDraftVisitReport(report.id)
+        setRecentReports((current) => current.filter((entry) => entry.id !== report.id))
+        if (draft.reportId === report.id) {
+          handleNewReport()
+        }
+        toast({
+          title: 'Draft deleted',
+          description: 'The draft report was removed.',
+          variant: 'success',
+        })
+      } catch (error) {
+        toast({
+          title: 'Delete failed',
+          description: toErrorMessage(error),
+          variant: 'destructive',
+        })
+      } finally {
+        setDeletingReportId(null)
+      }
+    })
+  }
+
   const handleStartTemplate = (reportType: VisitReportType) => {
     setDraft((current) => ({
       ...current,
@@ -1073,7 +1110,23 @@ export function VisitReportsWorkspace({
 
     startSave(async () => {
       try {
-        await persistReport()
+        const persisted = await persistReport({
+          // In linked visit flow, return user to visit tracker session after final save
+          // so they can add more templates or complete the visit.
+          redirectToPdfOnFinal: !(isLinkedVisitFlow && draft.status === 'final'),
+          refreshAfterSave: !(isLinkedVisitFlow && draft.status === 'final'),
+        })
+
+        if (isLinkedVisitFlow && draft.status === 'final') {
+          const nextParams = new URLSearchParams({
+            storeId: draft.storeId,
+          })
+          const nextVisitId = persisted?.result.storeVisitId || draft.storeVisitId
+          if (nextVisitId) {
+            nextParams.set('visitId', nextVisitId)
+          }
+          router.push(`/visit-tracker?${nextParams.toString()}`)
+        }
       } catch (error) {
         toast({
           variant: 'destructive',
@@ -1270,7 +1323,7 @@ export function VisitReportsWorkspace({
                       <div className="mt-1 text-xs text-slate-500">{template.description}</div>
                     </div>
                     <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                      {template.kind === 'targeted_theft' ? 'Specialist' : 'Visit'}
+                      {template.specialist ? 'Specialist' : 'Visit'}
                     </span>
                   </div>
                   <Button
@@ -1304,10 +1357,31 @@ export function VisitReportsWorkspace({
                     onClick={() => handleLoadReport(report)}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:bg-slate-100"
                   >
-                    <div className="font-semibold text-slate-900">{report.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {formatStoreName(report.storeName)}
-                      {report.storeCode ? ` • ${report.storeCode}` : ''}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-900">{report.title}</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {formatStoreName(report.storeName)}
+                          {report.storeCode ? ` • ${report.storeCode}` : ''}
+                        </div>
+                      </div>
+                      {report.status === 'draft' ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleDeleteDraftReport(report)
+                          }}
+                          disabled={isSaving || deletingReportId === report.id}
+                          className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          {deletingReportId === report.id ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      ) : null}
                     </div>
                   </button>
                 ))
@@ -2815,6 +2889,25 @@ export function VisitReportsWorkspace({
                           {report.status === 'final' ? 'Open PDF' : 'Load into editor'}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </div>
+                        {report.status === 'draft' ? (
+                          <div className="mt-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                handleDeleteDraftReport(report)
+                              }}
+                              disabled={isSaving || deletingReportId === report.id}
+                              className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              {deletingReportId === report.id ? 'Deleting...' : 'Delete Draft'}
+                            </Button>
+                          </div>
+                        ) : null}
                       </button>
                     ))
                   )}

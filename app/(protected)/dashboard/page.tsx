@@ -35,6 +35,8 @@ type StoreRow = {
   is_active: boolean | null
   compliance_audit_2_planned_date: string | null
   compliance_audit_2_assigned_manager_user_id: string | null
+  compliance_audit_2_planned_purpose: string | null
+  compliance_audit_2_planned_note: string | null
 }
 
 type IncidentRow = {
@@ -155,6 +157,16 @@ type DashboardRecentFinding = {
   createdByName: string | null
 }
 
+type DashboardPlannedVisit = {
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  plannedDate: string | null
+  managerName: string | null
+  purpose: string | null
+  purposeNote: string | null
+}
+
 type DashboardData = {
   openIncidents: number
   underInvestigation: number
@@ -171,6 +183,7 @@ type DashboardData = {
     plannedRoutesNext14Days: number
   }
   priorityStores: DashboardPriorityStore[]
+  plannedVisits: DashboardPlannedVisit[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -206,6 +219,7 @@ function getEmptyDashboardData(): DashboardData {
       plannedRoutesNext14Days: 0,
     },
     priorityStores: [],
+    plannedVisits: [],
     recentFindings: [],
     visitsUnavailableMessage: null,
   }
@@ -392,7 +406,9 @@ async function getDashboardData(): Promise<DashboardData> {
       postcode,
       is_active,
       compliance_audit_2_planned_date,
-      compliance_audit_2_assigned_manager_user_id
+      compliance_audit_2_assigned_manager_user_id,
+      compliance_audit_2_planned_purpose,
+      compliance_audit_2_planned_note
     `)
     .eq('is_active', true)
     .order('store_name', { ascending: true })
@@ -446,8 +462,14 @@ async function getDashboardData(): Promise<DashboardData> {
         region,
         city,
         postcode,
+        is_active,
         compliance_audit_2_planned_date,
-        compliance_audit_2_assigned_manager_user_id
+        compliance_audit_2_assigned_manager_user_id,
+        compliance_audit_2_planned_purpose,
+        compliance_audit_2_planned_note,
+        assigned_manager:fa_profiles!tfs_stores_compliance_audit_2_assigned_manager_user_id_fkey(
+          full_name
+        )
       `)
       .not('compliance_audit_2_planned_date', 'is', null)
       .eq('is_active', true),
@@ -724,6 +746,30 @@ async function getDashboardData(): Promise<DashboardData> {
     }
   })
 
+  const plannedVisits = [...plannedRouteStores]
+    .sort((a, b) => {
+      const aDate = String(a.compliance_audit_2_planned_date || '')
+      const bDate = String(b.compliance_audit_2_planned_date || '')
+      if (aDate !== bDate) return aDate.localeCompare(bDate)
+      return formatStoreName(a.store_name).localeCompare(formatStoreName(b.store_name))
+    })
+    .slice(0, 8)
+    .map((store) => {
+      const assignedManager = Array.isArray((store as any).assigned_manager)
+        ? (store as any).assigned_manager[0]
+        : (store as any).assigned_manager
+
+      return {
+        storeId: String(store.id),
+        storeName: formatStoreName(store.store_name),
+        storeCode: store.store_code || null,
+        plannedDate: store.compliance_audit_2_planned_date || null,
+        managerName: assignedManager?.full_name || null,
+        purpose: store.compliance_audit_2_planned_purpose || null,
+        purposeNote: store.compliance_audit_2_planned_note || null,
+      } satisfies DashboardPlannedVisit
+    })
+
   const priorityStores = [...dashboardStoreRows]
     .filter((row) => row.visitNeedScore > 0 || row.followUpRequired)
     .sort((a, b) => {
@@ -813,6 +859,7 @@ async function getDashboardData(): Promise<DashboardData> {
       plannedRoutesNext14Days: plannedRouteGroupKeysNext14Days.size,
     },
     priorityStores,
+    plannedVisits,
     recentFindings,
     visitsUnavailableMessage,
   }

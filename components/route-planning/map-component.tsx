@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { formatStoreName } from '@/lib/store-display'
 import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { formatAppDate, getDisplayStoreCode } from '@/lib/utils'
@@ -74,24 +74,7 @@ function MapBounds({ stores, managerHome }: { stores: Store[], managerHome: Mana
 }
 
 export default function MapComponent({ stores, managerHome, selectedStores, onStoreSelect, filteredArea }: MapComponentProps) {
-  const mapRef = useRef<L.Map | null>(null)
-  const mapKey = useMemo(() => {
-    const homeKey = managerHome ? `${managerHome.latitude},${managerHome.longitude}` : 'no-home'
-    return `${filteredArea || 'all'}|${stores.length}|${homeKey}`
-  }, [filteredArea, stores.length, managerHome])
-
-  useEffect(() => {
-    return () => {
-      if (!mapRef.current) return
-      try {
-        mapRef.current.remove()
-      } catch {
-        // Ignore cleanup race conditions during fast refresh.
-      } finally {
-        mapRef.current = null
-      }
-    }
-  }, [])
+  
 
   // Default center (UK)
   const defaultCenter: [number, number] = [54.5, -2.0]
@@ -153,11 +136,9 @@ export default function MapComponent({ stores, managerHome, selectedStores, onSt
 
   return (
     <MapContainer
-      key={mapKey}
       center={defaultCenter}
       zoom={defaultZoom}
       style={{ height: '100%', width: '100%' }}
-      ref={mapRef}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

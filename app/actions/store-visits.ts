@@ -313,6 +313,85 @@ export async function completeStoreVisitSession(input: SaveStoreVisitSessionInpu
   }
 }
 
+export async function deleteDraftStoreVisitSession(input: { visitId: string; storeId: string }) {
+  if (!input.visitId) {
+    throw new Error('Missing visit session id.')
+  }
+
+  if (!input.storeId) {
+    throw new Error('Missing store id.')
+  }
+
+  const { supabase } = await getWritableVisitContext()
+
+  const { data: visit, error: visitError } = await supabase
+    .from('tfs_store_visits')
+    .select('id, status')
+    .eq('id', input.visitId)
+    .maybeSingle()
+
+  if (visitError) {
+    throw new Error(formatStoreVisitsActionError('Failed to load draft visit', visitError))
+  }
+
+  if (!visit) {
+    throw new Error('Draft visit session not found.')
+  }
+
+  if (String(visit.status || '').toLowerCase() !== 'draft') {
+    throw new Error('Only draft visit sessions can be deleted.')
+  }
+
+  const { data: linkedReports, error: linkedReportsError } = await supabase
+    .from('tfs_visit_reports')
+    .select('id, status')
+    .eq('store_visit_id', input.visitId)
+
+  if (linkedReportsError) {
+    throw new Error('Failed to validate linked reports before deleting draft visit.')
+  }
+
+  const hasFinalReports = (linkedReports || []).some(
+    (report) => String(report.status || '').toLowerCase() === 'final'
+  )
+
+  if (hasFinalReports) {
+    throw new Error('This draft visit has final linked reports and cannot be deleted.')
+  }
+
+  const draftReportIds = (linkedReports || [])
+    .filter((report) => String(report.status || '').toLowerCase() !== 'final')
+    .map((report) => report.id)
+
+  if (draftReportIds.length > 0) {
+    const { error: deleteReportsError } = await supabase
+      .from('tfs_visit_reports')
+      .delete()
+      .in('id', draftReportIds)
+
+    if (deleteReportsError) {
+      throw new Error(formatStoreVisitsActionError('Failed to delete linked draft reports', deleteReportsError))
+    }
+  }
+
+  const { error: deleteVisitError } = await supabase
+    .from('tfs_store_visits')
+    .delete()
+    .eq('id', input.visitId)
+
+  if (deleteVisitError) {
+    throw new Error(formatStoreVisitsActionError('Failed to delete draft visit session', deleteVisitError))
+  }
+
+  revalidatePath('/visit-tracker')
+  revalidatePath('/stores')
+  revalidatePath(`/stores/${input.storeId}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/reports')
+
+  return { success: true }
+}
+
 export async function logStoreVisit(input: LogStoreVisitInput) {
   if (!input.storeId) {
     throw new Error('Missing store id.')

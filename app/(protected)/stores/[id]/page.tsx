@@ -321,7 +321,6 @@ async function getStoreVisits(storeIds: string[]) {
       .select(
         'id, store_id, visited_at, status, visit_type, completed_activity_keys, completed_activity_details, completed_activity_payloads, notes, follow_up_required, need_score_snapshot, need_level_snapshot, created_by_user_id'
       )
-      .eq('status', 'completed')
       .in('store_id', storeIds)
       .order('visited_at', { ascending: false }),
     supabase
@@ -450,7 +449,7 @@ async function getStoreVisits(storeIds: string[]) {
       id: visit.id,
       source: 'visit_log' as const,
       visitedAt: visit.visited_at,
-      status: 'completed',
+      status: String(visit.status || '').toLowerCase() === 'draft' ? 'draft' : 'completed',
       visitType: visit.visit_type,
       completedActivityKeys,
       completedActivityDetails: normalizeStoreVisitActivityDetails(
