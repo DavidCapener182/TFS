@@ -135,7 +135,78 @@ function VisitTable({
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="max-h-[560px] overflow-auto">
+      <div className="space-y-3 p-3 md:hidden">
+        {rows.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            No stores match the current filters.
+          </div>
+        ) : (
+          rows.map((row) => (
+            <article key={row.storeId} className="space-y-3 rounded-2xl border border-slate-200 p-3">
+              <button type="button" onClick={() => onOpenStore(row)} className="w-full text-left">
+                <div className="font-semibold text-slate-900">{formatStoreName(row.storeName)}</div>
+                <div className="text-xs text-slate-500">
+                  {getDisplayStoreCode(row.storeCode) || 'No store code'}
+                  {row.assignedManager ? ` • ${row.assignedManager}` : ''}
+                </div>
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} />
+                <VisitStateBadge state={row.visitState} />
+              </div>
+
+              <p className="text-xs text-slate-500">
+                {row.visitNeedReasons.length > 0
+                  ? row.visitNeedReasons.join(' • ')
+                  : 'No current LP or security drivers are pushing a visit.'}
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Last visit</div>
+                  <div className="mt-1 text-slate-700">{formatDate(row.lastVisitDate)}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Planned</div>
+                  <div className="mt-1 text-slate-700">
+                    {row.nextPlannedVisitDate ? formatDate(row.nextPlannedVisitDate) : 'No active plan'}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Open actions</div>
+                  <div className="mt-1 text-slate-700">{row.openStoreActionCount}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Open incidents</div>
+                  <div className="mt-1 text-slate-700">{row.openIncidentCount}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => onOpenStore(row)}
+                  disabled={!canLogVisits}
+                  className="bg-[#232154] text-white hover:bg-[#1c0259]"
+                >
+                  Start Visit
+                </Button>
+                <Button asChild size="sm" variant="outline" className="border-slate-200">
+                  <Link href={`/stores/${row.storeId}`}>Store</Link>
+                </Button>
+                {canPlanVisits ? (
+                  <Button asChild size="sm" variant="outline" className="col-span-2 border-slate-200">
+                    <Link href="/route-planning">Plan Route</Link>
+                  </Button>
+                ) : null}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
+      <div className="hidden max-h-[560px] overflow-auto md:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-white">
             <TableRow>
