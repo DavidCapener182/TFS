@@ -477,10 +477,14 @@ function renderStructuredFields(params: {
         const fieldId = `${params.activityKey}-${field.key}`
         const value = params.payload.fields?.[field.key] || ''
         const isTextarea = field.input === 'textarea'
+        const isWideField = isTextarea || field.input === 'select'
 
         return (
-          <div key={field.key} className={cn('space-y-2', isTextarea ? 'xl:col-span-2' : '')}>
-            <Label htmlFor={fieldId}>{field.label}</Label>
+          <div key={field.key} className={cn('space-y-2', isWideField ? 'xl:col-span-2' : '')}>
+            <Label htmlFor={fieldId}>
+              {field.label}
+              {field.required ? <span className="ml-1 text-rose-600">*</span> : null}
+            </Label>
             <ActivityFieldGuidance field={field} />
             {isTextarea ? (
               <Textarea
@@ -489,6 +493,33 @@ function renderStructuredFields(params: {
                 onChange={(event) => params.onFieldChange(field.key, event.target.value)}
                 placeholder={field.placeholder}
                 className="min-h-[96px] bg-white"
+                disabled={params.disabled}
+              />
+            ) : field.input === 'select' ? (
+              <Select
+                value={value || ''}
+                onValueChange={(nextValue) => params.onFieldChange(field.key, nextValue)}
+                disabled={params.disabled}
+              >
+                <SelectTrigger id={fieldId} className="min-h-[44px] bg-white">
+                  <SelectValue placeholder={field.placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options?.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : field.input === 'date' ? (
+              <Input
+                id={fieldId}
+                type="date"
+                value={value}
+                onChange={(event) => params.onFieldChange(field.key, event.target.value)}
+                placeholder={field.placeholder}
+                className="min-h-[44px] bg-white"
                 disabled={params.disabled}
               />
             ) : (

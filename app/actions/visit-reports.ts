@@ -16,6 +16,7 @@ import { formatVisitReportsActionError } from '@/lib/visit-reports-schema'
 import {
   buildVisitReportSummary,
   buildVisitReportTitle,
+  getVisitReportTypeLabel,
   isActivityVisitReportType,
   normalizeVisitReportPayload,
   VISIT_REPORT_TYPE_OPTIONS,
@@ -30,6 +31,7 @@ import {
   isStoreVisitActivityKey,
   normalizeStoreVisitActivityDetails,
   normalizeStoreVisitActivityPayloads,
+  validateStoreVisitActivityPayloadCompleteness,
   type StoreVisitActivityKey,
   type StoreVisitActivityDetails,
   type StoreVisitActivityPayloads,
@@ -793,6 +795,22 @@ export async function saveVisitReport(input: SaveVisitReportInput) {
     input.payload,
     profile.full_name || null
   )
+
+  if (input.status === 'final' && isActivityVisitReportType(input.reportType)) {
+    const activityPayload = normalizedPayload as ActivityVisitReportPayload
+    const completenessIssues = validateStoreVisitActivityPayloadCompleteness(
+      [input.reportType],
+      { [input.reportType]: activityPayload.activityPayload }
+    )
+
+    if (completenessIssues.length > 0) {
+      const missingLabels = completenessIssues[0].missingFields.map((field) => field.label).join(', ')
+      throw new Error(
+        `Complete the required fields for ${getVisitReportTypeLabel(input.reportType)} before saving the final report: ${missingLabels}.`
+      )
+    }
+  }
+
   const visitDate = normalizeDate(normalizedPayload.visitDate)
   const title =
     String(input.title || '').trim() ||

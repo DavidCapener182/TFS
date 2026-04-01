@@ -30,6 +30,12 @@ type StoreVisitLegacyPayloadField =
   | 'reference'
 
 export type StoreVisitActivityFieldSection = 'what_checked' | 'findings' | 'actions'
+export type StoreVisitActivityFieldInput = 'text' | 'textarea' | 'select' | 'date'
+
+export interface StoreVisitActivityFieldOption {
+  value: string
+  label: string
+}
 
 export interface StoreVisitActivityGuidance {
   helperText?: string
@@ -41,8 +47,10 @@ export interface StoreVisitActivityFieldDefinition {
   key: string
   label: string
   placeholder: string
-  input: 'text' | 'textarea'
+  input: StoreVisitActivityFieldInput
   section?: StoreVisitActivityFieldSection
+  required?: boolean
+  options?: readonly StoreVisitActivityFieldOption[]
   helperText?: string
   scriptLines?: readonly string[]
   captureHint?: string
@@ -151,6 +159,202 @@ const COMMON_ACTIVITY_ACTION_FIELDS: readonly StoreVisitActivityFieldDefinition[
   },
 ]
 
+export const STORE_VISIT_ACTIVITY_OUTCOME_STATUS_OPTIONS = [
+  { value: 'closed_no_issue', label: 'Closed - no issue' },
+  { value: 'closed_corrected_on_site', label: 'Closed - corrected on site' },
+  { value: 'follow_up_required', label: 'Follow-up required' },
+  { value: 'escalated_internal', label: 'Escalated internally' },
+  { value: 'escalated_external', label: 'Escalated externally' },
+] as const satisfies readonly StoreVisitActivityFieldOption[]
+
+export const STORE_VISIT_ACTIVITY_CONFIDENCE_OPTIONS = [
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'probable', label: 'Probable' },
+  { value: 'suspected', label: 'Suspected' },
+  { value: 'ruled_out', label: 'Ruled out' },
+  { value: 'not_substantiated', label: 'Not substantiated' },
+] as const satisfies readonly StoreVisitActivityFieldOption[]
+
+export const STORE_VISIT_ACTIVITY_FOLLOW_UP_STATUS_OPTIONS = [
+  { value: 'not_started', label: 'Not started' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'cancelled', label: 'Cancelled' },
+] as const satisfies readonly StoreVisitActivityFieldOption[]
+
+const ACTIVITY_SCOPE_CORE_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'activityReference',
+    label: 'Incident / visit reference',
+    placeholder: 'Incident number, visit ref, case ref, claim ref, or other tracking reference...',
+    input: 'text',
+    section: 'what_checked',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What is the main incident, visit, case, or claim reference for this activity?"'],
+    captureHint: 'Record the main reference that should be used to trace this activity later.',
+  },
+  {
+    key: 'timeWindowInScope',
+    label: 'Exact date / time window in scope',
+    placeholder: 'Exact date, shift, clip time, transaction window, delivery slot, or period reviewed...',
+    input: 'text',
+    section: 'what_checked',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What exact date, time window, shift, or review period does this activity cover?"'],
+    captureHint: 'Record the precise operational window in scope for this activity, even though the visit itself already has a visit date/time.',
+  },
+  {
+    key: 'storeArea',
+    label: 'Exact store area',
+    placeholder: 'Till area, stockroom, entrance, fragrance wall, cabinet, office, delivery bay...',
+    input: 'text',
+    section: 'what_checked',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"Which exact store area, location, fixture, or control point does this activity relate to?"'],
+    captureHint: 'Name the specific store area or operational point that was checked.',
+  },
+  {
+    key: 'evidenceReference',
+    label: 'Evidence reference',
+    placeholder: 'Uploaded file name, case ref, clip ref, claim ref, ticket ref, or external evidence reference...',
+    input: 'text',
+    section: 'what_checked',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What evidence reference links this activity to uploaded files, footage, documents, or external records?"'],
+    captureHint: 'Record the evidence reference that ties this activity back to uploaded or external evidence.',
+  },
+]
+
+const ACTIVITY_FINDINGS_CORE_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'caseConfidence',
+    label: 'Confidence / case status',
+    placeholder: 'Select confidence level',
+    input: 'select',
+    section: 'findings',
+    required: true,
+    options: STORE_VISIT_ACTIVITY_CONFIDENCE_OPTIONS,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"Based on the evidence reviewed, is this confirmed, probable, suspected, ruled out, or not substantiated?"'],
+    captureHint: 'Choose the confidence level that best reflects the evidence position without overstating it.',
+  },
+]
+
+const ACTIVITY_ACTION_CORE_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'outcomeStatus',
+    label: 'Outcome status',
+    placeholder: 'Select outcome status',
+    input: 'select',
+    section: 'actions',
+    required: true,
+    options: STORE_VISIT_ACTIVITY_OUTCOME_STATUS_OPTIONS,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What is the overall outcome of this activity right now?"'],
+    captureHint: 'Choose the operational outcome that best describes how this activity closed or escalated.',
+  },
+  {
+    key: 'followUpOwner',
+    label: 'Follow-up owner',
+    placeholder: 'Name the person or team who owns the next step...',
+    input: 'text',
+    section: 'actions',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"Who owns the next action after this visit or report?"'],
+    captureHint: 'Record the named owner for the next step.',
+  },
+  {
+    key: 'followUpDeadline',
+    label: 'Follow-up deadline',
+    placeholder: 'Select follow-up deadline',
+    input: 'date',
+    section: 'actions',
+    required: true,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What is the deadline for that follow-up action?"'],
+    captureHint: 'Record the target date for follow-up completion.',
+  },
+  {
+    key: 'followUpStatus',
+    label: 'Follow-up status',
+    placeholder: 'Select follow-up status',
+    input: 'select',
+    section: 'actions',
+    required: true,
+    options: STORE_VISIT_ACTIVITY_FOLLOW_UP_STATUS_OPTIONS,
+    helperText: 'Required core field for every activity.',
+    scriptLines: ['"What is the current status of the follow-up work?"'],
+    captureHint: 'Choose the current status of the follow-up action.',
+  },
+  {
+    key: 'followUpCompletedAt',
+    label: 'Follow-up completed date',
+    placeholder: 'Select completion date',
+    input: 'date',
+    section: 'actions',
+    required: true,
+    helperText: 'Complete this when the follow-up has actually been finished.',
+    scriptLines: ['"If the follow-up is complete, on what date was it completed?"'],
+    captureHint: 'Record the completion date when the follow-up has been closed out.',
+  },
+]
+
+const ACTIVITY_EVIDENCE_CHAIN_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  {
+    key: 'evidenceRetained',
+    label: 'Evidence retained',
+    placeholder: 'What evidence was retained, preserved, exported, or requested?',
+    input: 'textarea',
+    section: 'actions',
+    scriptLines: ['"What evidence was retained, preserved, exported, or requested as part of this activity?"'],
+    captureHint: 'Record the evidence that was formally retained or preserved.',
+  },
+  {
+    key: 'evidenceStoredAt',
+    label: 'Where evidence is stored',
+    placeholder: 'Shared drive, case folder, system, locker, safe, email chain, police portal...',
+    input: 'text',
+    section: 'actions',
+    scriptLines: ['"Where is the retained evidence now stored?"'],
+    captureHint: 'State where the evidence is stored so it can be located later.',
+  },
+  {
+    key: 'evidenceHeldBy',
+    label: 'Who holds evidence now',
+    placeholder: 'LP officer, store manager, HR, police, courier claims team...',
+    input: 'text',
+    section: 'actions',
+    scriptLines: ['"Who currently holds or controls that evidence?"'],
+    captureHint: 'Name the person or team currently holding the evidence.',
+  },
+  {
+    key: 'externalInvolvement',
+    label: 'External involvement',
+    placeholder: 'Police, HR, insurer, courier claim, supplier claim, contractor ticket, none...',
+    input: 'text',
+    section: 'actions',
+    scriptLines: ['"Is any external party or formal process involved in this case?"'],
+    captureHint: 'Record any external party or formal process now involved.',
+  },
+  {
+    key: 'externalReference',
+    label: 'External reference number',
+    placeholder: 'Police CAD, HR case, insurer claim, courier claim, contractor ticket...',
+    input: 'text',
+    section: 'actions',
+    scriptLines: ['"What external reference number or case number is linked to that involvement?"'],
+    captureHint: 'Record the linked external reference if one exists.',
+  },
+]
+
+const INTERNAL_THEFT_FACTUAL_NOTE =
+  'Record material wording verbatim where it matters, separate fact from inference, and avoid opinion.'
+
 function getActivityFieldDefinition(
   fields: readonly StoreVisitActivityFieldDefinition[],
   key: string
@@ -184,7 +388,7 @@ const INTERNAL_THEFT_SECTION_GUIDES: Partial<Record<StoreVisitActivityFieldSecti
   },
   findings: {
     title: 'Account And Challenge Script',
-    intro: 'Use this section to capture the subject\'s account and compare it against the evidence.',
+    intro: `Use this section to capture the subject's account and compare it against the evidence. ${INTERNAL_THEFT_FACTUAL_NOTE}`,
     prompts: [
       '"Talk me through what happened from your point of view, step by step."',
       '"Help me understand any difference between your account and the CCTV, till, banking, or stock evidence."',
@@ -234,7 +438,7 @@ const INTERNAL_THEFT_CCTV_SECTION_GUIDES: Partial<Record<StoreVisitActivityField
   },
   findings: {
     title: 'Confirmed Findings Script',
-    intro: 'Use this section to document what the footage proves and what the business impact is.',
+    intro: `Use this section to document what the footage proves and what the business impact is. ${INTERNAL_THEFT_FACTUAL_NOTE}`,
     prompts: [
       '"What does the CCTV clearly confirm, and what part of the allegation is now evidenced?"',
       '"What stock, cash, or process loss is linked to the footage?"',
@@ -339,7 +543,7 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
   {
     key: 'completed_till_checks',
     label: 'Till checks',
-    description: 'Checked tills, tills balances, or cash handling controls.',
+    description: 'Checked tills, till balances, or cash handling controls.',
     detailPlaceholder: 'Record which tills were checked, any variances found, and what was actioned on site.',
     formVariant: 'cash-check',
     evidenceLabel: 'Till document',
@@ -1099,6 +1303,76 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     },
   },
   {
+    key: 'conducted_opening_checks',
+    label: 'Opening checks',
+    description: 'Completed an opening / open-up security review before trading began.',
+    detailPlaceholder: 'Record who opened, what was checked before trade, and any exposure identified at open.',
+    formVariant: 'structured',
+    evidenceLabel: 'Opening-check evidence',
+    fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
+      {
+        key: 'teamPresentAtOpen',
+        label: 'Team present / opening responsibility',
+        placeholder: 'Manager, keyholder, security, or colleague opening the store...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      {
+        key: 'openingChecksCompleted',
+        label: 'Opening checks completed',
+        placeholder: 'Shutters, doors, alarm unset, fire exits, stockroom, sales floor, safe, and trading-readiness checks...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'alarmAndAccessStatus',
+        label: 'Alarm / access / entry status',
+        placeholder: 'Alarm unset correctly, no forced entry, locks secure, shutters intact, access points checked...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'safeAndHighRiskStockStatus',
+        label: 'Safe / high-risk stock status',
+        placeholder: 'Safe condition, cabinets intact, tagged stock present, tester/live stock control, fragrance wall ready...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'issuesAtOpen',
+        label: 'Issues found at opening',
+        placeholder: 'Record any alarm issue, stock exposure, key-control gap, readiness failure, or opening concern.',
+        input: 'textarea',
+        section: 'findings',
+      },
+      {
+        key: 'signsOfEntryOrExposure',
+        label: 'Signs of entry / exposure',
+        placeholder: 'Forced entry, damaged shutter, insecure door, missing key, exposed stock, safe concern, blind spot...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
+      {
+        key: 'actionsBeforeTrading',
+        label: 'Actions before trading',
+        placeholder: 'What was secured, escalated, or corrected before the store opened to customers?',
+        input: 'textarea',
+        section: 'actions',
+      },
+    ],
+    detailFieldKeys: ['openingChecksCompleted', 'issuesAtOpen'],
+    legacyFieldMap: {
+      summary: 'openingChecksCompleted',
+      findings: 'issuesAtOpen',
+      actionsTaken: 'actionsBeforeTrading',
+      nextSteps: 'actionsBeforeTrading',
+      peopleInvolved: 'teamPresentAtOpen',
+    },
+  },
+  {
     key: 'conducted_stop_on_close',
     label: 'Stop on close',
     description: 'Completed an end-of-day stop-on-close review with the store team.',
@@ -1591,6 +1865,112 @@ export type StoreVisitNeedLevel = 'none' | 'monitor' | 'needed' | 'urgent'
 export type StoreVisitActivityDetails = Partial<Record<StoreVisitActivityKey, string>>
 export type StoreVisitActivityFormVariant = (typeof STORE_VISIT_ACTIVITY_OPTIONS)[number]['formVariant']
 
+const STORE_VISIT_ACTIVITY_KEYS_WITH_EVIDENCE_CHAIN = new Set<StoreVisitActivityKey>([
+  'supported_investigation',
+  'reviewed_cctv_or_alarm',
+  'took_statements_or_interviews',
+  'reviewed_paperwork_or_processes',
+  'checked_delivery_or_parcel_issue',
+  'reviewed_security_procedures',
+  'internal_theft_interview',
+  'internal_theft_cctv_confirmed',
+])
+
+const STORE_VISIT_ACTIVITY_CORE_WHAT_CHECKED_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  ...ACTIVITY_SCOPE_CORE_FIELDS,
+  ...COMMON_ACTIVITY_CONTEXT_FIELDS,
+]
+
+const STORE_VISIT_ACTIVITY_CORE_FINDINGS_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  ...ACTIVITY_FINDINGS_CORE_FIELDS,
+  ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+]
+
+const STORE_VISIT_ACTIVITY_CORE_ACTION_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
+  ...ACTIVITY_ACTION_CORE_FIELDS,
+  ...COMMON_ACTIVITY_ACTION_FIELDS.filter((field) => field.key !== 'followUpOwnerDeadline'),
+]
+
+const STORE_VISIT_ACTIVITY_CORE_FIELD_KEYS = new Set(
+  [
+    ...STORE_VISIT_ACTIVITY_CORE_WHAT_CHECKED_FIELDS,
+    ...STORE_VISIT_ACTIVITY_CORE_FINDINGS_FIELDS,
+    ...STORE_VISIT_ACTIVITY_CORE_ACTION_FIELDS,
+  ].map((field) => field.key)
+)
+
+const STORE_VISIT_ACTIVITY_EVIDENCE_FIELD_KEYS = new Set(
+  ACTIVITY_EVIDENCE_CHAIN_FIELDS.map((field) => field.key)
+)
+
+const STORE_VISIT_ACTIVITY_GENERIC_DETAIL_EXCLUDED_KEYS = new Set([
+  ...STORE_VISIT_ACTIVITY_CORE_FIELD_KEYS,
+  ...STORE_VISIT_ACTIVITY_EVIDENCE_FIELD_KEYS,
+  'followUpOwnerDeadline',
+])
+
+const LEGACY_ACTIVITY_FIELD_ALIASES: Partial<Record<string, string>> = {
+  followUpOwnerDeadline: 'followUpOwner',
+}
+
+function dedupeActivityFields(
+  fields: readonly StoreVisitActivityFieldDefinition[]
+): readonly StoreVisitActivityFieldDefinition[] {
+  const seen = new Set<string>()
+
+  return fields.filter((field) => {
+    if (seen.has(field.key)) return false
+    seen.add(field.key)
+    return true
+  })
+}
+
+function getTemplateSpecificActivityFields(
+  option: StoreVisitActivityOption | undefined,
+  section: StoreVisitActivityFieldSection
+): readonly StoreVisitActivityFieldDefinition[] {
+  return (option?.fields || []).filter((field) => {
+    if ((field.section || section) !== section) return false
+    if (STORE_VISIT_ACTIVITY_CORE_FIELD_KEYS.has(field.key)) return false
+    if (STORE_VISIT_ACTIVITY_EVIDENCE_FIELD_KEYS.has(field.key)) return false
+    if (field.key === 'followUpOwnerDeadline') return false
+    return true
+  })
+}
+
+function composeActivityFields(
+  activityKey: StoreVisitActivityKey,
+  option: StoreVisitActivityOption | undefined
+): readonly StoreVisitActivityFieldDefinition[] {
+  const actionFields = [
+    ...STORE_VISIT_ACTIVITY_CORE_ACTION_FIELDS,
+    ...(STORE_VISIT_ACTIVITY_KEYS_WITH_EVIDENCE_CHAIN.has(activityKey)
+      ? ACTIVITY_EVIDENCE_CHAIN_FIELDS
+      : []),
+    ...getTemplateSpecificActivityFields(option, 'actions'),
+  ]
+
+  return dedupeActivityFields([
+    ...STORE_VISIT_ACTIVITY_CORE_WHAT_CHECKED_FIELDS,
+    ...getTemplateSpecificActivityFields(option, 'what_checked'),
+    ...STORE_VISIT_ACTIVITY_CORE_FINDINGS_FIELDS,
+    ...getTemplateSpecificActivityFields(option, 'findings'),
+    ...actionFields,
+  ])
+}
+
+function getStoreVisitActivityFieldOptionLabelFromDefinition(
+  field: Pick<StoreVisitActivityFieldDefinition, 'options'>,
+  value: string
+): string | undefined {
+  return field.options?.find((option) => option.value === value)?.label
+}
+
+export interface StoreVisitActivityCompletenessIssue {
+  activityKey: StoreVisitActivityKey
+  missingFields: Array<Pick<StoreVisitActivityFieldDefinition, 'key' | 'label' | 'section'>>
+}
+
 export interface StoreVisitCountedItem {
   productId?: string
   productLabel?: string
@@ -1798,6 +2178,35 @@ const STORE_VISIT_ACTIVITY_SECTION_GUIDES: Partial<
         '"What was corrected, re-merchandised, secured, or coached immediately?"',
         '"Who was updated or briefed about the control gap?"',
         '"Who owns the remaining corrective action and by when?"',
+      ],
+    },
+  },
+  conducted_opening_checks: {
+    what_checked: {
+      title: 'Opening Checks Script',
+      intro: 'Use this while completing the opening routine before the store trades.',
+      prompts: [
+        '"Who is opening the site and who holds key responsibility this morning?"',
+        '"Which opening checks were physically completed before trading began?"',
+        '"What was the status of alarms, access points, shutters, safe controls, and high-risk stock at open?"',
+      ],
+    },
+    findings: {
+      title: 'Opening Checks Findings Script',
+      intro: 'Use this section to capture any exposure identified before the store opened to customers.',
+      prompts: [
+        '"Was there any sign of forced entry, alarm fault, unsecured access point, or missing control at open?"',
+        '"Was any stock, safe content, key, or high-risk area exposed or not ready for trade?"',
+        '"What weakness in the opening routine, handover, or security control caused the issue?"',
+      ],
+    },
+    actions: {
+      title: 'Opening Checks Action Script',
+      intro: 'Use this before the doors open so any immediate fix or escalation is clearly documented.',
+      prompts: [
+        '"What was corrected, secured, or isolated before customers were admitted?"',
+        '"Who was informed about the opening concern or exposure?"',
+        '"What follow-up action is still needed after the opening checks?"',
       ],
     },
   },
@@ -2194,6 +2603,36 @@ const STORE_VISIT_ACTIVITY_FIELD_GUIDANCE: Partial<
       captureHint: 'Capture what was fixed on site and what was agreed for follow-up.',
     },
   },
+  conducted_opening_checks: {
+    teamPresentAtOpen: {
+      scriptLines: ['"Who is opening the site and who holds responsibility this morning?"'],
+      captureHint: 'List the keyholder, manager, security colleague, or other team members present at open.',
+    },
+    openingChecksCompleted: {
+      scriptLines: ['"Which opening checks were physically completed before trading began?"'],
+      captureHint: 'Record the specific opening checks completed before the store opened.',
+    },
+    alarmAndAccessStatus: {
+      scriptLines: ['"What was the status of alarms, shutters, locks, and entry points at open?"'],
+      captureHint: 'Summarise the opening status of alarms, access points, shutters, and locks.',
+    },
+    safeAndHighRiskStockStatus: {
+      scriptLines: ['"What was the status of the safe, high-risk stock, and protected fixtures at open?"'],
+      captureHint: 'Describe the condition of the safe, cabinets, high-risk stock, and trading-readiness controls.',
+    },
+    issuesAtOpen: {
+      scriptLines: ['"What issue, missed step, or exposure did you find during the opening routine?"'],
+      captureHint: 'Describe the opening concern or operational issue found before trade.',
+    },
+    signsOfEntryOrExposure: {
+      scriptLines: ['"Was there any sign of forced entry, damage, or stock/security exposure?"'],
+      captureHint: 'Record any sign of entry, damaged security measure, or exposed stock/control issue.',
+    },
+    actionsBeforeTrading: {
+      scriptLines: ['"What was corrected, secured, or escalated before the doors opened?"'],
+      captureHint: 'Capture the actions completed before trade and any escalation made from the opening check.',
+    },
+  },
   conducted_stop_on_close: {
     teamPresent: {
       scriptLines: ['"Who was present for close and who held responsibility?"'],
@@ -2450,7 +2889,8 @@ export function getStoreVisitActivityOption(
 export function getStoreVisitActivityFieldDefinitions(
   activityKey: StoreVisitActivityKey
 ): readonly StoreVisitActivityFieldDefinition[] {
-  const fields = getStoreVisitActivityOption(activityKey)?.fields || []
+  const option = getStoreVisitActivityOption(activityKey)
+  const fields = composeActivityFields(activityKey, option)
   const fieldGuidance = STORE_VISIT_ACTIVITY_FIELD_GUIDANCE[activityKey]
 
   if (!fieldGuidance) return fields
@@ -2459,6 +2899,27 @@ export function getStoreVisitActivityFieldDefinitions(
     const guidance = fieldGuidance[field.key]
     return guidance ? withFieldGuidance(field, guidance) : field
   })
+}
+
+export function getStoreVisitActivityFieldDefinition(
+  activityKey: StoreVisitActivityKey,
+  fieldKey: string
+): StoreVisitActivityFieldDefinition | undefined {
+  return getStoreVisitActivityFieldDefinitions(activityKey).find((field) => field.key === fieldKey)
+}
+
+export function formatStoreVisitActivityFieldValue(
+  activityKey: StoreVisitActivityKey,
+  fieldKey: string,
+  value: string | null | undefined
+): string {
+  const normalizedValue = String(value || '').trim()
+  if (!normalizedValue) return ''
+
+  const fieldDefinition = getStoreVisitActivityFieldDefinition(activityKey, fieldKey)
+  if (!fieldDefinition) return normalizedValue
+
+  return getStoreVisitActivityFieldOptionLabelFromDefinition(fieldDefinition, normalizedValue) || normalizedValue
 }
 
 export function getStoreVisitActivitySectionGuide(
@@ -2537,6 +2998,44 @@ export function getStoreVisitActivityFieldSection(
   return 'what_checked'
 }
 
+export function validateStoreVisitActivityPayloadCompleteness(
+  selectedKeys: readonly StoreVisitActivityKey[],
+  payloads: StoreVisitActivityPayloads | null | undefined
+): StoreVisitActivityCompletenessIssue[] {
+  const normalizedPayloads = normalizeStoreVisitActivityPayloads(payloads, selectedKeys)
+
+  return selectedKeys.reduce<StoreVisitActivityCompletenessIssue[]>((issues, activityKey) => {
+    const payload = normalizedPayloads[activityKey]
+    const fields = payload?.fields || {}
+    const missingFields = getStoreVisitActivityFieldDefinitions(activityKey)
+      .filter((field) => field.required)
+      .filter((field) => {
+        const value = String(fields[field.key] || '').trim()
+        if (field.key === 'followUpCompletedAt') {
+          const followUpStatus = String(fields.followUpStatus || '').trim()
+          if (followUpStatus !== 'complete') {
+            return false
+          }
+        }
+        return !value
+      })
+      .map((field) => ({
+        key: field.key,
+        label: field.label,
+        section: getStoreVisitActivityFieldSection(activityKey, field),
+      }))
+
+    if (missingFields.length > 0) {
+      issues.push({
+        activityKey,
+        missingFields,
+      })
+    }
+
+    return issues
+  }, [])
+}
+
 export function normalizeStoreVisitActivityDetails(
   input: unknown,
   selectedKeys?: readonly StoreVisitActivityKey[]
@@ -2597,13 +3096,19 @@ function normalizeStoreVisitTextFields(
     allowedFieldKeys && allowedFieldKeys.length > 0 ? new Set(allowedFieldKeys) : null
 
   return Object.entries(input as Record<string, unknown>).reduce<Record<string, string>>((fields, [key, rawValue]) => {
-    if (allowedFieldKeySet && !allowedFieldKeySet.has(key)) {
+    const normalizedKey = LEGACY_ACTIVITY_FIELD_ALIASES[key] || key
+
+    if (allowedFieldKeySet && !allowedFieldKeySet.has(normalizedKey)) {
       return fields
     }
 
     const value = normalizeOptionalText(rawValue)
     if (value) {
-      fields[key] = value
+      if (!fields[normalizedKey]) {
+        fields[normalizedKey] = value
+      } else if (!fields[normalizedKey].includes(value)) {
+        fields[normalizedKey] = `${fields[normalizedKey]}\n\n${value}`
+      }
     }
 
     return fields
@@ -2835,10 +3340,16 @@ export function buildStoreVisitActivityDetailText(
   const option = getStoreVisitActivityOption(key)
   const detailFieldKeys =
     option?.detailFieldKeys ||
-    option?.fields?.map((field) => field.key) ||
+    getStoreVisitActivityFieldDefinitions(key)
+      .map((field) => field.key)
+      .filter((fieldKey) => !STORE_VISIT_ACTIVITY_GENERIC_DETAIL_EXCLUDED_KEYS.has(fieldKey)) ||
     []
   const fieldSummaryBits = detailFieldKeys
-    .map((fieldKey) => normalizedPayload.fields?.[fieldKey])
+    .map((fieldKey) => {
+      const fieldValue = normalizedPayload.fields?.[fieldKey]
+      if (!fieldValue) return null
+      return formatStoreVisitActivityFieldValue(key, fieldKey, fieldValue)
+    })
     .filter((value): value is string => Boolean(value))
     .slice(0, 2)
 

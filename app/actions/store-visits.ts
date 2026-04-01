@@ -9,6 +9,7 @@ import {
   normalizeStoreVisitActivityPayloads,
   STORE_VISIT_ACTIVITY_OPTIONS,
   STORE_VISIT_TYPE_OPTIONS,
+  validateStoreVisitActivityPayloadCompleteness,
   type StoreVisitActivityDetails,
   type StoreVisitActivityKey,
   type StoreVisitNeedLevel,
@@ -431,6 +432,23 @@ export async function logStoreVisit(input: LogStoreVisitInput) {
 
   if (completedActivityKeys.includes('other') && !completedActivityDetails.other) {
     throw new Error('Add details for the Other activity before saving the visit.')
+  }
+
+  const completenessIssues = validateStoreVisitActivityPayloadCompleteness(
+    completedActivityKeys,
+    completedActivityPayloads
+  )
+
+  if (completenessIssues.length > 0) {
+    const firstIssue = completenessIssues[0]
+    const optionLabel =
+      STORE_VISIT_ACTIVITY_OPTIONS.find((option) => option.key === firstIssue.activityKey)?.label ||
+      firstIssue.activityKey
+    const missingLabels = firstIssue.missingFields.map((field) => field.label).join(', ')
+
+    throw new Error(
+      `Complete the required fields for ${optionLabel} before saving the visit: ${missingLabels}.`
+    )
   }
 
   const { supabase, userId } = await getWritableVisitContext()

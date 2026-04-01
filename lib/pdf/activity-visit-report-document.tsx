@@ -9,6 +9,7 @@ import {
 } from '@/lib/reports/visit-report-types'
 import {
   buildStoreVisitActivityDetailText,
+  formatStoreVisitActivityFieldValue,
   formatStoreVisitCurrency,
   getStoreVisitActivityFieldDefinitions,
   getStoreVisitActivityFieldSection,
@@ -271,6 +272,16 @@ export function ActivityVisitReportPdfDocument({
   const summary = buildVisitReportSummary(reportType, payload)
   const itemChecks = payload.activityPayload.itemsChecked || []
   const amountChecks = payload.activityPayload.amountChecks || []
+  const confidenceLabel = formatStoreVisitActivityFieldValue(
+    reportType,
+    'caseConfidence',
+    payload.activityPayload.fields?.caseConfidence
+  )
+  const outcomeStatusLabel = formatStoreVisitActivityFieldValue(
+    reportType,
+    'outcomeStatus',
+    payload.activityPayload.fields?.outcomeStatus
+  )
 
   return (
     <Document title={reportTitle}>
@@ -298,6 +309,8 @@ export function ActivityVisitReportPdfDocument({
           <MetaCard label="Store manager" value={valueOrFallback(payload.storeManager)} />
           <MetaCard label="Time in / out" value={`${valueOrFallback(payload.timeIn)} / ${valueOrFallback(payload.timeOut)}`} />
           <MetaCard label="Visited by / rep" value={`${valueOrFallback(payload.signOff.visitedBy)} / ${valueOrFallback(payload.signOff.storeRepresentative)}`} />
+          {confidenceLabel ? <MetaCard label="Confidence" value={confidenceLabel} /> : null}
+          {outcomeStatusLabel ? <MetaCard label="Outcome" value={outcomeStatusLabel} /> : null}
         </View>
 
         <View style={styles.section}>
@@ -306,7 +319,13 @@ export function ActivityVisitReportPdfDocument({
           {whatCheckedFields.map((field) => {
             const fieldValue = payload.activityPayload.fields?.[field.key]
             if (!fieldValue) return null
-            return <DataRow key={field.key} label={field.label} value={fieldValue} />
+            return (
+              <DataRow
+                key={field.key}
+                label={field.label}
+                value={formatStoreVisitActivityFieldValue(reportType, field.key, fieldValue)}
+              />
+            )
           })}
           {payload.activityPayload.amountConfirmed !== null &&
           payload.activityPayload.amountConfirmed !== undefined ? (
@@ -363,7 +382,13 @@ export function ActivityVisitReportPdfDocument({
           {findingsFields.map((field) => {
             const fieldValue = payload.activityPayload.fields?.[field.key]
             if (!fieldValue) return null
-            return <DataRow key={field.key} label={field.label} value={fieldValue} />
+            return (
+              <DataRow
+                key={field.key}
+                label={field.label}
+                value={formatStoreVisitActivityFieldValue(reportType, field.key, fieldValue)}
+              />
+            )
           })}
         </View>
 
@@ -373,7 +398,13 @@ export function ActivityVisitReportPdfDocument({
           {actionFields.map((field) => {
             const fieldValue = payload.activityPayload.fields?.[field.key]
             if (!fieldValue) return null
-            return <DataRow key={field.key} label={field.label} value={fieldValue} />
+            return (
+              <DataRow
+                key={field.key}
+                label={field.label}
+                value={formatStoreVisitActivityFieldValue(reportType, field.key, fieldValue)}
+              />
+            )
           })}
         </View>
 

@@ -6,10 +6,12 @@ import {
   computeStoreVisitNeed,
   getStoreVisitActivityAmountChecksGuide,
   getStoreVisitActivityCountedItemsGuide,
+  getStoreVisitActivityFieldDefinition,
   getStoreVisitActivityFieldDefinitions,
   getStoreVisitActivityFieldSection,
   getStoreVisitActivitySectionGuide,
   normalizeStoreVisitActivityPayloads,
+  validateStoreVisitActivityPayloadCompleteness,
 } from '@/lib/visit-needs'
 
 describe('computeStoreVisitNeed', () => {
@@ -98,6 +100,93 @@ describe('computeStoreVisitNeed', () => {
 })
 
 describe('store visit activity payloads', () => {
+  it('adds the shared required core fields to every activity template', () => {
+    const requiredCoreFieldKeys = [
+      'activityReference',
+      'timeWindowInScope',
+      'storeArea',
+      'evidenceReference',
+      'outcomeStatus',
+      'caseConfidence',
+      'followUpOwner',
+      'followUpDeadline',
+      'followUpStatus',
+      'followUpCompletedAt',
+    ]
+
+    for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
+      const fields = getStoreVisitActivityFieldDefinitions(option.key)
+      const fieldKeys = new Set(fields.map((field) => field.key))
+
+      expect(fieldKeys.has('followUpOwnerDeadline')).toBe(false)
+
+      for (const key of requiredCoreFieldKeys) {
+        expect(fieldKeys.has(key)).toBe(true)
+        expect(getStoreVisitActivityFieldDefinition(option.key, key)?.required).toBe(true)
+      }
+    }
+  })
+
+  it('applies evidence-chain fields only to the intended templates', () => {
+    const evidenceFieldKeys = [
+      'evidenceRetained',
+      'evidenceStoredAt',
+      'evidenceHeldBy',
+      'externalInvolvement',
+      'externalReference',
+    ]
+    const evidenceActivityKeys = new Set([
+      'supported_investigation',
+      'reviewed_cctv_or_alarm',
+      'took_statements_or_interviews',
+      'reviewed_paperwork_or_processes',
+      'checked_delivery_or_parcel_issue',
+      'reviewed_security_procedures',
+      'internal_theft_interview',
+      'internal_theft_cctv_confirmed',
+    ])
+
+    for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
+      const fieldKeys = new Set(getStoreVisitActivityFieldDefinitions(option.key).map((field) => field.key))
+
+      for (const fieldKey of evidenceFieldKeys) {
+        expect(fieldKeys.has(fieldKey)).toBe(evidenceActivityKeys.has(option.key))
+      }
+    }
+  })
+
+  it('uses structured select and date metadata for the new shared core fields', () => {
+    for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
+      expect(getStoreVisitActivityFieldDefinition(option.key, 'outcomeStatus')).toMatchObject({
+        input: 'select',
+      })
+      expect(getStoreVisitActivityFieldDefinition(option.key, 'caseConfidence')).toMatchObject({
+        input: 'select',
+      })
+      expect(getStoreVisitActivityFieldDefinition(option.key, 'followUpStatus')).toMatchObject({
+        input: 'select',
+      })
+      expect(getStoreVisitActivityFieldDefinition(option.key, 'followUpDeadline')).toMatchObject({
+        input: 'date',
+      })
+      expect(getStoreVisitActivityFieldDefinition(option.key, 'followUpCompletedAt')).toMatchObject({
+        input: 'date',
+      })
+
+      expect(
+        getStoreVisitActivityFieldDefinition(option.key, 'outcomeStatus')?.options?.map(
+          (fieldOption) => fieldOption.value
+        )
+      ).toEqual([
+        'closed_no_issue',
+        'closed_corrected_on_site',
+        'follow_up_required',
+        'escalated_internal',
+        'escalated_external',
+      ])
+    }
+  })
+
   it('provides section guides and field scripts for every activity template', () => {
     for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
       const fields = getStoreVisitActivityFieldDefinitions(option.key)
@@ -212,6 +301,121 @@ describe('store visit activity payloads', () => {
     )
   })
 
+  it('maps the legacy follow-up owner field into the new structured core field', () => {
+    const payloads = normalizeStoreVisitActivityPayloads(
+      {
+        supported_investigation: {
+          fields: {
+            followUpOwnerDeadline: 'Area manager by 2026-04-04',
+          },
+        },
+      },
+      ['supported_investigation']
+    )
+
+    expect(payloads.supported_investigation?.fields).toEqual(
+      expect.objectContaining({
+        followUpOwner: 'Area manager by 2026-04-04',
+      })
+    )
+    expect(payloads.supported_investigation?.fields?.followUpOwnerDeadline).toBeUndefined()
+  })
+
+  it('requires the new shared core fields when validating activity completeness', () => {
+    const issues = validateStoreVisitActivityPayloadCompleteness(
+      ['supported_investigation'],
+      {
+        supported_investigation: {
+          fields: {
+            activityReference: 'INV-204',
+            timeWindowInScope: '31/03/2026 09:00-11:00',
+            storeArea: 'Till area',
+            evidenceReference: 'CCTV-31-03',
+            caseConfidence: 'probable',
+            outcomeStatus: 'follow_up_required',
+            followUpOwner: 'Area manager',
+            followUpDeadline: '2026-04-02',
+            followUpStatus: 'in_progress',
+          },
+        },
+      }
+    )
+
+    expect(issues).toEqual([])
+  })
+
+  it('blocks completion when required core fields are missing', () => {
+    const issues = validateStoreVisitActivityPayloadCompleteness(
+      ['supported_investigation'],
+      {
+        supported_investigation: {
+          fields: {
+            investigationFocus: 'Refund abuse allegation reviewed.',
+          },
+        },
+      }
+    )
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.activityKey).toBe('supported_investigation')
+    expect(issues[0]?.missingFields.map((field) => field.key)).toEqual(
+      expect.arrayContaining([
+        'activityReference',
+        'timeWindowInScope',
+        'storeArea',
+        'evidenceReference',
+        'caseConfidence',
+        'outcomeStatus',
+        'followUpOwner',
+        'followUpDeadline',
+        'followUpStatus',
+      ])
+    )
+  })
+
+  it('only requires the follow-up completed date when follow-up status is complete', () => {
+    const requiredFields = {
+      activityReference: 'INV-204',
+      timeWindowInScope: '31/03/2026 09:00-11:00',
+      storeArea: 'Till area',
+      evidenceReference: 'CCTV-31-03',
+      caseConfidence: 'confirmed',
+      outcomeStatus: 'closed_corrected_on_site',
+      followUpOwner: 'Area manager',
+      followUpDeadline: '2026-04-02',
+    }
+
+    const inProgressIssues = validateStoreVisitActivityPayloadCompleteness(
+      ['supported_investigation'],
+      {
+        supported_investigation: {
+          fields: {
+            ...requiredFields,
+            followUpStatus: 'in_progress',
+          },
+        },
+      }
+    )
+
+    const completeIssues = validateStoreVisitActivityPayloadCompleteness(
+      ['supported_investigation'],
+      {
+        supported_investigation: {
+          fields: {
+            ...requiredFields,
+            followUpStatus: 'complete',
+          },
+        },
+      }
+    )
+
+    expect(inProgressIssues).toEqual([])
+    expect(completeIssues).toHaveLength(1)
+    expect(completeIssues[0]?.missingFields.map((field) => field.key)).toContain(
+      'followUpCompletedAt'
+    )
+  })
+
   it('builds a compact history detail from structured payloads', () => {
     const detail = buildStoreVisitActivityDetailText('completed_line_checks', '', {
       itemsChecked: [
@@ -256,6 +460,18 @@ describe('store visit activity payloads', () => {
 
     expect(detail).toContain('Refund abuse allegation reviewed.')
     expect(detail).toContain('Interviewed manager and checked the refund log.')
+  })
+
+  it('builds a compact detail for opening checks', () => {
+    const detail = buildStoreVisitActivityDetailText('conducted_opening_checks', '', {
+      fields: {
+        openingChecksCompleted: 'Alarm unset, shutters checked, safe verified, and fragrance wall inspected before trade.',
+        issuesAtOpen: 'Rear stockroom door was unsecured on arrival and required immediate closure.',
+      },
+    })
+
+    expect(detail).toContain('Alarm unset, shutters checked, safe verified, and fragrance wall inspected before trade.')
+    expect(detail).toContain('Rear stockroom door was unsecured on arrival and required immediate closure.')
   })
 
   it('normalizes internal theft interview payloads with both cash and stock evidence', () => {
@@ -419,5 +635,14 @@ describe('store visit activity payloads', () => {
     expect(detail).toContain('1 item check recorded, 1 variance found')
     expect(detail).toContain('1 cash check recorded, 1 mismatch found')
     expect(detail).toContain('Amount discrepancy found')
+  })
+
+  it('adds the factual-recording note to both internal theft findings guides', () => {
+    expect(
+      getStoreVisitActivitySectionGuide('internal_theft_interview', 'findings')?.intro
+    ).toContain('Record material wording verbatim')
+    expect(
+      getStoreVisitActivitySectionGuide('internal_theft_cctv_confirmed', 'findings')?.intro
+    ).toContain('Record material wording verbatim')
   })
 })

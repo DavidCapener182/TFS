@@ -5,9 +5,10 @@ import { FileText, ShieldCheck } from 'lucide-react'
 import type { StoreVisitEvidenceFile } from '@/components/visit-tracker/types'
 import {
   formatStoreVisitCurrency,
+  formatStoreVisitActivityFieldValue,
   getStoreVisitCountedItemDelta,
   getStoreVisitCountedItemVarianceValue,
-  getStoreVisitActivityOption,
+  getStoreVisitActivityFieldDefinitions,
   getStoreVisitActivityLabel,
   type StoreVisitActivityKey,
   type StoreVisitActivityPayload,
@@ -37,11 +38,21 @@ export function StoreVisitActivitySummary({
   payload,
   evidenceFiles = [],
 }: StoreVisitActivitySummaryProps) {
-  const activityOption = getStoreVisitActivityOption(activityKey)
+  const fieldDefinitions = getStoreVisitActivityFieldDefinitions(activityKey)
   const amountConfirmedLabel = renderBooleanLabel(
     payload?.amountConfirmed,
     'Correct amount confirmed',
     'Amount discrepancy found'
+  )
+  const confidenceLabel = formatStoreVisitActivityFieldValue(
+    activityKey,
+    'caseConfidence',
+    payload?.fields?.caseConfidence
+  )
+  const outcomeStatusLabel = formatStoreVisitActivityFieldValue(
+    activityKey,
+    'outcomeStatus',
+    payload?.fields?.outcomeStatus
   )
 
   return (
@@ -52,6 +63,21 @@ export function StoreVisitActivitySummary({
       </div>
 
       {detailText ? <p className="mt-2 text-xs leading-relaxed text-slate-600">{detailText}</p> : null}
+
+      {confidenceLabel || outcomeStatusLabel ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {confidenceLabel ? (
+            <div className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800">
+              Confidence: {confidenceLabel}
+            </div>
+          ) : null}
+          {outcomeStatusLabel ? (
+            <div className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800">
+              Outcome: {outcomeStatusLabel}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {payload?.itemsChecked?.length ? (
         <div className="mt-3 space-y-2 rounded-lg border border-emerald-100 bg-white/80 p-3">
@@ -110,13 +136,14 @@ export function StoreVisitActivitySummary({
 
       {payload ? (
         <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-          {activityOption?.fields?.map((field) => {
+          {fieldDefinitions.map((field) => {
             const value = payload.fields?.[field.key]
             if (!value) return null
 
             return (
               <div key={field.key} className="rounded-lg bg-white/75 px-3 py-2">
-                <span className="font-semibold text-slate-700">{field.label}:</span> {value}
+                <span className="font-semibold text-slate-700">{field.label}:</span>{' '}
+                {formatStoreVisitActivityFieldValue(activityKey, field.key, value)}
               </div>
             )
           })}

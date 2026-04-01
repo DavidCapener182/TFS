@@ -1,6 +1,7 @@
 import {
   STORE_VISIT_ACTIVITY_OPTIONS,
   buildStoreVisitActivityDetailText,
+  formatStoreVisitActivityFieldValue,
   getStoreVisitActivityLabel,
   normalizeStoreVisitActivityPayloads,
   type StoreVisitActivityKey,
@@ -736,6 +737,24 @@ export function buildActivityVisitReportSummary(
 
   if (detailText) {
     summaryParts.push(detailText)
+  }
+
+  const confidenceLabel = formatStoreVisitActivityFieldValue(
+    reportType,
+    'caseConfidence',
+    normalized.activityPayload.fields?.caseConfidence
+  )
+  if (confidenceLabel) {
+    summaryParts.push(`Confidence: ${confidenceLabel}`)
+  }
+
+  const outcomeStatusLabel = formatStoreVisitActivityFieldValue(
+    reportType,
+    'outcomeStatus',
+    normalized.activityPayload.fields?.outcomeStatus
+  )
+  if (outcomeStatusLabel) {
+    summaryParts.push(`Outcome: ${outcomeStatusLabel}`)
   }
 
   if (normalized.findings.trim()) {
