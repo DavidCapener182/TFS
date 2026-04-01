@@ -40,6 +40,7 @@ type IncidentRow = {
 type InboundEmailPendingRow = {
   matched_store_id: string | null
   processing_status: string | null
+  analysis_template_key: string | null
   analysis_needs_action: boolean | null
   analysis_needs_visit: boolean | null
   analysis_needs_incident: boolean | null
@@ -167,6 +168,7 @@ async function getVisitTrackerData(): Promise<{
   const openStoreActionsByStore = new Map<string, StoreActionRow[]>()
   const openIncidentsByStore = new Map<string, IncidentRow[]>()
   const pendingInboundEmailCountByStore = new Map<string, number>()
+  const inboundEmailVisitNeedReasonsByStore = new Map<string, Set<string>>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
   const linkedReportsByVisitId = new Map<string, VisitHistoryEntry['linkedReports']>()
@@ -214,7 +216,7 @@ async function getVisitTrackerData(): Promise<{
 
     const { data: pendingEmailRows, error: pendingEmailsError } = await supabase
       .from('tfs_inbound_emails')
-      .select('matched_store_id, processing_status, analysis_needs_action, analysis_needs_visit, analysis_needs_incident')
+      .select('matched_store_id, processing_status, analysis_template_key, analysis_needs_action, analysis_needs_visit, analysis_needs_incident')
       .in('matched_store_id', storeIds)
       .or('processing_status.eq.pending,and(processing_status.eq.reviewed,or(analysis_needs_action.eq.true,analysis_needs_visit.eq.true,analysis_needs_incident.eq.true))')
 
@@ -225,6 +227,16 @@ async function getVisitTrackerData(): Promise<{
         const storeId = String(row.matched_store_id || '')
         if (!storeId) continue
         pendingInboundEmailCountByStore.set(storeId, (pendingInboundEmailCountByStore.get(storeId) || 0) + 1)
+
+        if (row.analysis_needs_visit) {
+          const existingReasons = inboundEmailVisitNeedReasonsByStore.get(storeId) || new Set<string>()
+          if (String(row.analysis_template_key || '').toLowerCase() === 'stocktake_result') {
+            existingReasons.add('Stocktake Red')
+          } else {
+            existingReasons.add('Inbound email flagged for visit')
+          }
+          inboundEmailVisitNeedReasonsByStore.set(storeId, existingReasons)
+        }
       }
     }
 
@@ -508,6 +520,7 @@ async function getVisitTrackerData(): Promise<{
       lastVisitAt: lastCompletedVisit?.visitedAt || null,
       nextPlannedVisitDate,
     })
+    const inboundEmailReasons = Array.from(inboundEmailVisitNeedReasonsByStore.get(storeId) || [])
 
     return {
       storeId,
@@ -528,7 +541,7 @@ async function getVisitTrackerData(): Promise<{
       visitNeedScore: assessment.score,
       visitNeedLevel: assessment.level,
       visitNeeded: assessment.needsVisit,
-      visitNeedReasons: assessment.reasons,
+      visitNeedReasons: [...inboundEmailReasons, ...assessment.reasons],
       visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
       openStoreActionCount: (openStoreActionsByStore.get(storeId) || []).length,
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
