@@ -142,6 +142,7 @@ function buildStoreVisitTrackerRow(params: {
     visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
     openStoreActionCount: actions.filter((action) => !['complete', 'cancelled'].includes(String(action.status || '').trim().toLowerCase())).length,
     openIncidentCount: incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').trim().toLowerCase())).length,
+    pendingInboundEmailCount: 0,
     isActive: Boolean(store.is_active),
     recentVisits,
     activeDraftVisit,

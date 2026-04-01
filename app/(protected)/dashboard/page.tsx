@@ -326,7 +326,8 @@ function summarizeFindingOutcome(value: string, maxLength = 220): string {
 
 function buildRecentFinding(
   visit: DashboardVisitEntry,
-  store: Pick<StoreRow, 'id' | 'store_name' | 'store_code'>
+  store: Pick<StoreRow, 'id' | 'store_name' | 'store_code'>,
+  hasOpenRiskDrivers: boolean
 ): DashboardRecentFinding | null {
   const rankedActivities = visit.completedActivityKeys
     .map((activityKey) => {
@@ -381,7 +382,7 @@ function buildRecentFinding(
         : getStoreVisitTypeLabel(visit.visitType),
     activityLabel: primaryActivity ? getStoreVisitActivityLabel(primaryActivity.activityKey) : null,
     summary,
-    followUpRequired: visit.followUpRequired,
+    followUpRequired: visit.followUpRequired && hasOpenRiskDrivers,
     createdByName: visit.createdByName,
   }
 }
@@ -680,6 +681,9 @@ async function getDashboardData(): Promise<DashboardData> {
       nextPlannedVisitDate,
     })
     const latestVisitLog = (storeVisitLogsByStore.get(storeId) || [])[0]
+    const openStoreActionCount = (storeActionsByStore.get(storeId) || []).length
+    const openIncidentCount = (incidentRowsByStore.get(storeId) || []).length
+    const hasOpenRiskDrivers = openStoreActionCount > 0 || openIncidentCount > 0
 
     return {
       storeId,
@@ -689,12 +693,12 @@ async function getDashboardData(): Promise<DashboardData> {
       visitNeedLevel: assessment.level,
       visitNeeded: assessment.needsVisit,
       visitNeedReasons: assessment.reasons,
-      openStoreActionCount: (storeActionsByStore.get(storeId) || []).length,
-      openIncidentCount: (incidentRowsByStore.get(storeId) || []).length,
+      openStoreActionCount,
+      openIncidentCount,
       lastVisitDate,
       nextPlannedVisitDate,
       lastVisitType: lastVisit?.visitType || null,
-      followUpRequired: Boolean(latestVisitLog?.followUpRequired),
+      followUpRequired: Boolean(latestVisitLog?.followUpRequired) && hasOpenRiskDrivers,
     }
   })
 
@@ -812,9 +816,13 @@ async function getDashboardData(): Promise<DashboardData> {
       const visitEntry = (storeVisitLogsByStore.get(String(visit.store_id || '')) || []).find(
         (entry) => entry.id === visit.id
       )
+      const storeId = String(visit.store_id || '')
+      const hasOpenRiskDrivers =
+        (storeActionsByStore.get(storeId) || []).length > 0 ||
+        (incidentRowsByStore.get(storeId) || []).length > 0
 
       if (!store || !visitEntry) return null
-      return buildRecentFinding(visitEntry, store)
+      return buildRecentFinding(visitEntry, store, hasOpenRiskDrivers)
     })
     .filter((finding): finding is DashboardRecentFinding => Boolean(finding))
     .slice(0, 6)

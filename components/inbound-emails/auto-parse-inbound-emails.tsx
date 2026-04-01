@@ -29,7 +29,13 @@ export function AutoParseInboundEmails({ pendingCount }: AutoParseInboundEmailsP
 
     startTransition(async () => {
       try {
-        await runPendingInboundEmailAnalysis()
+        const result = await runPendingInboundEmailAnalysis()
+        if (result.flaggedFollowUpCount > 0) {
+          toast({
+            title: 'Inbound emails need review',
+            description: `${result.flaggedFollowUpCount} email${result.flaggedFollowUpCount === 1 ? '' : 's'} need follow-up. Open Inbound Emails to ignore, review, or schedule a visit.`,
+          })
+        }
         router.refresh()
       } catch (error) {
         lastTriggeredCount.current = null

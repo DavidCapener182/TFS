@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   MapPinned,
+  Mail,
   Search,
   ShieldAlert,
   Shuffle,
@@ -70,6 +71,10 @@ function sortRows(rows: VisitTrackerRow[]): VisitTrackerRow[] {
   }
 
   return [...rows].sort((a, b) => {
+    if (a.pendingInboundEmailCount !== b.pendingInboundEmailCount) {
+      return b.pendingInboundEmailCount - a.pendingInboundEmailCount
+    }
+
     const needDiff = needOrder[a.visitNeedLevel] - needOrder[b.visitNeedLevel]
     if (needDiff !== 0) return needDiff
 
@@ -172,6 +177,12 @@ function VisitTable({
               <div className="flex flex-wrap items-center gap-2">
                 <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} />
                 <VisitStateBadge state={row.visitState} />
+                {row.pendingInboundEmailCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                    <Mail className="h-3 w-3" />
+                    {row.pendingInboundEmailCount} email{row.pendingInboundEmailCount === 1 ? '' : 's'} to review
+                  </span>
+                ) : null}
               </div>
 
               <p className="text-xs text-slate-500">
@@ -270,6 +281,12 @@ function VisitTable({
                         {getDisplayStoreCode(row.storeCode) || 'No store code'}
                         {row.assignedManager ? ` • ${row.assignedManager}` : ''}
                       </div>
+                      {row.pendingInboundEmailCount > 0 ? (
+                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                          <Mail className="h-3 w-3" />
+                          {row.pendingInboundEmailCount} email{row.pendingInboundEmailCount === 1 ? '' : 's'} to review
+                        </div>
+                      ) : null}
                     </button>
                   </TableCell>
                   <TableCell className="min-w-[250px]">
@@ -375,7 +392,8 @@ export function VisitTrackerClient({
         !focusFlaggedOnly ||
         row.visitNeeded ||
         Boolean(row.nextPlannedVisitDate) ||
-        row.visitState === 'random'
+        row.visitState === 'random' ||
+        row.pendingInboundEmailCount > 0
 
       return matchesGroup && matchesSearch && matchesFocus
     })
@@ -391,6 +409,11 @@ export function VisitTrackerClient({
     })
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [filteredRows])
+
+  const emailReviewRows = useMemo(
+    () => sortRows(filteredRows.filter((row) => row.pendingInboundEmailCount > 0)),
+    [filteredRows]
+  )
 
   const stats = useMemo(() => {
     const source =
@@ -562,32 +585,76 @@ export function VisitTrackerClient({
 
           <div className="p-4 md:p-6">
             <TabsContent value="by-group" className="mt-0 space-y-5">
+              {emailReviewRows.length > 0 ? (
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div>
+                      <h3 className="font-semibold text-amber-900">Email Review</h3>
+                      <p className="text-xs text-amber-700">
+                        {emailReviewRows.length} store{emailReviewRows.length === 1 ? '' : 's'} have inbound emails to review
+                      </p>
+                    </div>
+                    <Mail className="h-5 w-5 text-amber-700" />
+                  </div>
+                  <VisitTable
+                    rows={emailReviewRows}
+                    canPlanVisits={canPlanVisits}
+                    canLogVisits={canLogVisits}
+                    onOpenStore={setSelectedRow}
+                  />
+                </section>
+              ) : null}
+
               {groupedRows.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
                   No stores match the current filters.
                 </div>
               ) : (
-                groupedRows.map(([group, groupRows]) => (
+                groupedRows.map(([group, groupRows]) => {
+                  const nonEmailRows = groupRows.filter((row) => row.pendingInboundEmailCount === 0)
+                  if (nonEmailRows.length === 0) return null
+
+                  return (
                   <section key={group} className="space-y-3">
                     <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-[#faf7fd] px-4 py-3">
                       <div>
                         <h3 className="font-semibold text-slate-900">{group}</h3>
-                        <p className="text-xs text-slate-500">{groupRows.length} stores</p>
+                        <p className="text-xs text-slate-500">{nonEmailRows.length} stores</p>
                       </div>
                       <Store className="h-5 w-5 text-[#4b3a78]" />
                     </div>
                     <VisitTable
-                      rows={groupRows}
+                      rows={nonEmailRows}
                       canPlanVisits={canPlanVisits}
                       canLogVisits={canLogVisits}
                       onOpenStore={setSelectedRow}
                     />
                   </section>
-                ))
+                )})
               )}
             </TabsContent>
 
             <TabsContent value="all-stores" className="mt-0 space-y-4">
+              {emailReviewRows.length > 0 ? (
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div>
+                      <h3 className="font-semibold text-amber-900">Email Review</h3>
+                      <p className="text-xs text-amber-700">
+                        {emailReviewRows.length} store{emailReviewRows.length === 1 ? '' : 's'} have inbound emails to review
+                      </p>
+                    </div>
+                    <Mail className="h-5 w-5 text-amber-700" />
+                  </div>
+                  <VisitTable
+                    rows={emailReviewRows}
+                    canPlanVisits={canPlanVisits}
+                    canLogVisits={canLogVisits}
+                    onOpenStore={setSelectedRow}
+                  />
+                </section>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-rose-700">
@@ -619,7 +686,7 @@ export function VisitTrackerClient({
               </div>
 
               <VisitTable
-                rows={sortRows(filteredRows)}
+                rows={sortRows(filteredRows.filter((row) => row.pendingInboundEmailCount === 0))}
                 canPlanVisits={canPlanVisits}
                 canLogVisits={canLogVisits}
                 onOpenStore={setSelectedRow}

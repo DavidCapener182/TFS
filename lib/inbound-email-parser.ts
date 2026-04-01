@@ -196,14 +196,18 @@ function parseStocktakeResult(email: Pick<InboundEmailRow, 'subject' | 'body_tex
   const storeCode = normalizeStoreCode(subjectMatch[1])
   const storeName = cleanStoreName(subjectMatch[2])
   const colour = subjectMatch[3].toLowerCase()
-  const profitGbp = Number(bodyText.match(/profit\s*£\s*([-+]?\d+(?:\.\d+)?)/i)?.[1] || '0')
+  const amountMatch = bodyText.match(/\b(profit|loss)\s*(-)?\s*£\s*([-+]?\d+(?:\.\d+)?)/i)
+  const resultType = String(amountMatch?.[1] || '').toLowerCase() === 'loss' ? 'loss' : 'profit'
+  const parsedAmountAbs = Number(amountMatch?.[3] || '0')
+  const amountGbp = resultType === 'loss' ? -Math.abs(parsedAmountAbs) : Math.abs(parsedAmountAbs)
+  const profitGbp = amountGbp
   const variancePct = Number(bodyText.match(/([-+]?\d+(?:\.\d+)?)%/i)?.[1] || '0')
-  const needsFollowUp = colour !== 'green'
+  const needsFollowUp = colour === 'red'
 
   return {
     source: 'rule',
     templateKey: 'stocktake_result',
-    summary: `${storeName || 'Store'} stocktake result is ${colour}${Number.isFinite(profitGbp) ? ` with profit £${profitGbp}` : ''}.`,
+    summary: `${storeName || 'Store'} stocktake result is ${colour}${Number.isFinite(amountGbp) ? ` with ${resultType} £${Math.abs(amountGbp)}` : ''}.`,
     confidence: 0.97,
     needsAction: needsFollowUp,
     needsVisit: colour === 'red',
@@ -212,12 +216,14 @@ function parseStocktakeResult(email: Pick<InboundEmailRow, 'subject' | 'body_tex
       storeCode,
       storeName,
       colour,
+      resultType,
+      amountGbp,
       profitGbp,
       variancePct,
     },
     suggestedNextSteps: needsFollowUp
-      ? ['Review the stocktake result and decide whether corrective action or a visit is required.']
-      : ['Record the positive stocktake result and monitor the next cycle.'],
+      ? ['Red stocktake result: schedule a store visit and review the loss drivers with the team.']
+      : ['Stocktake result is green or amber: no further action required right now.'],
     primaryStore: {
       storeCode,
       storeName,

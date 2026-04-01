@@ -28,6 +28,7 @@ async function getInboundEmails() {
   const { data, error } = await supabase
     .from('tfs_inbound_emails')
     .select('*')
+    .in('processing_status', ['pending', 'error'])
     .order('received_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(100)
@@ -121,10 +122,10 @@ export default async function InboundEmailsPage({
               Inbound Emails
             </div>
             <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-              Email Inbox
+              Email Review Queue
             </h1>
             <p className="mt-1.5 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm md:text-base">
-              Review raw Outlook emails captured in Supabase before any parsing or downstream automation.
+              Shows only emails that still need attention (pending or error). Reviewed emails stay visible from each store page.
             </p>
           </div>
 
@@ -183,7 +184,7 @@ export default async function InboundEmailsPage({
           <Card className="overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle>Latest Emails</CardTitle>
-              <CardDescription>Showing the most recent 100 emails stored in Supabase.</CardDescription>
+              <CardDescription>Showing the most recent 100 emails still in the review queue.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               <Table>

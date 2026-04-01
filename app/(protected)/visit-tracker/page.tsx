@@ -37,6 +37,14 @@ type IncidentRow = {
   occurred_at: string | null
 }
 
+type InboundEmailPendingRow = {
+  matched_store_id: string | null
+  processing_status: string | null
+  analysis_needs_action: boolean | null
+  analysis_needs_visit: boolean | null
+  analysis_needs_incident: boolean | null
+}
+
 type StoreVisitRow = {
   id: string
   store_id: string
@@ -158,6 +166,7 @@ async function getVisitTrackerData(): Promise<{
 
   const openStoreActionsByStore = new Map<string, StoreActionRow[]>()
   const openIncidentsByStore = new Map<string, IncidentRow[]>()
+  const pendingInboundEmailCountByStore = new Map<string, number>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
   const linkedReportsByVisitId = new Map<string, VisitHistoryEntry['linkedReports']>()
@@ -200,6 +209,22 @@ async function getVisitTrackerData(): Promise<{
         const existing = openIncidentsByStore.get(storeId) || []
         existing.push(incident)
         openIncidentsByStore.set(storeId, existing)
+      }
+    }
+
+    const { data: pendingEmailRows, error: pendingEmailsError } = await supabase
+      .from('tfs_inbound_emails')
+      .select('matched_store_id, processing_status, analysis_needs_action, analysis_needs_visit, analysis_needs_incident')
+      .in('matched_store_id', storeIds)
+      .or('processing_status.eq.pending,and(processing_status.eq.reviewed,or(analysis_needs_action.eq.true,analysis_needs_visit.eq.true,analysis_needs_incident.eq.true))')
+
+    if (pendingEmailsError) {
+      console.error('Error fetching pending inbound emails for visit tracker:', pendingEmailsError)
+    } else {
+      for (const row of (pendingEmailRows || []) as InboundEmailPendingRow[]) {
+        const storeId = String(row.matched_store_id || '')
+        if (!storeId) continue
+        pendingInboundEmailCountByStore.set(storeId, (pendingInboundEmailCountByStore.get(storeId) || 0) + 1)
       }
     }
 
@@ -507,6 +532,7 @@ async function getVisitTrackerData(): Promise<{
       visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
       openStoreActionCount: (openStoreActionsByStore.get(storeId) || []).length,
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
+      pendingInboundEmailCount: pendingInboundEmailCountByStore.get(storeId) || 0,
       isActive: Boolean(store.is_active),
       recentVisits,
       activeDraftVisit,

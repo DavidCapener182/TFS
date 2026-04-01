@@ -134,6 +134,55 @@ function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: st
   return lastVisitTime >= plannedTime ? null : plannedDate
 }
 
+type StoreStocktakeSnapshot = {
+  colour: 'green' | 'amber' | 'red'
+  amountGbp: number | null
+  resultType: 'profit' | 'loss' | null
+  receivedAt: string | null
+}
+
+function getRecentStocktakeSnapshot(emails: InboundEmailRow[]): StoreStocktakeSnapshot | null {
+  const stocktakeEmails = emails
+    .filter((email) => String(email.analysis_template_key || '').toLowerCase() === 'stocktake_result')
+    .sort((a, b) => {
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
+      return bTime - aTime
+    })
+
+  const latest = stocktakeEmails[0]
+  if (!latest) return null
+
+  const payload = (latest.analysis_payload && typeof latest.analysis_payload === 'object')
+    ? (latest.analysis_payload as Record<string, unknown>)
+    : null
+  const extractedFields = (payload?.extractedFields && typeof payload.extractedFields === 'object')
+    ? (payload.extractedFields as Record<string, unknown>)
+    : null
+  const colourRaw = String(extractedFields?.colour || '').toLowerCase()
+  const colour = colourRaw === 'green' || colourRaw === 'amber' || colourRaw === 'red' ? colourRaw : null
+  if (!colour) return null
+
+  const amountRaw = extractedFields?.amountGbp ?? extractedFields?.profitGbp
+  const parsedAmount = typeof amountRaw === 'number'
+    ? amountRaw
+    : Number(String(amountRaw ?? ''))
+  const amountGbp = Number.isFinite(parsedAmount) ? parsedAmount : null
+  const resultTypeRaw = String(extractedFields?.resultType || '').toLowerCase()
+  const resultType = resultTypeRaw === 'profit' || resultTypeRaw === 'loss'
+    ? resultTypeRaw
+    : amountGbp !== null
+      ? amountGbp < 0 ? 'loss' : 'profit'
+      : null
+
+  return {
+    colour,
+    amountGbp,
+    resultType,
+    receivedAt: latest.received_at || null,
+  }
+}
+
 export function StoreDetailWorkspace({
   store,
   incidents,
@@ -300,6 +349,17 @@ export function StoreDetailWorkspace({
     store.reporting_area_manager_email,
     store.reporting_area_manager_name,
   ])
+  const recentStocktake = useMemo(
+    () => getRecentStocktakeSnapshot(inboundEmails),
+    [inboundEmails]
+  )
+  const stocktakeTone = recentStocktake?.colour === 'green'
+    ? 'bg-green-100 text-green-800'
+    : recentStocktake?.colour === 'amber'
+      ? 'bg-amber-100 text-amber-800'
+      : recentStocktake?.colour === 'red'
+        ? 'bg-red-100 text-red-800'
+        : null
 
   return (
     <div className="space-y-6">
@@ -366,11 +426,35 @@ export function StoreDetailWorkspace({
             <p className="mb-1 text-xs font-medium uppercase text-slate-400">Open Actions</p>
             <p className="text-2xl font-bold text-blue-600">{ongoingActions.length}</p>
           </div>
-          <div className="flex-1 px-6 md:text-right">
+          <div className="flex-1 border-r border-slate-100 px-6 md:text-right">
             <p className="mb-1 text-xs font-medium uppercase text-slate-400">Latest Visit</p>
             <p className="text-2xl font-bold text-slate-900">
               {latestVisitDate ? format(new Date(latestVisitDate), 'dd MMM') : '—'}
             </p>
+          </div>
+          <div className="flex-1 px-6 md:text-right">
+            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Recent Stocktake</p>
+            {recentStocktake ? (
+              <div className="space-y-1">
+                <p
+                  className={`text-sm font-bold uppercase ${
+                    recentStocktake.colour === 'green'
+                      ? 'text-green-700'
+                      : recentStocktake.colour === 'amber'
+                        ? 'text-amber-700'
+                        : 'text-red-700'
+                  }`}
+                >
+                  {recentStocktake.colour}
+                </p>
+                <p className="text-xs font-semibold text-slate-700">
+                  {recentStocktake.resultType || 'result'}{' '}
+                  {recentStocktake.amountGbp !== null ? `£${Math.abs(recentStocktake.amountGbp).toLocaleString()}` : '—'}
+                </p>
+              </div>
+            ) : (
+              <p className="text-2xl font-bold text-slate-900">—</p>
+            )}
           </div>
         </div>
       </div>

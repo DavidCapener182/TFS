@@ -93,11 +93,13 @@ async function persistInboundEmailAnalysis(supabase: SupabaseClient, email: Inbo
   const analysis = await analyzeInboundEmail(email)
   const resolvedStoreId = email.matched_store_id || await resolveMatchedStoreId(supabase, analysis)
   const payload = buildAnalysisPayload(analysis)
+  const isStocktakeResult = analysis.templateKey === 'stocktake_result'
 
   const { error } = await supabase
     .from('tfs_inbound_emails')
     .update({
       matched_store_id: resolvedStoreId,
+      processing_status: isStocktakeResult ? 'reviewed' : email.processing_status,
       analysis_source: analysis.source,
       analysis_template_key: analysis.templateKey,
       analysis_summary: analysis.summary,
@@ -218,11 +220,15 @@ export async function runPendingInboundEmailAnalysis(limit = 25) {
 
   const emails = (data || []) as InboundEmailRow[]
   const revalidateStoreIds = new Set<string>()
+  let flaggedFollowUpCount = 0
 
   for (const email of emails) {
     try {
       const result = await persistInboundEmailAnalysis(supabase, email)
       if (result.matchedStoreId) revalidateStoreIds.add(result.matchedStoreId)
+      if (result.needsAction || result.needsVisit || result.needsIncident) {
+        flaggedFollowUpCount += 1
+      }
     } catch (analysisError) {
       const message = analysisError instanceof Error ? analysisError.message : 'Failed to analyse inbound email'
       await supabase
@@ -241,6 +247,7 @@ export async function runPendingInboundEmailAnalysis(limit = 25) {
   return {
     processed: emails.length,
     revalidatedStores: revalidateStoreIds.size,
+    flaggedFollowUpCount,
   }
 }
 
@@ -364,4 +371,184 @@ export async function acceptInboundEmailVisitSuggestion(input: {
   revalidatePath('/dashboard')
 
   return { success: true }
+}
+
+function extractHeaderValue(raw: string, headerName: string): string | null {
+  const regex = new RegExp(`^${headerName}:\\s*(.+)$`, 'im')
+  const match = raw.match(regex)
+  const value = match?.[1]?.trim()
+  return value ? value : null
+}
+
+function parseFromHeader(fromHeader: string | null): { senderName: string | null; senderEmail: string | null } {
+  if (!fromHeader) return { senderName: null, senderEmail: null }
+  const emailMatch = fromHeader.match(/<([^>]+)>/)
+  if (emailMatch?.[1]) {
+    const senderEmail = emailMatch[1].trim().toLowerCase()
+    const senderName = fromHeader.replace(emailMatch[0], '').replace(/"/g, '').trim() || null
+    return { senderName, senderEmail }
+  }
+
+  const plainEmail = fromHeader.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() || null
+  if (!plainEmail) return { senderName: fromHeader.trim() || null, senderEmail: null }
+
+  const senderName = fromHeader.replace(plainEmail, '').replace(/[()"]/g, '').trim() || null
+  return { senderName, senderEmail: plainEmail }
+}
+
+function parseReceivedAt(headerValue: string | null): string | null {
+  if (!headerValue) return null
+  const parsed = new Date(headerValue)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function extractBodyFromRawPaste(raw: string): string {
+  const normalized = raw.replace(/\r\n/g, '\n')
+  const splitAtDoubleNewline = normalized.split('\n\n')
+  if (splitAtDoubleNewline.length <= 1) return normalized.trim()
+  return splitAtDoubleNewline.slice(1).join('\n\n').trim()
+}
+
+function buildBodyPreview(bodyText: string): string {
+  const collapsed = bodyText.replace(/\s+/g, ' ').trim()
+  if (!collapsed) return ''
+  if (collapsed.length <= 280) return collapsed
+  return `${collapsed.slice(0, 277)}...`
+}
+
+function inferStoreCodeHint(input: { subject: string | null; bodyText: string; rawPayload: Record<string, unknown> }): string | null {
+  const payloadCode = String(input.rawPayload.store_code_hint || '').trim()
+  if (/^\d{3}$/.test(payloadCode)) return payloadCode
+
+  const subjectCode = (input.subject || '').match(/\b(\d{3})\b/)?.[1] || null
+  if (subjectCode) return subjectCode
+
+  const bodyCode = input.bodyText.match(/\b(\d{3})\b/)?.[1] || null
+  if (bodyCode) return bodyCode
+
+  return null
+}
+
+function buildManualOutlookMessageId(subject: string | null): string {
+  const safeSubject = String(subject || 'email')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'email'
+  const randomSuffix = Math.random().toString(36).slice(2, 8)
+  return `manual-${new Date().toISOString().slice(0, 10)}-${safeSubject}-${randomSuffix}`
+}
+
+export async function createInboundEmailFromPaste(input: {
+  mailboxName?: string
+  folderName?: string
+  pastedEmail: string
+  subject?: string
+  senderName?: string
+  senderEmail?: string
+  receivedAt?: string
+  hasAttachments?: boolean
+  rawPayloadJson?: string
+}) {
+  const { supabase } = await getWritableContext()
+
+  const pastedEmail = String(input.pastedEmail || '').trim()
+  if (!pastedEmail) {
+    throw new Error('Paste the email content first.')
+  }
+
+  const headerSubject = extractHeaderValue(pastedEmail, 'Subject')
+  const headerFrom = extractHeaderValue(pastedEmail, 'From')
+  const headerDate = extractHeaderValue(pastedEmail, 'Date') || extractHeaderValue(pastedEmail, 'Sent')
+  const parsedFrom = parseFromHeader(headerFrom)
+
+  const subject = String(input.subject || headerSubject || '').trim() || '(No subject)'
+  const senderName = String(input.senderName || parsedFrom.senderName || '').trim() || null
+  const senderEmail = String(input.senderEmail || parsedFrom.senderEmail || '').trim().toLowerCase() || null
+  const parsedInputDate = parseReceivedAt(String(input.receivedAt || '').trim())
+  const receivedAt = parsedInputDate || parseReceivedAt(headerDate) || new Date().toISOString()
+  const bodyText = extractBodyFromRawPaste(pastedEmail)
+  const bodyPreview = buildBodyPreview(bodyText)
+
+  let rawPayload: Record<string, unknown> = {
+    import_source: 'manual_paste',
+    pasted_at: new Date().toISOString(),
+  }
+  const rawPayloadInput = String(input.rawPayloadJson || '').trim()
+  if (rawPayloadInput) {
+    try {
+      const parsed = JSON.parse(rawPayloadInput)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        rawPayload = { ...rawPayload, ...(parsed as Record<string, unknown>) }
+      } else {
+        throw new Error('Raw payload JSON must be an object.')
+      }
+    } catch (error) {
+      throw new Error(`Raw payload JSON is invalid: ${error instanceof Error ? error.message : 'Unknown parse error'}`)
+    }
+  }
+
+  const storeCodeHint = inferStoreCodeHint({ subject, bodyText, rawPayload })
+  let matchedStoreId: string | null = null
+  if (storeCodeHint) {
+    const { data: matchedStore } = await supabase
+      .from('tfs_stores')
+      .select('id')
+      .eq('store_code', storeCodeHint)
+      .limit(1)
+    matchedStoreId = matchedStore?.[0]?.id ? String(matchedStore[0].id) : null
+    rawPayload = {
+      ...rawPayload,
+      store_code_hint: storeCodeHint,
+    }
+  }
+
+  const outlookMessageId = buildManualOutlookMessageId(subject)
+  const mailboxName = String(input.mailboxName || 'TFS Shared Mailbox').trim() || 'TFS Shared Mailbox'
+  const folderName = String(input.folderName || 'Stock Control Inbox').trim() || 'Stock Control Inbox'
+
+  const { data, error } = await supabase
+    .from('tfs_inbound_emails')
+    .insert({
+      source: 'outlook',
+      outlook_message_id: outlookMessageId,
+      mailbox_name: mailboxName,
+      folder_name: folderName,
+      subject,
+      sender_name: senderName,
+      sender_email: senderEmail,
+      received_at: receivedAt,
+      has_attachments: Boolean(input.hasAttachments),
+      body_preview: bodyPreview || null,
+      body_text: bodyText || null,
+      body_html: null,
+      raw_payload: rawPayload,
+      matched_store_id: matchedStoreId,
+      processing_status: 'pending',
+      last_error: null,
+    })
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const insertedEmail = data as InboundEmailRow
+  const analysisResult = await persistInboundEmailAnalysis(supabase, insertedEmail)
+
+  revalidatePath('/inbound-emails')
+  revalidatePath('/visit-tracker')
+  revalidatePath('/dashboard')
+  if (analysisResult.matchedStoreId) {
+    revalidatePath(`/stores/${analysisResult.matchedStoreId}`)
+  }
+
+  return {
+    id: String(insertedEmail.id),
+    subject: String(insertedEmail.subject || subject),
+    templateKey: analysisResult.templateKey,
+    needsReview: analysisResult.needsAction || analysisResult.needsVisit || analysisResult.needsIncident,
+  }
 }
