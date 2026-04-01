@@ -228,13 +228,18 @@ async function getVisitTrackerData(): Promise<{
         if (!storeId) continue
         pendingInboundEmailCountByStore.set(storeId, (pendingInboundEmailCountByStore.get(storeId) || 0) + 1)
 
-        if (row.analysis_needs_visit) {
-          const existingReasons = inboundEmailVisitNeedReasonsByStore.get(storeId) || new Set<string>()
-          if (String(row.analysis_template_key || '').toLowerCase() === 'stocktake_result') {
-            existingReasons.add('Stocktake Red')
-          } else {
-            existingReasons.add('Inbound email flagged for visit')
-          }
+        const existingReasons = inboundEmailVisitNeedReasonsByStore.get(storeId) || new Set<string>()
+        const templateKey = String(row.analysis_template_key || '').toLowerCase()
+
+        if (row.analysis_needs_visit && templateKey === 'stocktake_result') {
+          existingReasons.add('Stocktake Red')
+        } else if (templateKey === 'store_theft' && (row.analysis_needs_action || row.analysis_needs_incident)) {
+          existingReasons.add('Theft, Review')
+        } else if (row.analysis_needs_visit || row.analysis_needs_action || row.analysis_needs_incident) {
+          existingReasons.add('Inbound email flagged for review')
+        }
+
+        if (existingReasons.size > 0) {
           inboundEmailVisitNeedReasonsByStore.set(storeId, existingReasons)
         }
       }

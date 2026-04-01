@@ -67,6 +67,16 @@ interface DashboardPlannedVisit {
   purposeNote: string | null
 }
 
+interface DashboardTheftReview {
+  emailId: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  subject: string
+  summary: string | null
+  receivedAt: string | null
+}
+
 interface DashboardData {
   openIncidents: number
   underInvestigation: number
@@ -81,9 +91,11 @@ interface DashboardData {
     randomVisits: number
     plannedRoutes: number
     plannedRoutesNext14Days: number
+    potentialTheftReviews: number
   }
   priorityStores: DashboardPriorityStore[]
   plannedVisits: DashboardPlannedVisit[]
+  theftReviews: DashboardTheftReview[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -264,6 +276,36 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       ) : null}
 
       <div className="space-y-4">
+        <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xs font-bold text-amber-900 md:text-sm">
+              <AlertTriangle size={18} className="text-amber-600" /> Potential Theft Reviews
+            </h2>
+            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-bold text-amber-700">
+              {initialData.theftReviews.length} showing
+            </span>
+          </div>
+          {initialData.theftReviews.length === 0 ? (
+            <div className="mt-1 text-xs text-amber-800">
+              No theft-review emails are currently flagged.
+            </div>
+          ) : (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {initialData.theftReviews.map((email) => (
+                <Link
+                  key={email.emailId}
+                  href={`/stores/${email.storeId}`}
+                  prefetch={false}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-0.5 text-[11px] text-slate-800 hover:bg-amber-50"
+                >
+                  <span className="font-medium text-slate-900">{email.storeName}</span>
+                  <span className="text-slate-500">({getDisplayStoreCode(email.storeCode) || '—'} • {formatVisitDate(email.receivedAt)})</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
           <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-8">
             <div className="mb-6 flex items-center justify-between">
@@ -275,7 +317,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </span>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
               <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-rose-700">
                   <AlertTriangle className="h-4 w-4" />
@@ -310,6 +352,15 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </div>
                 <p className="mt-2 text-3xl font-bold text-sky-900">{initialData.visitStats.randomVisits}</p>
                 <p className="mt-1 text-sm text-sky-700">Stores recently attended through in-area, unplanned LP calls.</p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  Theft reviews
+                </div>
+                <p className="mt-2 text-3xl font-bold text-amber-900">{initialData.visitStats.potentialTheftReviews}</p>
+                <p className="mt-1 text-sm text-amber-700">Potential theft emails awaiting or requiring follow-up review.</p>
               </div>
             </div>
           </div>

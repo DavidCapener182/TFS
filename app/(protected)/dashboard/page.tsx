@@ -101,6 +101,19 @@ type RouteVisitLogRow = {
   } | null
 }
 
+type TheftReviewEmailRow = {
+  id: string
+  matched_store_id: string | null
+  subject: string | null
+  analysis_summary: string | null
+  analysis_template_key: string | null
+  analysis_needs_action: boolean | null
+  analysis_needs_incident: boolean | null
+  processing_status: string | null
+  received_at: string | null
+  created_at: string | null
+}
+
 type DashboardVisitEntry = {
   id: string
   source: 'visit_log' | 'route_completion'
@@ -167,6 +180,16 @@ type DashboardPlannedVisit = {
   purposeNote: string | null
 }
 
+type DashboardTheftReview = {
+  emailId: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  subject: string
+  summary: string | null
+  receivedAt: string | null
+}
+
 type DashboardData = {
   openIncidents: number
   underInvestigation: number
@@ -181,9 +204,11 @@ type DashboardData = {
     randomVisits: number
     plannedRoutes: number
     plannedRoutesNext14Days: number
+    potentialTheftReviews: number
   }
   priorityStores: DashboardPriorityStore[]
   plannedVisits: DashboardPlannedVisit[]
+  theftReviews: DashboardTheftReview[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -217,9 +242,11 @@ function getEmptyDashboardData(): DashboardData {
       randomVisits: 0,
       plannedRoutes: 0,
       plannedRoutesNext14Days: 0,
+      potentialTheftReviews: 0,
     },
     priorityStores: [],
     plannedVisits: [],
+    theftReviews: [],
     recentFindings: [],
     visitsUnavailableMessage: null,
   }
@@ -433,6 +460,7 @@ async function getDashboardData(): Promise<DashboardData> {
     plannedRoutesResult,
     storeVisitsResult,
     routeVisitLogsResult,
+    theftReviewEmailsResult,
   ] = await Promise.all([
     supabase
       .from('tfs_incidents')
@@ -500,6 +528,14 @@ async function getDashboardData(): Promise<DashboardData> {
       .eq('action', 'ROUTE_VISIT_COMPLETED')
       .in('entity_id', storeIds)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('tfs_inbound_emails')
+      .select(
+        'id, matched_store_id, subject, analysis_summary, analysis_template_key, analysis_needs_action, analysis_needs_incident, processing_status, received_at, created_at'
+      )
+      .in('matched_store_id', storeIds)
+      .eq('analysis_template_key', 'store_theft')
+      .or('processing_status.eq.pending,analysis_needs_action.eq.true,analysis_needs_incident.eq.true'),
   ])
 
   if (incidentRowsResult.error) {
@@ -530,6 +566,9 @@ async function getDashboardData(): Promise<DashboardData> {
   if (routeVisitLogsResult.error) {
     console.error('Error fetching dashboard route visit history:', routeVisitLogsResult.error)
   }
+  if (theftReviewEmailsResult.error) {
+    console.error('Error fetching dashboard theft review emails:', theftReviewEmailsResult.error)
+  }
 
   const incidentRows = (incidentRowsResult.data || []) as IncidentRow[]
   const incidentActionRows = (incidentActionsResult.data || []) as IncidentActionRow[]
@@ -539,6 +578,7 @@ async function getDashboardData(): Promise<DashboardData> {
   )
   const storeVisitRows = (storeVisitsResult.data || []) as StoreVisitRow[]
   const routeVisitLogRows = (routeVisitLogsResult.data || []) as RouteVisitLogRow[]
+  const theftReviewEmails = (theftReviewEmailsResult.data || []) as TheftReviewEmailRow[]
 
   const incidentRowsByStore = new Map<string, IncidentRow[]>()
   incidentRows.forEach((incident) => {
@@ -809,6 +849,28 @@ async function getDashboardData(): Promise<DashboardData> {
     }))
 
   const storeMap = new Map<string, StoreRow>(stores.map((store) => [String(store.id), store]))
+  const theftReviews = [...theftReviewEmails]
+    .sort((a, b) => {
+      const aTime = new Date(a.received_at || a.created_at || '').getTime()
+      const bTime = new Date(b.received_at || b.created_at || '').getTime()
+      return bTime - aTime
+    })
+    .slice(0, 8)
+    .map((email) => {
+      const storeId = String(email.matched_store_id || '')
+      const store = storeMap.get(storeId)
+      if (!store || !storeId) return null
+      return {
+        emailId: email.id,
+        storeId,
+        storeName: formatStoreName(store.store_name),
+        storeCode: store.store_code || null,
+        subject: String(email.subject || 'Theft, Review'),
+        summary: email.analysis_summary || null,
+        receivedAt: email.received_at || email.created_at || null,
+      } satisfies DashboardTheftReview
+    })
+    .filter((item): item is DashboardTheftReview => Boolean(item))
   const recentFindings = [...storeVisitRows]
     .sort((a, b) => new Date(b.visited_at).getTime() - new Date(a.visited_at).getTime())
     .map((visit) => {
@@ -859,9 +921,11 @@ async function getDashboardData(): Promise<DashboardData> {
       }).length,
       plannedRoutes: plannedRouteGroupKeys.size,
       plannedRoutesNext14Days: plannedRouteGroupKeysNext14Days.size,
+      potentialTheftReviews: theftReviewEmails.length,
     },
     priorityStores,
     plannedVisits,
+    theftReviews,
     recentFindings,
     visitsUnavailableMessage,
   }

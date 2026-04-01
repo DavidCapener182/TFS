@@ -91,15 +91,33 @@ function getVisitTrackerRowGroup(row: VisitTrackerRow): string {
   return getStoreRegionGroup(row.region, row.storeName, row.city, row.postcode)
 }
 
-function VisitNeedBadge({ level, score }: { level: VisitTrackerRow['visitNeedLevel']; score: number }) {
+function VisitNeedBadge({
+  level,
+  score,
+  reason,
+}: {
+  level: VisitTrackerRow['visitNeedLevel']
+  score: number
+  reason?: string | null
+}) {
+  const label = String(reason || '').trim() || getStoreVisitNeedLevelLabel(level)
+  const lowerLabel = label.toLowerCase()
+  const badgeClasses =
+    lowerLabel.includes('stocktake red') || lowerLabel.includes('red')
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : lowerLabel.includes('theft')
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+      : lowerLabel.includes('amber')
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : needLevelClasses(level)
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide',
-        needLevelClasses(level)
+        badgeClasses
       )}
     >
-      {getStoreVisitNeedLevelLabel(level)}
+      {label}
       <span className="text-[10px] opacity-80">({score})</span>
     </span>
   )
@@ -182,7 +200,7 @@ function VisitTable({
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-                <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} />
+                <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} reason={row.visitNeedReasons[0] || null} />
                 <VisitStateBadge state={row.visitState} />
                 {row.pendingInboundEmailCount > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
@@ -296,7 +314,7 @@ function VisitTable({
                   </TableCell>
                   <TableCell className="min-w-[250px]">
                     <div className="space-y-2">
-                      <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} />
+                      <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} reason={row.visitNeedReasons[0] || null} />
                       <div className="text-xs text-slate-500">
                         {getVisitNeedSummary(row)}
                       </div>
