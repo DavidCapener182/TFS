@@ -2,7 +2,6 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AdminClient } from '@/components/admin/admin-client'
-import { InboundEmailImporter } from '@/components/admin/inbound-email-importer'
 
 const ADMIN_EMAIL = 'david.capener@kssnwltd.co.uk'
 
@@ -90,17 +89,13 @@ export default async function AdminPage() {
             Paste raw email text and save it straight into the inbound email queue without SQL.
           </p>
           <a
-            href="#inbound-email-import"
+            href="/admin/inbound-email-import"
             className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:min-h-0 sm:w-auto sm:rounded-md sm:bg-sky-600 sm:px-4 sm:py-2 sm:hover:bg-sky-700"
           >
             Open Email Importer
           </a>
         </div>
 
-      </div>
-
-      <div id="inbound-email-import">
-        <InboundEmailImporter />
       </div>
 
       <AdminClient />
