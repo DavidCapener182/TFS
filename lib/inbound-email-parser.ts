@@ -199,17 +199,30 @@ function parseStocktakeResult(email: Pick<InboundEmailRow, 'subject' | 'body_tex
   const subject = normalizeWhitespace(email.subject)
   const bodyText = normalizeWhitespace(email.body_text || email.body_preview)
   const subjectMatch = subject.match(/(\d{1,3})\s+(.+?)\s+stocktake result\s*-\s*(green|amber|red)/i)
-  if (!subjectMatch) return null
+  const bodyStoreMatch =
+    bodyText.match(/\bfinal stocktake result for\s+(\d{1,3})\s+([a-z0-9 '&-]+?)\s+is\b/i) ||
+    bodyText.match(/\bTFS\s+(\d{1,3})\s+([a-z0-9 '&-]+?)\s*</i)
+  const amountAndColourMatch = bodyText.match(
+    /\b(profit|loss)\s*(-)?\s*£\s*([-+]?\d[\d,]*(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)%\s*(GREEN|AMBER|RED)\b/i
+  )
+  const standaloneColourMatch = bodyText.match(/\b(GREEN|AMBER|RED)\b/i)
+  const hasStocktakeSignal =
+    /\bstocktake result\b/i.test(subject) ||
+    /\byour stocktake result\b/i.test(bodyText) ||
+    /\bfinal stocktake result for\b/i.test(bodyText)
+  if (!subjectMatch && !hasStocktakeSignal) return null
 
-  const storeCode = normalizeStoreCode(subjectMatch[1])
-  const storeName = cleanStoreName(subjectMatch[2])
-  const colour = subjectMatch[3].toLowerCase()
-  const amountMatch = bodyText.match(/\b(profit|loss)\s*(-)?\s*£\s*([-+]?\d+(?:\.\d+)?)/i)
+  const storeCode = normalizeStoreCode(subjectMatch?.[1] || bodyStoreMatch?.[1] || null)
+  const storeName = cleanStoreName(subjectMatch?.[2] || bodyStoreMatch?.[2] || null)
+  const colour = String(subjectMatch?.[3] || amountAndColourMatch?.[5] || standaloneColourMatch?.[1] || '').toLowerCase()
+  if (!colour) return null
+
+  const amountMatch = amountAndColourMatch || bodyText.match(/\b(profit|loss)\s*(-)?\s*£\s*([-+]?\d[\d,]*(?:\.\d+)?)/i)
   const resultType = String(amountMatch?.[1] || '').toLowerCase() === 'loss' ? 'loss' : 'profit'
-  const parsedAmountAbs = Number(amountMatch?.[3] || '0')
+  const parsedAmountAbs = Number(String(amountMatch?.[3] || '0').replace(/,/g, ''))
   const amountGbp = resultType === 'loss' ? -Math.abs(parsedAmountAbs) : Math.abs(parsedAmountAbs)
   const profitGbp = amountGbp
-  const variancePct = Number(bodyText.match(/([-+]?\d+(?:\.\d+)?)%/i)?.[1] || '0')
+  const variancePct = Number(amountAndColourMatch?.[4] || bodyText.match(/([-+]?\d+(?:\.\d+)?)%/i)?.[1] || '0')
   const needsFollowUp = colour === 'red'
 
   return {

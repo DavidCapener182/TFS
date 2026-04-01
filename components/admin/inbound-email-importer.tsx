@@ -143,6 +143,12 @@ export function InboundEmailImporter() {
                   variant: 'success',
                 })
 
+                if (!result.needsReview) {
+                  window.alert(
+                    `Saved and auto-reviewed:\n\n${result.subject}\n\nThis email will not appear in the Inbound Email review queue. Check the store page / latest emails instead.`
+                  )
+                }
+
                 setSubject('')
                 setSenderName('')
                 setSenderEmail('')
@@ -151,8 +157,12 @@ export function InboundEmailImporter() {
                 setRawPayloadJson('')
                 setPastedEmail('')
 
-                router.push(`/inbound-emails?email=${result.id}`)
-                router.refresh()
+                if (result.needsReview) {
+                  router.push(`/inbound-emails?email=${result.id}`)
+                  router.refresh()
+                } else {
+                  router.refresh()
+                }
               } catch (error) {
                 toast({
                   title: 'Could not save email',
