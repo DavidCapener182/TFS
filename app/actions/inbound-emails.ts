@@ -93,13 +93,14 @@ async function persistInboundEmailAnalysis(supabase: SupabaseClient, email: Inbo
   const analysis = await analyzeInboundEmail(email)
   const resolvedStoreId = email.matched_store_id || await resolveMatchedStoreId(supabase, analysis)
   const payload = buildAnalysisPayload(analysis)
-  const isStocktakeResult = analysis.templateKey === 'stocktake_result'
+  const needsReview = analysis.needsAction || analysis.needsVisit || analysis.needsIncident
 
   const { error } = await supabase
     .from('tfs_inbound_emails')
     .update({
       matched_store_id: resolvedStoreId,
-      processing_status: isStocktakeResult ? 'reviewed' : email.processing_status,
+      // Keep inbox as a review queue: only items requiring follow-up stay pending.
+      processing_status: needsReview ? 'pending' : 'reviewed',
       analysis_source: analysis.source,
       analysis_template_key: analysis.templateKey,
       analysis_summary: analysis.summary,

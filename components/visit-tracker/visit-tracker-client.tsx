@@ -127,6 +127,13 @@ function VisitStateBadge({ state }: { state: VisitTrackerRow['visitState'] }) {
   )
 }
 
+function getVisitNeedSummary(row: VisitTrackerRow): string {
+  if (row.visitNeedReasons.length > 0) return row.visitNeedReasons.join(' • ')
+  if (row.nextPlannedVisitDate) return 'Planned visit scheduled.'
+  if (row.lastVisitType) return row.lastVisitType
+  return 'No visit activity recorded yet.'
+}
+
 function VisitTable({
   rows,
   canPlanVisits,
@@ -186,9 +193,7 @@ function VisitTable({
               </div>
 
               <p className="text-xs text-slate-500">
-                {row.visitNeedReasons.length > 0
-                  ? row.visitNeedReasons.join(' • ')
-                  : 'No current LP or security drivers are pushing a visit.'}
+                {getVisitNeedSummary(row)}
               </p>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
@@ -293,9 +298,7 @@ function VisitTable({
                     <div className="space-y-2">
                       <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} />
                       <div className="text-xs text-slate-500">
-                        {row.visitNeedReasons.length > 0
-                          ? row.visitNeedReasons.join(' • ')
-                          : 'No current LP or security drivers are pushing a visit.'}
+                        {getVisitNeedSummary(row)}
                       </div>
                     </div>
                   </TableCell>
