@@ -286,9 +286,9 @@ function buildUnknownRuleResult(): InboundEmailAnalysis {
 
 export function parseInboundEmailByRules(email: Pick<InboundEmailRow, 'subject' | 'sender_name' | 'sender_email' | 'body_text' | 'body_preview' | 'has_attachments'>): InboundEmailAnalysis {
   return (
-    parseStoreTheftEmail(email) ||
-    parseWeeklyStockCountResults(email) ||
     parseStocktakeResult(email) ||
+    parseWeeklyStockCountResults(email) ||
+    parseStoreTheftEmail(email) ||
     parseTesterOrderTracker(email) ||
     buildUnknownRuleResult()
   )
