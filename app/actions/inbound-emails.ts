@@ -396,6 +396,30 @@ function parseFromHeader(fromHeader: string | null): { senderName: string | null
   return { senderName, senderEmail: plainEmail }
 }
 
+function parseSenderFromBodyFallback(bodyText: string): { senderName: string | null; senderEmail: string | null } {
+  const emailBracketMatch = bodyText.match(/([^\n<]{2,}?)\s*<([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})>/i)
+  if (!emailBracketMatch) return { senderName: null, senderEmail: null }
+
+  const senderName = emailBracketMatch[1].replace(/\s+/g, ' ').trim() || null
+  const senderEmail = emailBracketMatch[2].toLowerCase().trim() || null
+  return { senderName, senderEmail }
+}
+
+function inferSubjectFromBody(bodyText: string): string | null {
+  if (!/\byour\s+stocktake\s+result\b/i.test(bodyText)) return null
+
+  const codeNameMatch = bodyText.match(/\bTFS\s+(\d{1,3})\s+([A-Za-z][A-Za-z '&-]{2,})\s*</i)
+  const colourMatch = bodyText.match(/\b(GREEN|AMBER|RED)\b/i)
+  if (codeNameMatch?.[1] && codeNameMatch?.[2] && colourMatch?.[1]) {
+    const storeCode = codeNameMatch[1].padStart(3, '0')
+    const storeName = codeNameMatch[2].replace(/\s+/g, ' ').trim()
+    const colour = `${colourMatch[1].charAt(0)}${colourMatch[1].slice(1).toLowerCase()}`
+    return `${storeCode} ${storeName} Stocktake Result - ${colour}`
+  }
+
+  return 'Stocktake Result'
+}
+
 function parseReceivedAt(headerValue: string | null): string | null {
   if (!headerValue) return null
   const parsed = new Date(headerValue)
@@ -462,13 +486,15 @@ export async function createInboundEmailFromPaste(input: {
   const headerFrom = extractHeaderValue(pastedEmail, 'From')
   const headerDate = extractHeaderValue(pastedEmail, 'Date') || extractHeaderValue(pastedEmail, 'Sent')
   const parsedFrom = parseFromHeader(headerFrom)
+  const bodyText = extractBodyFromRawPaste(pastedEmail)
+  const inferredSubject = inferSubjectFromBody(bodyText)
+  const bodySender = parseSenderFromBodyFallback(bodyText)
 
-  const subject = String(input.subject || headerSubject || '').trim() || '(No subject)'
-  const senderName = String(input.senderName || parsedFrom.senderName || '').trim() || null
-  const senderEmail = String(input.senderEmail || parsedFrom.senderEmail || '').trim().toLowerCase() || null
+  const subject = String(input.subject || headerSubject || inferredSubject || '').trim() || '(No subject)'
+  const senderName = String(input.senderName || parsedFrom.senderName || bodySender.senderName || '').trim() || null
+  const senderEmail = String(input.senderEmail || parsedFrom.senderEmail || bodySender.senderEmail || '').trim().toLowerCase() || null
   const parsedInputDate = parseReceivedAt(String(input.receivedAt || '').trim())
   const receivedAt = parsedInputDate || parseReceivedAt(headerDate) || new Date().toISOString()
-  const bodyText = extractBodyFromRawPaste(pastedEmail)
   const bodyPreview = buildBodyPreview(bodyText)
 
   let rawPayload: Record<string, unknown> = {
