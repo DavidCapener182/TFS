@@ -12,13 +12,18 @@ import {
   StoreCrmNote,
   StoreCrmTrackerEntry,
 } from '@/components/stores/store-crm-panel'
+import { InboundEmailStorePanel } from '@/components/inbound-emails/inbound-email-store-panel'
+import { StoreInboundEmailDialog } from '@/components/inbound-emails/store-inbound-email-dialog'
+import { StoreVisitModal } from '@/components/visit-tracker/store-visit-modal'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
-import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
+import type { InboundEmailRow } from '@/lib/inbound-emails'
+import type { VisitHistoryEntry, VisitTrackerRow } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
 import { getInternalAreaDisplayName, getReportingAreaDisplayName } from '@/lib/areas'
 import { formatStoreName } from '@/lib/store-display'
 import { getVisitReportTypeLabel } from '@/lib/reports/visit-report-types'
+import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
 import {
   getStoreVisitNeedLevelLabel,
   getStoreVisitTypeLabel,
@@ -32,6 +37,7 @@ import {
   getIncidentPersonLabel,
 } from '@/lib/incidents/incident-utils'
 import { CloseIncidentButton } from '@/components/shared/close-incident-button'
+import { ViewActionModal } from '@/components/shared/view-action-modal'
 import {
   AlertCircle,
   Calendar,
@@ -61,7 +67,11 @@ interface StoreDetailWorkspaceProps {
     isAvailable: boolean
     unavailableMessage: string | null
   }
+  inboundEmails: InboundEmailRow[]
   canEdit: boolean
+  visitTrackerRow: VisitTrackerRow
+  productCatalog: StoreVisitProductCatalogItem[]
+  currentUserName: string | null
 }
 
 function getScoreColor(score: number) {
@@ -134,10 +144,17 @@ export function StoreDetailWorkspace({
   userRole,
   profiles,
   crmData,
+  inboundEmails,
   canEdit,
+  visitTrackerRow,
+  productCatalog,
+  currentUserName,
 }: StoreDetailWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState('store crm')
+  const [activeTab, setActiveTab] = useState('crm')
   const [selectedActionIncident, setSelectedActionIncident] = useState<any | null>(null)
+  const [selectedStoreAction, setSelectedStoreAction] = useState<any | null>(null)
+  const [selectedInboundEmailId, setSelectedInboundEmailId] = useState<string | null>(null)
+  const [isVisitModalOpen, setIsVisitModalOpen] = useState(false)
 
   const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
 
@@ -160,6 +177,26 @@ export function StoreDetailWorkspace({
     () => actions.filter((action) => normalizeStatus(action.status) === 'complete'),
     [actions]
   )
+  const reviewableInboundEmails = useMemo(
+    () =>
+      inboundEmails.filter((email) =>
+        ['pending'].includes(normalizeStatus(email.processing_status))
+      ),
+    [inboundEmails]
+  )
+  const selectedInboundEmail = useMemo(
+    () => inboundEmails.find((email) => email.id === selectedInboundEmailId) || null,
+    [inboundEmails, selectedInboundEmailId]
+  )
+  const inboundEmailAlertCounts = useMemo(() => {
+    return {
+      total: reviewableInboundEmails.length,
+      linked: inboundEmails.length,
+      action: reviewableInboundEmails.filter((email) => email.analysis_needs_action).length,
+      visit: reviewableInboundEmails.filter((email) => email.analysis_needs_visit).length,
+      incident: reviewableInboundEmails.filter((email) => email.analysis_needs_incident).length,
+    }
+  }, [inboundEmails, reviewableInboundEmails])
   const directStoreActions = useMemo(
     () => actions.filter((action) => action.source_type === 'store'),
     [actions]
@@ -231,6 +268,9 @@ export function StoreDetailWorkspace({
   const actionResolutionPct = actions.length > 0 ? Math.round((completedActions.length / actions.length) * 100) : 0
   const severityIndex = getSeverityIndexLabel(ongoingIncidents)
   const canManageIncidents = userRole === 'admin' || userRole === 'ops'
+  const canLaunchVisitWorkspace = canEdit && visitsAvailable
+  const visitWorkspaceButtonLabel = visitTrackerRow.activeDraftVisit ? 'Continue Draft Visit' : 'Start Visit'
+  const hasLinkedInboundEmails = inboundEmailAlertCounts.linked > 0
   const supplementalContacts = useMemo<StoreCrmDisplayContact[]>(() => {
     if (!store.reporting_area_manager_name && !store.reporting_area_manager_email) {
       return []
@@ -265,7 +305,7 @@ export function StoreDetailWorkspace({
     <div className="space-y-6">
       <nav className="flex items-center gap-2 text-sm text-slate-400">
         <Link href="/stores" className="transition-colors hover:text-blue-600">
-          Stores / CRM
+          CRM
         </Link>
         <ChevronRight size={14} />
         <span className="font-medium text-slate-900">{formatStoreName(store.store_name)}</span>
@@ -286,6 +326,18 @@ export function StoreDetailWorkspace({
               >
                 {store.is_active ? 'Active' : 'Inactive'}
               </span>
+              {inboundEmailAlertCounts.linked > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                    {inboundEmailAlertCounts.linked} linked email{inboundEmailAlertCounts.linked === 1 ? '' : 's'}
+                  </span>
+                  {inboundEmailAlertCounts.total > 0 ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                      {inboundEmailAlertCounts.total} to review
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-700">
@@ -311,8 +363,8 @@ export function StoreDetailWorkspace({
             <p className="text-2xl font-bold text-red-500">{incidents.length}</p>
           </div>
           <div className="flex-1 border-r border-slate-100 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Actions</p>
-            <p className="text-2xl font-bold text-blue-600">{actions.length}</p>
+            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Open Actions</p>
+            <p className="text-2xl font-bold text-blue-600">{ongoingActions.length}</p>
           </div>
           <div className="flex-1 px-6 md:text-right">
             <p className="mb-1 text-xs font-medium uppercase text-slate-400">Latest Visit</p>
@@ -323,40 +375,152 @@ export function StoreDetailWorkspace({
         </div>
       </div>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className={getVisitNeedTone(visitTrackerRow.visitNeedLevel)}>
+                {getStoreVisitNeedLevelLabel(visitTrackerRow.visitNeedLevel)} ({visitTrackerRow.visitNeedScore})
+              </Badge>
+              {visitTrackerRow.nextPlannedVisitDate ? (
+                <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                  Planned {format(new Date(visitTrackerRow.nextPlannedVisitDate), 'dd MMM yyyy')}
+                </Badge>
+              ) : null}
+              {visitTrackerRow.activeDraftVisit ? (
+                <Badge variant="outline" className="border-[#dcd6ef] bg-[#f6f2fe] text-[#4b3a78]">
+                  Draft visit in progress
+                </Badge>
+              ) : null}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Store Visit Workspace</h2>
+              <p className="text-sm text-slate-500">
+                Open the same live visit workflow used in Stores without leaving this CRM page.
+              </p>
+            </div>
+            <p className="text-sm text-slate-600">
+              {visitTrackerRow.visitNeedReasons.length > 0
+                ? visitTrackerRow.visitNeedReasons.join(' • ')
+                : 'No current LP or security drivers are pushing a visit.'}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="button"
+              onClick={() => setIsVisitModalOpen(true)}
+              disabled={!canLaunchVisitWorkspace}
+              className="bg-[#232154] text-white hover:bg-[#1c0259]"
+            >
+              {visitWorkspaceButtonLabel}
+            </Button>
+            <Button asChild type="button" variant="outline" className="border-slate-200">
+              <Link href="/visit-tracker">Open Stores Board</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Open actions</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{visitTrackerRow.openStoreActionCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Open incidents</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{visitTrackerRow.openIncidentCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Last visit</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {visitTrackerRow.lastVisitDate ? format(new Date(visitTrackerRow.lastVisitDate), 'dd MMM yyyy') : 'No visit logged'}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">{visitTrackerRow.lastVisitType || 'No visit logged yet'}</div>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Planned purpose</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {visitTrackerRow.plannedVisitPurpose
+                ? visitTrackerRow.plannedVisitPurpose.replace(/_/g, ' ')
+                : 'No planned purpose'}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {visitTrackerRow.plannedVisitPurposeNote || 'No additional planning note'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="no-scrollbar flex gap-8 overflow-x-auto border-b border-slate-200">
-        {['Store CRM', 'Store Actions', 'Operational Data', 'Incidents & Safety', 'Visit History'].map((tab) => {
-          const value = tab.toLowerCase()
-          const isActive = activeTab === value
+        {[
+          { label: 'CRM', value: 'crm' },
+          { label: 'Store Actions', value: 'store actions' },
+          { label: 'Operational Data', value: 'operational data' },
+          { label: 'Incidents & Safety', value: 'incidents & safety' },
+          { label: 'Visit History', value: 'visit history' },
+          ...(hasLinkedInboundEmails
+            ? [{ label: 'Emails', value: 'emails' as const }]
+            : []),
+        ].map((tab) => {
+          const isEmailTab = tab.value === 'emails'
+          const isActive = !isEmailTab && activeTab === tab.value
+          const showInboundEmailCount = isEmailTab && inboundEmailAlertCounts.total > 0
 
           return (
             <button
-              key={tab}
-              onClick={() => setActiveTab(value)}
+              key={tab.value}
+              onClick={() => {
+                if (isEmailTab) {
+                  const targetEmail = reviewableInboundEmails[0] || inboundEmails[0]
+                  if (targetEmail?.id) setSelectedInboundEmailId(targetEmail.id)
+                  return
+                }
+                setActiveTab(tab.value)
+              }}
               className={`relative whitespace-nowrap pb-4 text-sm font-semibold transition-all ${
                 isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              {tab}
+              <span className="inline-flex items-center gap-2">
+                <span>{tab.label}</span>
+                {showInboundEmailCount ? (
+                  <span className="inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {inboundEmailAlertCounts.total > 99 ? '99+' : inboundEmailAlertCounts.total}
+                  </span>
+                ) : null}
+              </span>
               {isActive ? <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-blue-600" /> : null}
             </button>
           )
         })}
       </div>
 
-      {activeTab === 'store crm' ? (
-        <StoreCrmPanel
-          storeId={store.id}
-          canEdit={canEdit}
-          contacts={crmData.contacts}
-          supplementalContacts={supplementalContacts}
-          notes={crmData.notes}
-          trackerEntries={crmData.trackerEntries}
-          userMap={crmData.userMap}
-          isAvailable={crmData.isAvailable}
-          unavailableMessage={crmData.unavailableMessage}
-          safetyCompliancePct={latestAuditScore ?? 0}
-          actionResolutionPct={actionResolutionPct}
-        />
+      {activeTab === 'crm' ? (
+        <div className="space-y-6">
+          <StoreCrmPanel
+            storeId={store.id}
+            canEdit={canEdit}
+            contacts={crmData.contacts}
+            supplementalContacts={supplementalContacts}
+            notes={crmData.notes}
+            trackerEntries={crmData.trackerEntries}
+            userMap={crmData.userMap}
+            isAvailable={crmData.isAvailable}
+            unavailableMessage={crmData.unavailableMessage}
+            safetyCompliancePct={latestAuditScore ?? 0}
+            actionResolutionPct={actionResolutionPct}
+            contactsFooter={
+              hasLinkedInboundEmails ? (
+                <InboundEmailStorePanel
+                  emails={inboundEmails}
+                  onOpenEmail={(email) => setSelectedInboundEmailId(email.id)}
+                  variant="compact"
+                  maxItems={3}
+                />
+              ) : null
+            }
+          />
+        </div>
       ) : null}
 
       {activeTab === 'store actions' ? (
@@ -367,7 +531,7 @@ export function StoreDetailWorkspace({
               Review direct store actions and incident-linked tasks for this store.
             </p>
             <p className="mt-2 text-xs text-slate-500">
-              {directStoreActions.length} direct store actions • {incidentLinkedActions.length} incident-linked actions
+              {ongoingActions.length} open actions • {completedActions.length} completed actions
             </p>
           </div>
 
@@ -376,11 +540,16 @@ export function StoreDetailWorkspace({
               <h4 className="font-bold text-slate-900">Action List</h4>
             </div>
             <div className="divide-y divide-slate-100">
-              {actions.length === 0 ? (
-                <div className="p-6 text-sm text-slate-500">No actions logged for this store.</div>
+              {ongoingActions.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500">No open actions for this store.</div>
               ) : (
-                actions.map((action) => (
-                  <div key={action.id} className="space-y-3 p-5">
+                ongoingActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => setSelectedStoreAction(action)}
+                    className="w-full space-y-3 p-5 text-left transition-colors hover:bg-slate-50"
+                  >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-slate-900">
                         {action.source_type === 'store' ? getStoreActionListTitle(action) : action.title || 'Untitled action'}
@@ -417,7 +586,7 @@ export function StoreDetailWorkspace({
                       <span>Due: {formatActionDate(action.due_date)}</span>
                       {action.completed_at ? <span>Completed: {formatActionDate(action.completed_at)}</span> : null}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -677,7 +846,12 @@ export function StoreDetailWorkspace({
                     action.incident?.reference_no || action.incident?.referenceNo || null
 
                   return (
-                    <div key={action.id} className="space-y-3 p-5">
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => setSelectedStoreAction(action)}
+                      className="w-full space-y-3 p-5 text-left transition-colors hover:bg-slate-50"
+                    >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-slate-900">{title}</p>
@@ -718,7 +892,7 @@ export function StoreDetailWorkspace({
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>Due: {formatActionDate(action.due_date)}</span>
                       </div>
-                    </div>
+                    </button>
                   )
                 })
               )}
@@ -963,6 +1137,42 @@ export function StoreDetailWorkspace({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <StoreVisitModal
+        open={isVisitModalOpen}
+        onOpenChange={setIsVisitModalOpen}
+        row={visitTrackerRow}
+        productCatalog={productCatalog}
+        canEdit={canEdit}
+        currentUserName={currentUserName}
+        visitsAvailable={visitsAvailable}
+        visitsUnavailableMessage={visitsUnavailableMessage}
+      />
+
+      <StoreInboundEmailDialog
+        email={selectedInboundEmail}
+        open={Boolean(selectedInboundEmail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedInboundEmailId(null)
+        }}
+        store={{
+          id: String(store.id),
+          store_name: store.store_name,
+          compliance_audit_2_assigned_manager_user_id:
+            store.compliance_audit_2_assigned_manager_user_id || null,
+        }}
+      />
+
+      <ViewActionModal
+        action={selectedStoreAction}
+        open={Boolean(selectedStoreAction)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedStoreAction(null)
+        }}
+        onActionUpdated={() => {
+          setSelectedStoreAction(null)
+        }}
+      />
     </div>
   )
 }

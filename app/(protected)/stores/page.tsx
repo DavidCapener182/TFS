@@ -45,7 +45,6 @@ async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMerg
   if (relatedStoreIds.length === 0) return new Map<string, StoreRelations>()
 
   const supabase = createClient()
-
   const [incidentsResult, storeActionsResult] = await Promise.all([
     supabase
       .from('tfs_incidents')
@@ -200,7 +199,7 @@ export default async function StoresPage() {
               <ShieldCheck className="h-3.5 w-3.5" />
               Store Network
             </div>
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">Stores / CRM</h1>
+            <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">CRM</h1>
             <p className="mt-1.5 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm md:text-base">
               Manage store locations, compliance activity, and incident records across your estate.
             </p>

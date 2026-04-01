@@ -451,7 +451,7 @@ export function VisitTrackerClient({
                 <ClipboardList size={14} />
                 Loss Prevention Visits
               </div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Visit Tracker</h1>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Stores</h1>
               <p className="mt-2 max-w-3xl text-sm text-white/75">
                 Prioritize stores from live actions and incidents, capture random in-area visits, and log what the LP officer completed on site.
               </p>

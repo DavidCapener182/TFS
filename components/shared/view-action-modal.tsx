@@ -1,14 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { CloseActionButton } from '@/components/shared/close-action-button'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
 import { formatStoreName } from '@/lib/store-display'
+import { Textarea } from '@/components/ui/textarea'
+import { useRouter } from 'next/navigation'
+import { updateStoreAction } from '@/app/actions/store-actions'
+import { updateAction } from '@/app/actions/actions'
 
 interface ViewActionModalProps {
   action: any
@@ -18,6 +22,10 @@ interface ViewActionModalProps {
 }
 
 export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }: ViewActionModalProps) {
+  const router = useRouter()
+  const [noteInput, setNoteInput] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
   if (!action) return null
 
   const isStoreAction = action.source_type === 'store' || !action.incident_id
@@ -37,14 +45,63 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
       : assigneeName.toUpperCase().slice(0, 2)
     : ''
 
+  const isClosed = ['complete', 'cancelled'].includes(String(action.status || '').toLowerCase())
+
+  async function handleActionUpdate(next: {
+    status?: 'open' | 'in_progress' | 'blocked' | 'complete' | 'cancelled'
+    escalate?: boolean
+  }) {
+    if (isSaving) return
+
+    const trimmedNote = noteInput.trim()
+    if (!trimmedNote && !next.status) {
+      alert('Add a note or choose a status change.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const timestamp = format(new Date(), 'dd MMM yyyy HH:mm')
+      const prefix = next.escalate ? 'Escalation update' : 'Action update'
+      const appendedNote = trimmedNote ? `[${timestamp}] ${prefix}: ${trimmedNote}` : ''
+      const existingDescription = String(action.description || '').trim()
+      const description = appendedNote
+        ? [existingDescription, appendedNote].filter(Boolean).join('\n\n')
+        : existingDescription || null
+
+      if (isStoreAction) {
+        await updateStoreAction(action.id, {
+          description,
+          status: next.status,
+          priority: next.escalate ? 'urgent' : undefined,
+        })
+      } else {
+        await updateAction(action.id, {
+          description: description ?? undefined,
+          status: next.status as any,
+        })
+      }
+
+      setNoteInput('')
+      onActionUpdated?.()
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to update action from modal', error)
+      alert('Failed to update action. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!top-[2vh] !h-[96vh] !w-[98vw] !max-w-[98vw] overflow-y-auto p-0 md:!top-[2vh] md:!h-[96vh] md:!w-[96vw] md:!max-w-[96vw]">
+        <div className="flex h-full flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 break-words">{displayTitle}</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 md:space-y-6 py-2 md:py-4">
+        <div className="space-y-4 py-2 md:space-y-6 md:py-4">
           {/* Description */}
           {action.description && (
             <div>
@@ -136,9 +193,20 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
               </p>
             </div>
           )}
+
+          <div>
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-2">Update notes</h3>
+            <Textarea
+              value={noteInput}
+              onChange={(event) => setNoteInput(event.target.value)}
+              placeholder="Add a progress note, closure note, or escalation detail..."
+              rows={4}
+              disabled={isSaving}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center pt-3 md:pt-4 border-t gap-3">
+        <div className="mt-auto flex flex-col items-stretch justify-between gap-3 border-t pt-3 md:pt-4 sm:flex-row sm:items-center">
           <div className="flex flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] w-full sm:w-auto">
               Close
@@ -154,18 +222,37 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
             )}
           </div>
           <div className="flex justify-end">
-            {!isStoreAction && !['complete', 'cancelled'].includes(action.status) && (
-              <CloseActionButton 
-                actionId={action.id} 
-                actionTitle={action.title}
-                currentStatus={action.status}
-                onComplete={() => {
-                  onActionUpdated?.()
-                  onOpenChange(false)
-                }}
-              />
-            )}
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <Button
+                variant="outline"
+                onClick={() => handleActionUpdate({})}
+                disabled={isSaving || noteInput.trim().length === 0}
+                className="min-h-[44px]"
+              >
+                Save Note
+              </Button>
+              {!isClosed ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleActionUpdate({ status: 'blocked', escalate: true })}
+                    disabled={isSaving}
+                    className="min-h-[44px]"
+                  >
+                    Escalate
+                  </Button>
+                  <Button
+                    onClick={() => handleActionUpdate({ status: 'complete' })}
+                    disabled={isSaving}
+                    className="min-h-[44px]"
+                  >
+                    Mark Complete
+                  </Button>
+                </>
+              ) : null}
+            </div>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

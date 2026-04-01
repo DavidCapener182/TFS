@@ -186,25 +186,25 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 className="flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-[18px] bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-900 shadow-[0_10px_22px_rgba(15,23,42,0.14)] transition-colors hover:bg-slate-100 sm:min-h-[44px] sm:w-auto sm:flex-none md:rounded-lg md:px-4 md:py-2 md:text-sm md:font-bold md:shadow-none"
               >
                 <ClipboardList size={15} />
-                Open Visit Tracker
+                Open Stores
               </Link>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-6 md:gap-4">
-            <div className="col-span-2 flex items-center justify-between rounded-[22px] border p-3 tfs-page-hero-glass md:rounded-2xl md:p-5">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-6 md:gap-3">
+            <div className="col-span-2 flex min-h-[72px] items-center justify-between rounded-[22px] border p-3 tfs-page-hero-glass md:col-span-1 md:min-h-0 md:flex-col md:items-start md:justify-between md:rounded-2xl md:p-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-white/65 md:text-xs md:tracking-wider">
                   Visits Needed
                 </p>
-                <p className="mt-1 text-[1.85rem] font-black leading-none text-amber-300 md:text-4xl">
+                <p className="mt-1 text-lg font-bold leading-none text-amber-300 md:text-2xl">
                   {initialData.visitStats.visitsNeeded}
                 </p>
-                <p className="mt-1 text-[11px] text-white/65">{initialData.visitStats.urgentStores} urgent right now</p>
+                <p className="mt-1 text-[10px] text-white/65">{initialData.visitStats.urgentStores} urgent right now</p>
               </div>
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20 text-amber-300 md:h-12 md:w-12">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20 text-amber-300 md:h-9 md:w-9">
                 <ClipboardList size={18} className="md:hidden" />
-                <ClipboardList size={24} className="hidden md:block" />
+                <ClipboardList size={18} className="hidden md:block" />
               </div>
             </div>
 
@@ -263,9 +263,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-8">
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-8">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
                 <ClipboardList size={18} className="text-emerald-500" /> Visit Signals
@@ -275,7 +275,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </span>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-rose-700">
                   <AlertTriangle className="h-4 w-4" />
@@ -314,7 +314,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-4">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-lg font-bold">
                 <AlertCircle size={18} className="text-red-500" /> Incident Breakdown
@@ -386,8 +386,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           </div>
         </div>
 
-        <div className="space-y-6 lg:col-span-4">
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-4">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
                 <CalendarDays size={18} className="text-cyan-500" /> Planned Visits
@@ -439,7 +439,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-4">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
                 <ShieldAlert size={18} className="text-blue-500" /> Priority Stores
@@ -510,13 +510,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 href="/visit-tracker"
                 className="inline-flex items-center gap-2 text-sm font-semibold text-[#232154] hover:text-[#1c0259]"
               >
-                Open Visit Tracker
+                Open Stores
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-6 md:shadow-sm">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] md:rounded-2xl md:bg-white md:p-5 md:shadow-sm xl:col-span-4">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
                 <CheckCircle2 size={18} className="text-emerald-500" /> Recent On-Site Findings
@@ -526,7 +526,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 xl:max-h-[280px] xl:overflow-y-auto xl:pr-1">
               {initialData.recentFindings.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
                   No visit findings have been logged yet.

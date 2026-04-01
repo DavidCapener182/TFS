@@ -764,28 +764,23 @@ export async function buildMonthlyNewsletterData(
 
     let storeActionsRaw: any[] | null = null
     let storeActionsError: { message?: string } | null = null
-
-    {
-      const result = await supabase
+    const loadStoreActions = async (selectClause: string) =>
+      supabase
         .from('tfs_store_actions')
-        .select(selectWithSummary)
+        .select(selectClause)
         .in('store_id', storeIds)
         .not('status', 'in', '(complete,cancelled)')
         .order('due_date', { ascending: true })
         .limit(5000)
 
+    {
+      const result = await loadStoreActions(selectWithSummary)
       storeActionsRaw = (result.data as any[] | null) || null
       storeActionsError = result.error
     }
 
     if (storeActionsError && /priority_summary/i.test(storeActionsError.message || '')) {
-      const retry = await supabase
-        .from('tfs_store_actions')
-        .select(selectWithoutSummary)
-        .in('store_id', storeIds)
-        .not('status', 'in', '(complete,cancelled)')
-        .order('due_date', { ascending: true })
-        .limit(5000)
+      const retry = await loadStoreActions(selectWithoutSummary)
 
       storeActionsRaw = (retry.data as any[] | null) || null
       storeActionsError = retry.error

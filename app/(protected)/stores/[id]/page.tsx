@@ -5,17 +5,21 @@ import { StoreDetailWorkspace } from '@/components/stores/store-detail-workspace
 import { getMissingStoreCrmTables, getStoreCrmUnavailableMessage } from '@/lib/store-crm-schema'
 import { getStoreVisitsUnavailableMessage, isMissingStoreVisitsTableError } from '@/lib/store-visits-schema'
 import {
+  computeStoreVisitNeed,
+  getStoreVisitTypeLabel,
   isStoreVisitActivityKey,
   normalizeStoreVisitActivityDetails,
   normalizeStoreVisitActivityPayloads,
 } from '@/lib/visit-needs'
+import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
 import {
   buildStoreMergeContext,
   getStoreIdsIncludingAliases,
   shouldHideStore,
   StoreMergeContext,
 } from '@/lib/store-normalization'
-import type { VisitHistoryEntry } from '@/components/visit-tracker/types'
+import type { InboundEmailRow } from '@/lib/inbound-emails'
+import type { VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
 import type { VisitReportType } from '@/lib/reports/visit-report-types'
 
 type StoreVisitEvidenceRow = {
@@ -38,6 +42,110 @@ type VisitReportRow = {
   summary: string | null
   visit_date: string
   updated_at: string
+}
+
+function buildVisitState(lastVisit: VisitHistoryEntry | undefined, nextPlannedVisitDate: string | null): VisitState {
+  if (nextPlannedVisitDate) return 'planned'
+  if (!lastVisit) return 'none'
+
+  const now = Date.now()
+  const lastVisitTime = new Date(lastVisit.visitedAt).getTime()
+  if (Number.isNaN(lastVisitTime)) return 'none'
+
+  const daysSinceVisit = Math.floor((now - lastVisitTime) / 86_400_000)
+  if (lastVisit.visitType === 'random_area' && daysSinceVisit <= 30) return 'random'
+  if (daysSinceVisit <= 30) return 'recent'
+  return 'none'
+}
+
+function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: string | null): string | null {
+  if (!plannedDate) return null
+  if (!lastVisitDate) return plannedDate
+
+  const plannedTime = new Date(plannedDate).getTime()
+  const visitTime = new Date(lastVisitDate).getTime()
+  if (Number.isNaN(plannedTime) || Number.isNaN(visitTime)) return plannedDate
+
+  return visitTime >= plannedTime ? null : plannedDate
+}
+
+function getLastVisitType(lastVisit: VisitHistoryEntry | undefined): string | null {
+  if (!lastVisit) return null
+  if (lastVisit.visitType === 'route_completion') return 'Planned route visit'
+  return getStoreVisitTypeLabel(lastVisit.visitType)
+}
+
+function buildStoreVisitTrackerRow(params: {
+  store: any
+  actions: any[]
+  incidents: any[]
+  loggedVisits: VisitHistoryEntry[]
+}): VisitTrackerRow {
+  const { store, actions, incidents, loggedVisits } = params
+  const allVisits = [...loggedVisits].sort(
+    (a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime()
+  )
+  const recentVisits = allVisits.slice(0, 5)
+  const activeDraftVisit =
+    allVisits
+      .filter((visit) => visit.status === 'draft')
+      .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())[0] || null
+  const lastCompletedVisit = allVisits.find((visit) => visit.status !== 'draft')
+  const displayLastVisit = lastCompletedVisit || activeDraftVisit || null
+  const nextPlannedVisitDate = getActivePlannedVisitDate(
+    String(store.compliance_audit_2_planned_date || '').trim() || null,
+    lastCompletedVisit?.visitedAt || null
+  )
+
+  const assessment = computeStoreVisitNeed({
+    actions: actions.map((action) => ({
+      title: action.title,
+      description: action.description,
+      priority: action.priority,
+      dueDate: action.due_date,
+      status: action.status,
+      sourceFlaggedItem: action.source_flagged_item,
+      createdAt: action.created_at,
+    })),
+    incidents: incidents.map((incident) => ({
+      summary: incident.summary,
+      description: incident.description,
+      category: incident.incident_category,
+      severity: incident.severity,
+      status: incident.status,
+      occurredAt: incident.occurred_at,
+    })),
+    lastVisitAt: lastCompletedVisit?.visitedAt || null,
+    nextPlannedVisitDate,
+  })
+
+  return {
+    storeId: String(store.id),
+    storeCode: store.store_code || null,
+    storeName: store.store_name,
+    region: store.region || null,
+    city: store.city || null,
+    postcode: store.postcode || null,
+    assignedManager: null,
+    lastVisitDate: displayLastVisit?.visitedAt || null,
+    lastVisitType:
+      displayLastVisit?.status === 'draft'
+        ? `${getLastVisitType(displayLastVisit || undefined) || 'Visit logged'} (Draft in progress)`
+        : getLastVisitType(displayLastVisit || undefined),
+    nextPlannedVisitDate,
+    plannedVisitPurpose: String(store.compliance_audit_2_planned_purpose || '').trim() || null,
+    plannedVisitPurposeNote: String(store.compliance_audit_2_planned_note || '').trim() || null,
+    visitNeedScore: assessment.score,
+    visitNeedLevel: assessment.level,
+    visitNeeded: assessment.needsVisit,
+    visitNeedReasons: assessment.reasons,
+    visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
+    openStoreActionCount: actions.filter((action) => !['complete', 'cancelled'].includes(String(action.status || '').trim().toLowerCase())).length,
+    openIncidentCount: incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').trim().toLowerCase())).length,
+    isActive: Boolean(store.is_active),
+    recentVisits,
+    activeDraftVisit,
+  }
 }
 
 async function getStore(storeId: string) {
@@ -157,7 +265,6 @@ async function getStoreActions(storeIds: string[]) {
   if (storeIds.length === 0) return []
 
   const supabase = createClient()
-
   const { data: incidents, error: incidentsError } = await supabase
     .from('tfs_incidents')
     .select('id')
@@ -169,15 +276,15 @@ async function getStoreActions(storeIds: string[]) {
 
   const incidentIds = (incidents || []).map((incident: { id: string }) => incident.id)
 
-  const { data: storeActions, error: storeActionsError } = await supabase
+  const storeActionsResult = await supabase
     .from('tfs_store_actions')
     .select('id, title, source_flagged_item, description, priority, status, due_date, completed_at, created_at')
     .in('store_id', storeIds)
     .order('due_date', { ascending: false })
     .order('created_at', { ascending: false })
 
-  if (storeActionsError) {
-    console.error('Error fetching direct store actions:', storeActionsError)
+  if (storeActionsResult.error) {
+    console.error('Error fetching direct store actions:', storeActionsResult.error)
   }
 
   let incidentActions: any[] = []
@@ -209,7 +316,7 @@ async function getStoreActions(storeIds: string[]) {
     source_type: 'incident' as const,
   }))
 
-  const mappedStoreActions = (storeActions || []).map((action: any) => ({
+  const mappedStoreActions = ((storeActionsResult.data || []) as any[]).map((action: any) => ({
     ...action,
     incident_id: null,
     incident: null,
@@ -303,6 +410,26 @@ async function getStoreCrmData(storeId: string) {
     unavailableMessage:
       missingTables.length > 0 ? getStoreCrmUnavailableMessage(missingTables) : null,
   }
+}
+
+async function getStoreInboundEmails(storeIds: string[]) {
+  if (storeIds.length === 0) return []
+
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('tfs_inbound_emails')
+    .select('*')
+    .in('matched_store_id', storeIds)
+    .order('received_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(25)
+
+  if (error) {
+    console.error('Error fetching store inbound emails:', error)
+    return []
+  }
+
+  return (data || []) as InboundEmailRow[]
 }
 
 async function getStoreVisits(storeIds: string[]) {
@@ -523,13 +650,22 @@ export default async function StoreCrmPage({
 
   const mergedStoreIds = getStoreIdsIncludingAliases(params.id, mergeContext)
 
-  const [incidents, actions, crmData, visitData, profiles] = await Promise.all([
+  const [incidents, actions, crmData, visitData, profiles, inboundEmails] = await Promise.all([
     getStoreIncidents(mergedStoreIds),
     getStoreActions(mergedStoreIds),
     getStoreCrmData(params.id),
     getStoreVisits(mergedStoreIds),
     getIncidentProfiles(),
+    getStoreInboundEmails(mergedStoreIds),
   ])
+
+  const productCatalog = await getStoreVisitProductCatalog()
+  const visitTrackerRow = buildStoreVisitTrackerRow({
+    store,
+    actions,
+    incidents,
+    loggedVisits: visitData.visits,
+  })
 
   const canEdit = profile.role === 'admin' || profile.role === 'ops'
 
@@ -544,7 +680,11 @@ export default async function StoreCrmPage({
       userRole={profile.role}
       profiles={profiles}
       crmData={crmData}
+      inboundEmails={inboundEmails}
       canEdit={canEdit}
+      visitTrackerRow={visitTrackerRow}
+      productCatalog={productCatalog}
+      currentUserName={profile.full_name}
     />
   )
 }

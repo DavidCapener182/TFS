@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { ActionsTableRow } from '@/components/shared/actions-table-row'
 import { ActionMobileCard } from '@/components/shared/action-mobile-card'
-import { Search, CheckSquare2, FileText, Clock, AlertCircle, SlidersHorizontal } from 'lucide-react'
+import { AutoSubmitSelect } from '@/components/shared/auto-submit-select'
+import { Search, CheckSquare2, FileText, Clock, AlertCircle, CheckCircle2, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { getInternalAreaDisplayName } from '@/lib/areas'
 import {
@@ -26,6 +27,11 @@ type ActionFilters = {
   q?: string
   date_from?: string
   date_to?: string
+}
+
+function normalizeFilterValue(value: string | undefined): string | undefined {
+  const normalized = String(value || '').trim().toLowerCase()
+  return normalized.length > 0 ? normalized : undefined
 }
 
 type UnifiedAction = {
@@ -488,40 +494,48 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
     .not('title', 'ilike', 'Implement visit report actions:%')
     .order('due_date', { ascending: true })
 
-  let storeQuery = supabase
-    .from('tfs_store_actions')
-    .select(`
-      *,
-      store:tfs_stores!tfs_store_actions_store_id_fkey(id, store_name, store_code, region, compliance_audit_2_assigned_manager_user_id)
-    `)
-    .order('due_date', { ascending: true })
+  const loadStoreActions = async () => {
+    let query = supabase
+      .from('tfs_store_actions')
+      .select('id, store_id, title, source_flagged_item, description, priority, status, due_date, created_at')
+      .order('due_date', { ascending: true })
 
-  if (filters?.status) {
-    incidentQuery = incidentQuery.eq('status', filters.status)
-    storeQuery = storeQuery.eq('status', filters.status)
+    if (filters?.overdue && filters?.status !== 'complete') {
+      const today = new Date().toISOString().split('T')[0]
+      query = query
+        .lt('due_date', today)
+        .not('status', 'in', '(complete,cancelled)')
+    }
+    if (filters?.date_from && filters?.status !== 'complete') {
+      query = query.gte('due_date', filters.date_from)
+    }
+    if (filters?.date_to && filters?.status !== 'complete') {
+      query = query.lte('due_date', filters.date_to)
+    }
+
+    return query
   }
-  if (filters?.overdue) {
+
+  if (filters?.overdue && filters?.status !== 'complete') {
     const today = new Date().toISOString().split('T')[0]
     incidentQuery = incidentQuery
       .lt('due_date', today)
       .not('status', 'in', '(complete,cancelled)')
-    storeQuery = storeQuery
-      .lt('due_date', today)
-      .not('status', 'in', '(complete,cancelled)')
   }
-  if (filters?.date_from) {
+  if (filters?.date_from && filters?.status !== 'complete') {
     incidentQuery = incidentQuery.gte('due_date', filters.date_from)
-    storeQuery = storeQuery.gte('due_date', filters.date_from)
   }
-  if (filters?.date_to) {
+  if (filters?.date_to && filters?.status !== 'complete') {
     incidentQuery = incidentQuery.lte('due_date', filters.date_to)
-    storeQuery = storeQuery.lte('due_date', filters.date_to)
   }
 
-  const [
-    { data: incidentData, error: incidentError },
-    { data: storeData, error: storeError },
-  ] = await Promise.all([incidentQuery, storeQuery])
+  const [{ data: incidentData, error: incidentError }, storeResult] = await Promise.all([
+    incidentQuery,
+    loadStoreActions(),
+  ])
+
+  let storeData = (storeResult.data || []) as any[]
+  const storeError = storeResult.error
 
   if (incidentError) {
     console.error('Error fetching incident actions:', incidentError)
@@ -533,6 +547,30 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
     return { actions: [], storeQuestionOptions: [] }
   }
 
+  const storeIds = Array.from(
+    new Set(
+      (storeData || [])
+        .map((action: any) => String(action?.store_id || '').trim())
+        .filter(Boolean)
+    )
+  )
+
+  const storeById = new Map<string, any>()
+  if (storeIds.length > 0) {
+    const { data: stores, error: storesError } = await supabase
+      .from('tfs_stores')
+      .select('id, store_name, store_code, region, compliance_audit_2_assigned_manager_user_id')
+      .in('id', storeIds)
+
+    if (storesError) {
+      console.error('Error fetching stores for store actions:', storesError)
+    } else {
+      for (const store of stores || []) {
+        storeById.set(String(store.id), store)
+      }
+    }
+  }
+
   const incidentActions: UnifiedAction[] = (incidentData || []).map((action: any) => ({
     ...action,
     source_type: 'incident',
@@ -541,18 +579,20 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
 
   const storeActionsRaw: UnifiedAction[] = (storeData || []).map((action: any) => ({
     ...action,
+    store: storeById.get(String(action.store_id || '')) || null,
     source_type: 'store',
     incident_id: null,
     store_question: getStoreActionQuestion(action),
-    incident: action.store
+    incident: storeById.get(String(action.store_id || ''))
       ? {
-          reference_no: action.store.store_code
-            ? `${action.store.store_code} - ${formatStoreName(action.store.store_name)}`
-            : formatStoreName(action.store.store_name),
+          reference_no: storeById.get(String(action.store_id || ''))?.store_code
+            ? `${storeById.get(String(action.store_id || ''))?.store_code} - ${formatStoreName(storeById.get(String(action.store_id || ''))?.store_name)}`
+            : formatStoreName(storeById.get(String(action.store_id || ''))?.store_name),
         }
       : { reference_no: 'Store Action' },
     assigned_to: (() => {
-      const areaCode = typeof action?.store?.region === 'string' ? action.store.region.trim().toUpperCase() : ''
+      const store = storeById.get(String(action.store_id || ''))
+      const areaCode = typeof store?.region === 'string' ? store.region.trim().toUpperCase() : ''
       if (!areaCode) return null
       const label = getInternalAreaDisplayName(areaCode, { includeCode: false, fallback: `Area ${areaCode}` })
       return { id: `area:${areaCode}`, full_name: label }
@@ -576,6 +616,13 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
 
   if (filters?.priority) {
     actions = actions.filter((action) => action.priority === filters.priority)
+  }
+
+  if (filters?.status) {
+    const normalizedStatus = String(filters.status).toLowerCase()
+    actions = actions.filter(
+      (action) => String(action.status || '').toLowerCase() === normalizedStatus
+    )
   }
 
   if (filters?.q) {
@@ -613,7 +660,7 @@ async function getActions(filters?: ActionFilters): Promise<{ actions: UnifiedAc
     )
   ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 
-  if (filters?.store_question) {
+  if (filters?.store_question && filters?.status !== 'complete') {
     const selectedQuestion = normalizeStoreActionQuestion(filters.store_question) || filters.store_question
     actions = actions.filter((action) => {
       if (action.source_type !== 'store') return false
@@ -643,9 +690,17 @@ export default async function ActionsPage({
   await requireAuth()
   const filters: ActionFilters = {
     assigned_to: searchParams.assigned_to || undefined,
-    status: searchParams.status && searchParams.status !== 'all' ? searchParams.status : undefined,
+    status:
+      normalizeFilterValue(searchParams.status) &&
+      normalizeFilterValue(searchParams.status) !== 'all'
+        ? normalizeFilterValue(searchParams.status)
+        : undefined,
     overdue: searchParams.overdue === 'true',
-    priority: searchParams.priority && searchParams.priority !== 'all' ? searchParams.priority : undefined,
+    priority:
+      normalizeFilterValue(searchParams.priority) &&
+      normalizeFilterValue(searchParams.priority) !== 'all'
+        ? normalizeFilterValue(searchParams.priority)
+        : undefined,
     store_question:
       searchParams.store_question && searchParams.store_question !== 'all'
         ? searchParams.store_question
@@ -665,6 +720,9 @@ export default async function ActionsPage({
   }).length
   const activeActions = actions.filter(action => 
     !['complete', 'cancelled'].includes(action.status)
+  ).length
+  const completedActions = actions.filter(action => 
+    action.status === 'complete'
   ).length
   const hasActiveFilters = Boolean(
     filters.q ||
@@ -686,9 +744,15 @@ export default async function ActionsPage({
   ].filter(Boolean).length
 
   const storeSummaryByActionId = await buildStoreActionSummaryMap(actions)
+  const tableActions =
+    filters.status === 'complete'
+      ? actions.filter((action) => String(action.status || '').toLowerCase() === 'complete')
+      : actions.filter((action) => String(action.status || '').toLowerCase() !== 'complete')
+  const hiddenCompletedCount =
+    filters.status === 'complete' ? 0 : actions.filter((action) => String(action.status || '').toLowerCase() === 'complete').length
 
   const groupedActions = Array.from(
-    actions.reduce((groups, action) => {
+    tableActions.reduce((groups, action) => {
       const isStoreAction = action.source_type === 'store'
       const groupKey = isStoreAction
         ? `store:${action.store?.id || action.id}`
@@ -737,7 +801,7 @@ export default async function ActionsPage({
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-3 md:gap-4">
+      <div className="grid grid-cols-4 gap-2 md:grid-cols-4 md:gap-4">
         <Card className="bg-white shadow-sm border-slate-200">
           <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
             <div className="space-y-1 flex-1 min-w-0">
@@ -768,6 +832,17 @@ export default async function ActionsPage({
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 md:ml-2 md:h-10 md:w-10">
               <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-rose-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white shadow-sm border-slate-200">
+          <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
+            <div className="space-y-1 flex-1 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 md:text-xs">Completed</p>
+              <p className="text-xl md:text-2xl font-bold text-emerald-600">{completedActions}</p>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 md:ml-2 md:h-10 md:w-10">
+              <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
             </div>
           </CardContent>
         </Card>
@@ -825,17 +900,18 @@ export default async function ActionsPage({
                     ))}
                   </select>
 
-                  <select
+                  <AutoSubmitSelect
                     name="status"
                     defaultValue={searchParams.status || 'all'}
                     className="min-h-[48px] w-full rounded-[16px] border border-slate-200 bg-white px-4 text-base"
-                  >
-                    <option value="all">All statuses</option>
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="complete">Complete</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
+                    options={[
+                      { value: 'all', label: 'All statuses' },
+                      { value: 'open', label: 'Open' },
+                      { value: 'in_progress', label: 'In Progress' },
+                      { value: 'complete', label: 'Complete' },
+                      { value: 'cancelled', label: 'Cancelled' },
+                    ]}
+                  />
 
                   <select
                     name="priority"
@@ -910,17 +986,18 @@ export default async function ActionsPage({
                 ))}
               </select>
 
-              <select
+              <AutoSubmitSelect
                 name="status"
                 defaultValue={searchParams.status || 'all'}
                 className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
-              >
-                <option value="all">All statuses</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="complete">Complete</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+                options={[
+                  { value: 'all', label: 'All statuses' },
+                  { value: 'open', label: 'Open' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'complete', label: 'Complete' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                ]}
+              />
 
               <select
                 name="priority"
@@ -971,18 +1048,23 @@ export default async function ActionsPage({
         <CardContent className="p-0">
           {/* Mobile Card View */}
           <div className="md:hidden p-4 space-y-4">
-            {actions.length === 0 ? (
+            {tableActions.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                 <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
                   <FileText className="h-5 w-5 text-slate-400" />
                 </div>
                 <p className="font-medium text-slate-900">No actions found</p>
-                <p className="text-sm mt-1 text-center">Actions will appear here when created for incidents or stores.</p>
+                <p className="text-sm mt-1 text-center">
+                  {hiddenCompletedCount > 0
+                    ? `${hiddenCompletedCount} completed action${hiddenCompletedCount === 1 ? '' : 's'} hidden. Set Status to Complete to view.`
+                    : 'Actions will appear here when created for incidents or stores.'}
+                </p>
               </div>
             ) : (
               groupedActions.map((group) => (
                 <details
                   key={group.key}
+                  open={filters.status === 'complete'}
                   className="rounded-xl border border-slate-200 bg-white"
                 >
                   <summary className="cursor-pointer list-none px-3 py-2.5">
@@ -1011,20 +1093,25 @@ export default async function ActionsPage({
 
           {/* Desktop Table View */}
           <div className="hidden md:block p-4 space-y-3">
-            {actions.length === 0 ? (
+            {tableActions.length === 0 ? (
               <div className="h-40 flex items-center justify-center">
                 <div className="flex flex-col items-center justify-center text-slate-500">
                   <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
                     <FileText className="h-5 w-5 text-slate-400" />
                   </div>
                   <p className="font-medium text-slate-900">No actions found</p>
-                  <p className="text-sm mt-1">Actions will appear here when created for incidents or stores.</p>
+                  <p className="text-sm mt-1 text-center">
+                    {hiddenCompletedCount > 0
+                      ? `${hiddenCompletedCount} completed action${hiddenCompletedCount === 1 ? '' : 's'} hidden. Set Status to Complete to view.`
+                      : 'Actions will appear here when created for incidents or stores.'}
+                  </p>
                 </div>
               </div>
             ) : (
               groupedActions.map((group) => (
                 <details
                   key={group.key}
+                  open={filters.status === 'complete'}
                   className="rounded-xl border border-slate-200 bg-white overflow-hidden"
                 >
                   <summary className="cursor-pointer list-none bg-slate-50 px-4 py-3 border-b">

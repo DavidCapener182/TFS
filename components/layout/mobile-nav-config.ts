@@ -12,14 +12,14 @@ export type MobileTabItem = {
 const defaultMobileTabItems: MobileTabItem[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
-  { href: '/stores', label: 'Stores', icon: Store },
+  { href: '/stores', label: 'CRM', icon: Store },
   { href: '/calendar', label: 'Calendar', icon: Calendar },
 ]
 
 const opsMobileTabItems: MobileTabItem[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/calendar', label: 'Calendar', icon: Calendar },
-  { href: '/visit-tracker', label: 'Visits', icon: ClipboardList },
+  { href: '/visit-tracker', label: 'Stores', icon: ClipboardList },
   { href: '/route-planning', label: 'Routes', icon: Route },
 ]
 
@@ -27,8 +27,9 @@ const mobilePageTitles: Array<{ href: string; title: string }> = [
   { href: '/dashboard', title: 'Dashboard' },
   { href: '/incidents', title: 'Incidents' },
   { href: '/actions', title: 'Actions' },
-  { href: '/stores', title: 'Stores' },
-  { href: '/visit-tracker', title: 'Visit Tracker' },
+  { href: '/inbound-emails', title: 'Inbound Emails' },
+  { href: '/stores', title: 'CRM' },
+  { href: '/visit-tracker', title: 'Stores' },
   { href: '/route-planning', title: 'Route Planning' },
   { href: '/calendar', title: 'Calendar' },
   { href: '/reports', title: 'Reports' },

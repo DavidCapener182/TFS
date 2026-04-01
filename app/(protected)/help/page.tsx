@@ -82,7 +82,7 @@ const POLICY_ROWS: PolicyRow[] = [
   {
     dataPoint: 'Store contacts and CRM records',
     fields: 'store contact names/roles/details, CRM notes, follow-up logs',
-    pages: 'Stores / CRM, route follow-up context',
+    pages: 'CRM, route follow-up context',
     purpose: 'Operational communication and compliance follow-up with stores.',
     lawfulBasis: 'Legitimate interests (service delivery and compliance operations).',
     access: 'Admin/Ops/Readonly by scope; client access constrained to approved view.',
@@ -122,7 +122,7 @@ const POLICY_ROWS: PolicyRow[] = [
   {
     dataPoint: 'Store compliance metrics (non-personal)',
     fields: 'visit status, planned dates, completion dates',
-    pages: 'Dashboard, Visit Tracker, Route Planning, Reports',
+    pages: 'Dashboard, Stores, Route Planning, Reports',
     purpose: 'Operational compliance monitoring and planning.',
     lawfulBasis: 'Not personal data in most cases; operational processing basis applies.',
     access: 'Role-scoped by page and policy.',

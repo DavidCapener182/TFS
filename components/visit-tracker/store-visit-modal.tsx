@@ -1501,7 +1501,7 @@ export function StoreVisitModal({
 
         toast({
           title: 'Visit completed',
-          description: `${formatStoreName(row.storeName)} has been logged in the visit tracker.`,
+          description: `${formatStoreName(row.storeName)} has been logged in Stores.`,
           variant: 'success',
         })
 
@@ -1541,7 +1541,7 @@ export function StoreVisitModal({
 
         toast({
           title: 'Visit logged',
-          description: `${formatStoreName(row.storeName)} has been updated in the visit tracker.`,
+          description: `${formatStoreName(row.storeName)} has been updated in Stores.`,
           variant: 'success',
         })
 
@@ -1594,7 +1594,7 @@ export function StoreVisitModal({
                   {formatStoreName(row.storeName)}
                 </DialogTitle>
                 <DialogDescription className="mt-2 max-w-3xl text-sm text-slate-600">
-                  Log what the LP officer completed on site, capture structured evidence for checks like line counts and banking, and keep the visit tracker aligned with current actions.
+                  Log what the LP officer completed on site, capture structured evidence for checks like line counts and banking, and keep Stores aligned with current actions.
                 </DialogDescription>
               </div>
 

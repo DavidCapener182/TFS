@@ -166,16 +166,10 @@ async function getVisitTrackerData(): Promise<{
   let visitsUnavailableMessage: string | null = null
 
   if (storeIds.length > 0) {
-    const loadStoreActions = async (table: 'tfs_store_actions' | 'fa_store_actions') =>
-      supabase
-        .from(table)
-        .select('store_id, title, description, priority, due_date, status, source_flagged_item, created_at')
-        .in('store_id', storeIds)
-
-    let storeActionsResult = await loadStoreActions('tfs_store_actions')
-    if (storeActionsResult.error?.message?.includes('Could not find the table')) {
-      storeActionsResult = await loadStoreActions('fa_store_actions')
-    }
+    const storeActionsResult = await supabase
+      .from('tfs_store_actions')
+      .select('store_id, title, description, priority, due_date, status, source_flagged_item, created_at')
+      .in('store_id', storeIds)
 
     if (storeActionsResult.error) {
       console.error('Error fetching visit tracker store actions:', storeActionsResult.error)

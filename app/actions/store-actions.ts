@@ -9,7 +9,6 @@ import {
   resolveStoreActionPriorityTheme,
 } from '@/lib/store-action-titles'
 
-const WRITABLE_ROLES = new Set(['admin', 'ops'])
 const NON_ACTIONABLE_STORE_QUESTIONS = new Set<string>([
   'Young persons?',
   'Expectant mothers?',
@@ -35,8 +34,27 @@ export interface CreateStoreActionInput {
   nonCanonicalConfirmed?: boolean
 }
 
+type StoreActionStatus = 'open' | 'in_progress' | 'blocked' | 'complete' | 'cancelled'
+
+interface UpdateStoreActionInput {
+  description?: string | null
+  status?: StoreActionStatus
+  priority?: FaActionPriority
+  dueDate?: string
+}
+
 function isValidPriority(value: unknown): value is FaActionPriority {
   return value === 'low' || value === 'medium' || value === 'high' || value === 'urgent'
+}
+
+function isValidStoreActionStatus(value: unknown): value is StoreActionStatus {
+  return (
+    value === 'open' ||
+    value === 'in_progress' ||
+    value === 'blocked' ||
+    value === 'complete' ||
+    value === 'cancelled'
+  )
 }
 
 function toDateOnly(value: string | undefined, fallbackDate: string): string {
@@ -77,20 +95,6 @@ export async function createStoreActions(
 
   if (!user) {
     throw new Error('Unauthorized')
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('fa_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profileError || !profile) {
-    throw new Error('Unable to verify user role')
-  }
-
-  if (!WRITABLE_ROLES.has(profile.role)) {
-    throw new Error('You do not have permission to create store actions')
   }
 
   const fallbackDueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -212,4 +216,67 @@ export async function createStoreActions(
     skipped: skippedCount,
     skippedNonActionable: skippedNonActionableCount,
   }
+}
+
+export async function updateStoreAction(actionId: string, updates: UpdateStoreActionInput) {
+  if (!actionId) {
+    throw new Error('Missing store action id')
+  }
+
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const updateData: Record<string, unknown> = {}
+
+  if (typeof updates.description !== 'undefined') {
+    const description = String(updates.description || '').trim()
+    updateData.description = description.length > 0 ? description : null
+  }
+
+  if (typeof updates.priority !== 'undefined') {
+    if (!isValidPriority(updates.priority)) {
+      throw new Error('Invalid priority')
+    }
+    updateData.priority = updates.priority
+  }
+
+  if (typeof updates.status !== 'undefined') {
+    if (!isValidStoreActionStatus(updates.status)) {
+      throw new Error('Invalid status')
+    }
+    updateData.status = updates.status
+    updateData.completed_at = updates.status === 'complete' ? new Date().toISOString() : null
+  }
+
+  if (typeof updates.dueDate !== 'undefined') {
+    const fallbackDate = new Date().toISOString().split('T')[0]
+    updateData.due_date = toDateOnly(updates.dueDate, fallbackDate)
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new Error('No changes provided')
+  }
+
+  const { data, error } = await supabase
+    .from('tfs_store_actions')
+    .update(updateData)
+    .eq('id', actionId)
+    .select('id')
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to update store action: ${error.message}`)
+  }
+
+  revalidatePath('/visit-tracker')
+  revalidatePath('/stores')
+  revalidatePath('/actions')
+
+  return data
 }

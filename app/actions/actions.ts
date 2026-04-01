@@ -111,8 +111,9 @@ export async function updateAction(id: string, updates: Partial<CreateActionInpu
   // Check if we need to update incident status based on action status
   const { data: actions } = await supabase
     .from('tfs_actions')
-    .select('status')
+    .select('status, title')
     .eq('incident_id', action.incident_id)
+    .not('title', 'ilike', 'Implement visit report actions:%')
 
   const hasOpenActions = actions?.some(a => 
     ['open', 'in_progress', 'blocked'].includes(a.status)
@@ -120,7 +121,7 @@ export async function updateAction(id: string, updates: Partial<CreateActionInpu
 
   const { data: incident } = await supabase
     .from('tfs_incidents')
-    .select('status')
+    .select('status, assigned_investigator_user_id, persons_involved')
     .eq('id', action.incident_id)
     .single()
 
@@ -131,22 +132,30 @@ export async function updateAction(id: string, updates: Partial<CreateActionInpu
         .from('tfs_incidents')
         .update({ status: 'actions_in_progress' })
         .eq('id', action.incident_id)
-    } else if (!hasOpenActions && incident.status === 'actions_in_progress') {
-      // All actions complete, revert to under_investigation (if investigator assigned) or open
-      const { data: incidentData } = await supabase
-        .from('tfs_incidents')
-        .select('assigned_investigator_user_id')
-        .eq('id', action.incident_id)
-        .single()
-      
-      const newStatus = incidentData?.assigned_investigator_user_id 
-        ? 'under_investigation' 
-        : 'open'
-      
-      await supabase
-        .from('tfs_incidents')
-        .update({ status: newStatus })
-        .eq('id', action.incident_id)
+    } else if (!hasOpenActions) {
+      const source = String((incident as any)?.persons_involved?.source || '').toLowerCase()
+
+      if (source === 'visit_report') {
+        // Visit-report follow-ups should fully resolve once all linked actions are complete.
+        await supabase
+          .from('tfs_incidents')
+          .update({
+            status: 'closed',
+            closed_at: new Date().toISOString(),
+            closure_summary: 'All follow-up actions completed.',
+          })
+          .eq('id', action.incident_id)
+      } else {
+        // Non visit-report incidents revert to investigation/open flow.
+        const newStatus = incident.assigned_investigator_user_id
+          ? 'under_investigation'
+          : 'open'
+
+        await supabase
+          .from('tfs_incidents')
+          .update({ status: newStatus })
+          .eq('id', action.incident_id)
+      }
     }
   }
 
@@ -192,8 +201,9 @@ export async function deleteAction(id: string) {
     // Check if we need to update incident status after deleting action
     const { data: remainingActions } = await supabase
       .from('tfs_actions')
-      .select('status')
+      .select('status, title')
       .eq('incident_id', currentAction.incident_id)
+      .not('title', 'ilike', 'Implement visit report actions:%')
 
     const hasOpenActions = remainingActions?.some(a => 
       ['open', 'in_progress', 'blocked'].includes(a.status)

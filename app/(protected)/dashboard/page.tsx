@@ -425,15 +425,10 @@ async function getDashboardData(): Promise<DashboardData> {
     return empty
   }
 
-  const loadStoreActions = async (table: 'tfs_store_actions' | 'fa_store_actions') =>
-    supabase
-      .from(table)
-      .select('store_id, title, description, priority, due_date, status, source_flagged_item, created_at')
-      .in('store_id', storeIds)
-
   const [
     incidentRowsResult,
     incidentActionsResult,
+    storeActionsResult,
     plannedRoutesResult,
     storeVisitsResult,
     routeVisitLogsResult,
@@ -453,6 +448,10 @@ async function getDashboardData(): Promise<DashboardData> {
       `)
       .lt('due_date', today)
       .not('status', 'in', '(complete,cancelled)'),
+    supabase
+      .from('tfs_store_actions')
+      .select('store_id, title, description, priority, due_date, status, source_flagged_item, created_at')
+      .in('store_id', storeIds),
     supabase
       .from('tfs_stores')
       .select(`
@@ -501,11 +500,6 @@ async function getDashboardData(): Promise<DashboardData> {
       .in('entity_id', storeIds)
       .order('created_at', { ascending: false }),
   ])
-
-  let storeActionsResult = await loadStoreActions('tfs_store_actions')
-  if (storeActionsResult.error?.message?.includes('Could not find the table')) {
-    storeActionsResult = await loadStoreActions('fa_store_actions')
-  }
 
   if (incidentRowsResult.error) {
     console.error('Error fetching dashboard incidents:', incidentRowsResult.error)

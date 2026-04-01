@@ -12,6 +12,14 @@ import { navItems } from '@/components/layout/nav-items'
 export function MobileNav({ userName }: { userName: string }) {
   const pathname = usePathname()
   const currentPath = pathname ?? '/'
+  const rootItems = navItems.filter((item) => !item.parentHref)
+  const childItemsByParent = navItems.reduce<Record<string, typeof navItems>>((acc, item) => {
+    if (!item.parentHref) return acc
+    acc[item.parentHref] = [...(acc[item.parentHref] || []), item]
+    return acc
+  }, {})
+
+  const isPathActive = (href: string) => currentPath === href || (href !== '/' && currentPath.startsWith(href))
 
   return (
     <Dialog>
@@ -41,10 +49,10 @@ export function MobileNav({ userName }: { userName: string }) {
 
         <nav className="flex-1 overflow-y-auto p-4">
           <ul className="space-y-2">
-            {navItems.map((item) => {
+            {rootItems.map((item) => {
               const Icon = item.icon
-              const isActive =
-                currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))
+              const childItems = childItemsByParent[item.href] || []
+              const isActive = isPathActive(item.href) || childItems.some((child) => isPathActive(child.href))
 
               return (
                 <li key={item.href}>
@@ -63,6 +71,33 @@ export function MobileNav({ userName }: { userName: string }) {
                       {item.label}
                     </Link>
                   </DialogClose>
+                  {childItems.length > 0 ? (
+                    <ul className="ml-6 mt-1 space-y-1">
+                      {childItems.map((child) => {
+                        const isChildActive = isPathActive(child.href)
+
+                        return (
+                          <li key={child.href}>
+                            <DialogClose asChild>
+                              <Link
+                                href={child.href}
+                                prefetch={false}
+                                className={cn(
+                                  'flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-all',
+                                  isChildActive
+                                    ? 'bg-gray-50 text-gray-900 font-semibold shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                )}
+                              >
+                                <span className={cn('h-1.5 w-1.5 rounded-full', isChildActive ? 'bg-gray-900' : 'bg-gray-400')} />
+                                {child.label}
+                              </Link>
+                            </DialogClose>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : null}
                 </li>
               )
             })}

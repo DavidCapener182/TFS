@@ -673,7 +673,7 @@ export function ActivityVisitReportBuilder({
     return (
       <SectionCard
         title="What Was Checked"
-        description={`Capture the structured details for ${option?.label || 'this report'} using the same LP workflow as the visit tracker.`}
+        description={`Capture the structured details for ${option?.label || 'this report'} using the same LP workflow as the Stores workspace.`}
       >
         <fieldset disabled={disabled} className="space-y-5">
           <ActivityGuideCard guide={whatCheckedGuide} />

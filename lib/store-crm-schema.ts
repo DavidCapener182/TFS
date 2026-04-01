@@ -39,7 +39,7 @@ export function isMissingStoreCrmTableError(error: unknown): boolean {
 
 export function getStoreCrmUnavailableMessage(missingTables: readonly StoreCrmTableName[]): string {
   const tableList = missingTables.join(', ')
-  return `Store CRM is unavailable because the connected Supabase project is missing required tables (${tableList}). Apply the latest Supabase migrations and refresh.`
+  return `CRM is unavailable because the connected Supabase project is missing required tables (${tableList}). Apply the latest Supabase migrations and refresh.`
 }
 
 export function formatStoreCrmActionError(actionLabel: string, error: unknown): string {

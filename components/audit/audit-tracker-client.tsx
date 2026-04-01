@@ -30,7 +30,7 @@ export function AuditTrackerClient({ stores, userRole }: AuditTrackerClientProps
                 <ClipboardCheck size={14} />
                 Compliance Monitoring
               </div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Visit Tracker</h1>
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Stores</h1>
               <p className="mt-1 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm">
                 Track visit progress, review recent history, and monitor network activity across all regions.
               </p>

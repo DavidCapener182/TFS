@@ -10,6 +10,7 @@ import { UserRole, UserProfile } from '@/lib/auth'
 import { useSidebar } from './sidebar-provider'
 import { navItems, type NavItem } from './nav-items'
 import { FeedbackModal } from '@/components/FeedbackModal'
+import { AutoParseInboundEmails } from '@/components/inbound-emails/auto-parse-inbound-emails'
 
 const activityItem: NavItem = { href: '/activity', label: 'Recent Activity', icon: Activity, clientHidden: true }
 const allNavItems = [...navItems, activityItem]
@@ -17,9 +18,10 @@ const allNavItems = [...navItems, activityItem]
 interface SidebarClientProps {
   userRole?: UserRole | null
   userProfile?: UserProfile | null
+  pendingInboundEmailCount?: number
 }
 
-export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
+export function SidebarClient({ userRole, userProfile, pendingInboundEmailCount = 0 }: SidebarClientProps) {
   const pathname = usePathname()
   const currentPath = pathname ?? '/'
   const { isOpen, setIsOpen } = useSidebar()
@@ -41,6 +43,15 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
     }
     return allNavItems.filter(item => !item.adminOnly && !item.clientHidden)
   })()
+
+  const rootItems = filteredItems.filter((item) => !item.parentHref)
+  const childItemsByParent = filteredItems.reduce<Record<string, NavItem[]>>((acc, item) => {
+    if (!item.parentHref) return acc
+    acc[item.parentHref] = [...(acc[item.parentHref] || []), item]
+    return acc
+  }, {})
+
+  const isPathActive = (href: string) => currentPath === href || (href !== '/' && currentPath.startsWith(href))
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -91,9 +102,11 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
       </div>
       <nav className="flex-1 overflow-y-auto px-4 pb-4">
         <ul className="overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_16px_30px_rgba(15,23,42,0.08)] md:space-y-1.5 md:rounded-none md:border-0 md:bg-transparent md:shadow-none">
-          {filteredItems.map((item) => {
+          {rootItems.map((item) => {
             const Icon = item.icon
-            const isActive = !item.action && (currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href)))
+            const childItems = childItemsByParent[item.href] || []
+            const childActive = childItems.some((child) => isPathActive(child.href))
+            const isActive = !item.action && (isPathActive(item.href) || childActive)
 
             if (item.action === 'feedback') {
               return (
@@ -123,8 +136,53 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
                   )}
                 >
                   <Icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900 md:text-slate-900' : 'text-slate-400 md:text-white/70')} />
-                  {item.label}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{item.label}</span>
+                    {item.href === '/inbound-emails' && pendingInboundEmailCount > 0 ? (
+                      <span
+                        className={cn(
+                          'inline-flex min-w-[1.4rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                          isActive
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-red-500 text-white md:bg-white md:text-[#1c0259]'
+                        )}
+                      >
+                        {pendingInboundEmailCount > 99 ? '99+' : pendingInboundEmailCount}
+                      </span>
+                    ) : null}
+                  </span>
                 </Link>
+                {childItems.length > 0 ? (
+                  <ul className="pb-2 pl-6 pr-3 md:pb-0 md:pl-9 md:pr-0">
+                    {childItems.map((child) => {
+                      const isChildActive = isPathActive(child.href)
+
+                      return (
+                        <li key={child.href} className="pt-1.5 md:pt-1">
+                          <Link
+                            href={child.href}
+                            prefetch={false}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              'flex min-h-[40px] items-center gap-2 rounded-2xl px-3 py-2 text-[13px] transition-all md:min-h-[38px] md:text-xs',
+                              isChildActive
+                                ? 'bg-slate-100 text-slate-950 font-semibold md:bg-white md:text-slate-950 md:shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 md:text-white/65 md:hover:bg-white/8 md:hover:text-slate-950'
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'h-1.5 w-1.5 flex-shrink-0 rounded-full',
+                                isChildActive ? 'bg-slate-900 md:bg-slate-900' : 'bg-slate-300 md:bg-white/35'
+                              )}
+                            />
+                            {child.label}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
               </li>
             )
           })}
@@ -148,6 +206,7 @@ export function SidebarClient({ userRole, userProfile }: SidebarClientProps) {
   // Desktop sidebar (always visible)
   return (
     <>
+      <AutoParseInboundEmails pendingCount={pendingInboundEmailCount} />
       {/* Desktop Sidebar - hidden when printing */}
       <aside className="no-print hidden md:flex w-64 flex-col h-screen-zoom bg-[linear-gradient(180deg,#1c0259_0%,#232154_60%,#2a265f_100%)] fixed left-0 top-0 z-30">
         {sidebarContent}

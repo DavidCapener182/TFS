@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FileText,
   LayoutDashboard,
+  Mail,
   Settings,
   Store,
   Route,
@@ -21,14 +22,16 @@ export type NavItem = {
   clientHidden?: boolean
   allowedRoles?: Array<'admin' | 'ops' | 'readonly' | 'client' | 'pending'>
   action?: 'feedback'
+  parentHref?: string
 }
 
 export const navItems: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
   { href: '/actions', label: 'Actions', icon: CheckSquare },
-  { href: '/stores', label: 'Stores / CRM', icon: Store },
-  { href: '/visit-tracker', label: 'Visit Tracker', icon: ClipboardList },
+  { href: '/inbound-emails', label: 'Inbound Emails', icon: Mail, allowedRoles: ['admin', 'ops'] },
+  { href: '/visit-tracker', label: 'Stores', icon: ClipboardList },
+  { href: '/stores', label: 'CRM', icon: Store, parentHref: '/visit-tracker' },
   { href: '/route-planning', label: 'Route Planning', icon: Route, clientHidden: true, allowedRoles: ['admin', 'ops'] },
   { href: '/calendar', label: 'Calendar', icon: Calendar },
   { href: '/reports', label: 'Reports', icon: FileText },

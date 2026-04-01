@@ -50,13 +50,13 @@ export async function GET() {
       .from('tfs_actions')
       .select('id', { count: 'exact', head: true })
       .eq('incident_id', (incident as any).id)
-      .in('status', ['open', 'in_progress', 'blocked'])
       .not('title', 'ilike', 'Implement visit report actions:%')
 
     if (countError) {
       console.error('Error checking follow-up candidate action count:', countError)
       continue
     }
+    // Any linked action record (open or completed) means follow-up has already been handled.
     if ((count || 0) > 0) continue
 
     const storeRel = Array.isArray((incident as any).tfs_stores)

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { FormEvent, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -90,6 +91,7 @@ interface StoreCrmPanelProps {
   unavailableMessage?: string | null
   safetyCompliancePct?: number
   actionResolutionPct?: number
+  contactsFooter?: ReactNode
 }
 
 function getLocalDateTimeInputValue() {
@@ -165,6 +167,7 @@ export function StoreCrmPanel({
   unavailableMessage,
   safetyCompliancePct,
   actionResolutionPct,
+  contactsFooter,
 }: StoreCrmPanelProps) {
   const router = useRouter()
   const [activeSubTab, setActiveSubTab] = useState<'contacts' | 'notes' | 'tracker'>('contacts')
@@ -227,13 +230,13 @@ export function StoreCrmPanel({
   const canEditCrm = canEdit && isAvailable
   const contactsEmptyMessage = isAvailable
     ? 'No contacts recorded for this store yet.'
-    : unavailableMessage || 'Store CRM contacts are unavailable until the latest Supabase migrations are applied.'
+    : unavailableMessage || 'CRM contacts are unavailable until the latest Supabase migrations are applied.'
   const notesEmptyMessage = isAvailable
     ? 'No notes logged for this store.'
-    : unavailableMessage || 'Store notes are unavailable until the latest Supabase migrations are applied.'
+    : unavailableMessage || 'CRM notes are unavailable until the latest Supabase migrations are applied.'
   const trackerEmptyMessage = isAvailable
     ? 'No communication log entries yet.'
-    : unavailableMessage || 'Store contact tracking is unavailable until the latest Supabase migrations are applied.'
+    : unavailableMessage || 'CRM contact tracking is unavailable until the latest Supabase migrations are applied.'
 
   const handleCreateContact = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -391,7 +394,7 @@ export function StoreCrmPanel({
       <div className="space-y-6 md:col-span-8">
         {!isAvailable ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
-            <p className="font-semibold">Store CRM is unavailable in this Supabase project.</p>
+            <p className="font-semibold">CRM is unavailable in this Supabase project.</p>
             <p className="mt-1">{unavailableMessage}</p>
           </div>
         ) : null}
@@ -585,6 +588,8 @@ export function StoreCrmPanel({
                     ))
                   )}
                 </div>
+
+                {contactsFooter}
               </div>
             )}
 
@@ -870,6 +875,7 @@ export function StoreCrmPanel({
             )}
           </div>
         </div>
+
       </div>
 
       <div className="space-y-6 md:col-span-4">
@@ -882,7 +888,7 @@ export function StoreCrmPanel({
             {[
               { label: 'Generate Store Report', href: '/reports' },
               { label: 'Schedule Visit', href: '/calendar' },
-              { label: 'Visit Tracker', href: '/visit-tracker' },
+              { label: 'Stores', href: '/visit-tracker' },
               { label: 'Route Planning', href: '/route-planning' },
             ].map((action) => (
               <Link

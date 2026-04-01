@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { FaIncidentStatus, FaActionStatus, FaSeverity, FaInvestigationStatus } from '@/types/db'
 
 interface StatusBadgeProps {
-  status: FaIncidentStatus | FaActionStatus | FaSeverity | FaInvestigationStatus
+  status: FaIncidentStatus | FaActionStatus | FaSeverity | FaInvestigationStatus | string | null | undefined
   type?: 'incident' | 'action' | 'severity' | 'investigation'
 }
 
@@ -32,8 +32,9 @@ const statusColors: Record<string, string> = {
 }
 
 export function StatusBadge({ status, type }: StatusBadgeProps) {
-  const colorClass = statusColors[status] || 'bg-gray-100 text-gray-700'
-  const displayText = status.split('_').map(word => 
+  const normalizedStatus = String(status || 'unknown').trim().toLowerCase()
+  const colorClass = statusColors[normalizedStatus] || 'bg-gray-100 text-gray-700'
+  const displayText = normalizedStatus.split('_').map(word => 
     word.charAt(0).toUpperCase() + word.slice(1)
   ).join(' ')
 
