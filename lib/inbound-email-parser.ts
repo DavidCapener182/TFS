@@ -98,12 +98,20 @@ function parseQuotedStoreLines(bodyText: string) {
 function parseStoreTheftEmail(email: Pick<InboundEmailRow, 'subject' | 'sender_name' | 'sender_email' | 'body_text' | 'body_preview'>): InboundEmailAnalysis | null {
   const subject = normalizeWhitespace(email.subject)
   const bodyText = normalizeWhitespace(email.body_text || email.body_preview)
+  const leadingBodyText = bodyText.slice(0, 1200)
   const senderEmail = normalizeWhitespace(email.sender_email).toLowerCase()
   const senderName = normalizeWhitespace(email.sender_name)
+
+  // Stocktake emails often contain generic theft wording in signatures/disclaimers.
+  // Avoid misclassifying those as theft incidents.
+  if (/\bstocktake result\b/i.test(subject) || /\byour stocktake result\b/i.test(leadingBodyText)) {
+    return null
+  }
+
   const hasTheftSignal =
     /\btheft\b/i.test(subject) ||
-    /\btheft\b/i.test(bodyText) ||
-    /\bstolen\b/i.test(bodyText)
+    /\btheft\b/i.test(leadingBodyText) ||
+    /\bstolen\b/i.test(leadingBodyText)
 
   if (!hasTheftSignal) return null
   if (!senderEmail.includes('@tfsstores.com') && !/the fragrance shop/i.test(senderName)) return null
