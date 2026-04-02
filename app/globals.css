@@ -119,6 +119,13 @@
   }
 }
 
+/* Ensure desktop zoom normalization never affects mobile/narrow viewports. */
+@media (max-width: 1023px) {
+  html {
+    zoom: 1 !important;
+  }
+}
+
 @media (display-mode: standalone) and (max-width: 767px) {
   html,
   body {

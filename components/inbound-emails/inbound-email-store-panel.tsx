@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   formatInboundEmailDateTime,
+  getInboundEmailDisplaySummary,
   getInboundEmailTemplateLabel,
   getInboundEmailWorkflowClass,
   getInboundEmailWorkflowLabel,
@@ -98,7 +99,7 @@ export function InboundEmailStorePanel({
                     </div>
 
                     <p className={`${isCompact ? 'text-xs' : 'text-sm'} leading-relaxed text-slate-600`}>
-                      {email.analysis_summary || email.body_preview || 'No summary available.'}
+                      {getInboundEmailDisplaySummary(email)}
                     </p>
                   </div>
 

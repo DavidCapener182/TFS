@@ -475,6 +475,66 @@ describe('store visit activity payloads', () => {
     expect(detail).toContain('Rear stockroom door was unsecured on arrival and required immediate closure.')
   })
 
+  it('normalizes red stock-count investigation payloads with fragrance line checks', () => {
+    const payloads = normalizeStoreVisitActivityPayloads(
+      {
+        red_stock_count_investigation: {
+          fields: {
+            redCountContext: 'Store has returned a red stock count for the last two weekly counts with a high-value fragrance variance.',
+            likelyCauseType: 'lack_of_process',
+            likelyCauseRationale: 'Delivery checks and adjustment discipline were inconsistent across the team.',
+          },
+          itemsChecked: [
+            {
+              productLabel: 'Jean Paul Gaultier Le Male Elixir',
+              unitPrice: '102',
+              systemQuantity: '5',
+              countedQuantity: '3',
+            },
+          ],
+        },
+      },
+      ['red_stock_count_investigation']
+    )
+
+    expect(payloads.red_stock_count_investigation?.fields).toEqual({
+      redCountContext:
+        'Store has returned a red stock count for the last two weekly counts with a high-value fragrance variance.',
+      likelyCauseType: 'lack_of_process',
+      likelyCauseRationale: 'Delivery checks and adjustment discipline were inconsistent across the team.',
+    })
+    expect(payloads.red_stock_count_investigation?.itemsChecked).toEqual([
+      expect.objectContaining({
+        productLabel: 'Jean Paul Gaultier Le Male Elixir',
+        unitPrice: 102,
+        systemQuantity: 5,
+        countedQuantity: 3,
+      }),
+    ])
+  })
+
+  it('builds a compact detail for red stock-count investigations', () => {
+    const detail = buildStoreVisitActivityDetailText('red_stock_count_investigation', '', {
+      fields: {
+        redCountContext: 'Red stock count on men\'s premium fragrance lines after repeated weekly variance.',
+        likelyCauseType: 'external_theft',
+      },
+      itemsChecked: [
+        {
+          productLabel: 'Dior Sauvage Elixir',
+          unitPrice: 124,
+          systemQuantity: 4,
+          countedQuantity: 2,
+        },
+      ],
+    })
+
+    expect(detail).toContain('Red stock count on men\'s premium fragrance lines after repeated weekly variance.')
+    expect(detail).toContain('External theft indicators strongest')
+    expect(detail).toContain('1 item check recorded, 1 variance found')
+    expect(detail).toContain('variance value')
+  })
+
   it('normalizes internal theft interview payloads with both cash and stock evidence', () => {
     const payloads = normalizeStoreVisitActivityPayloads(
       {

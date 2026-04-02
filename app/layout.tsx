@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next"
 import { Montserrat } from "next/font/google"
-import { ScreenZoomNormalizer } from "@/components/layout/screen-zoom-normalizer"
 import "./globals.css"
 
 const montserrat = Montserrat({
@@ -48,7 +47,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={montserrat.className}>
-        <ScreenZoomNormalizer />
         {children}
       </body>
     </html>

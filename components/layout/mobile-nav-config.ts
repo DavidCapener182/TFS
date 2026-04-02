@@ -1,4 +1,4 @@
-import { AlertTriangle, Calendar, ClipboardList, LayoutDashboard, Route, Store } from 'lucide-react'
+import { AlertTriangle, ClipboardList, FileText, LayoutDashboard, Store } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '@/lib/auth'
 import { navItems } from './nav-items'
@@ -12,15 +12,15 @@ export type MobileTabItem = {
 const defaultMobileTabItems: MobileTabItem[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
-  { href: '/stores', label: 'CRM', icon: Store },
-  { href: '/calendar', label: 'Calendar', icon: Calendar },
+  { href: '/stores', label: 'Stores', icon: Store },
+  { href: '/reports', label: 'Reports', icon: FileText },
 ]
 
 const opsMobileTabItems: MobileTabItem[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/calendar', label: 'Calendar', icon: Calendar },
+  { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
   { href: '/visit-tracker', label: 'Stores', icon: ClipboardList },
-  { href: '/route-planning', label: 'Routes', icon: Route },
+  { href: '/reports', label: 'Reports', icon: FileText },
 ]
 
 const mobilePageTitles: Array<{ href: string; title: string }> = [
@@ -33,6 +33,7 @@ const mobilePageTitles: Array<{ href: string; title: string }> = [
   { href: '/route-planning', title: 'Route Planning' },
   { href: '/calendar', title: 'Calendar' },
   { href: '/reports', title: 'Reports' },
+  { href: '/monthly-reports', title: 'Monthly Reports' },
   { href: '/help', title: 'GDPR' },
   { href: '/admin', title: 'Admin' },
   { href: '/activity', title: 'Recent Activity' },
@@ -52,6 +53,7 @@ export function getMobileMoreItems(userRole?: UserRole | null): MobileTabItem[] 
   return navItems
     .filter((item) => {
       if (item.action) return false
+      if (item.href === '/monthly-reports') return false
       if (primaryHrefs.has(item.href)) return false
       if (userRole === 'admin') return !item.allowedRoles || item.allowedRoles.includes('admin')
       if (userRole === 'client') return !item.adminOnly && !item.clientHidden && (!item.allowedRoles || item.allowedRoles.includes('client'))

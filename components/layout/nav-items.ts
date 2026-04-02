@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BarChart3,
   CheckSquare,
   ClipboardList,
   FileText,
@@ -35,6 +36,7 @@ export const navItems: NavItem[] = [
   { href: '/route-planning', label: 'Route Planning', icon: Route, clientHidden: true, allowedRoles: ['admin', 'ops'] },
   { href: '/calendar', label: 'Calendar', icon: Calendar },
   { href: '/reports', label: 'Reports', icon: FileText },
+  { href: '/monthly-reports', label: 'Monthly Reports', icon: BarChart3, allowedRoles: ['admin', 'ops', 'readonly'] },
   { href: '/help', label: 'GDPR', icon: ShieldCheck },
   { href: '#feedback', label: 'Report a Bug', icon: Bug, action: 'feedback' },
   { href: '/admin', label: 'Admin', icon: Settings, adminOnly: true },

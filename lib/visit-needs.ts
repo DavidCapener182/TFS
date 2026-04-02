@@ -182,6 +182,14 @@ export const STORE_VISIT_ACTIVITY_FOLLOW_UP_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ] as const satisfies readonly StoreVisitActivityFieldOption[]
 
+export const RED_STOCK_COUNT_LIKELY_CAUSE_OPTIONS = [
+  { value: 'internal_theft', label: 'Internal theft indicators strongest' },
+  { value: 'external_theft', label: 'External theft indicators strongest' },
+  { value: 'lack_of_process', label: 'Lack of process indicators strongest' },
+  { value: 'mixed_factors', label: 'Mixed factors' },
+  { value: 'inconclusive', label: 'Inconclusive / more work needed' },
+] as const satisfies readonly StoreVisitActivityFieldOption[]
+
 const ACTIVITY_SCOPE_CORE_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [
   {
     key: 'activityReference',
@@ -508,6 +516,52 @@ const STAFF_THEFT_INTERVIEW_PLAN_SECTION_GUIDES: Partial<
       '"Record the post-interview evidence review, escalation to the appropriate Regional Director and stakeholders, and pending outcome stage."',
     ],
   },
+}
+
+const RED_STOCK_COUNT_INVESTIGATION_SECTION_GUIDES: Partial<
+  Record<StoreVisitActivityFieldSection, StoreVisitActivityGuideCard>
+> = {
+  what_checked: {
+    title: 'Red Stock Count Review Script',
+    intro:
+      'Use this while opening a red stock-count visit, questioning staff, reviewing deliveries, and checking the priority fragrance lines.',
+    prompts: [
+      '"Confirm what red stock-count result triggered the visit, which period is in scope, and which staff are being spoken to."',
+      '"Walk the delivery process, shortages, damages, transfers, testers, and adjustments with the store team."',
+      '"Use the fragrance line checks to test whether the losses point more toward internal theft, external theft, or lack of process."',
+    ],
+  },
+  findings: {
+    title: 'Cause Assessment Script',
+    intro:
+      'Use this section to compare what staff said against the delivery review, stock line results, and store-floor exposure so the likely cause is clear.',
+    prompts: [
+      '"What explanation are staff giving for the red result, and does it stand up against the evidence?"',
+      '"Which indicators point toward internal theft, which point toward external theft, and which point toward poor process or weak stock control?"',
+      '"At this stage, what is the most likely driver of the red stock count, and why?"',
+    ],
+  },
+  actions: {
+    title: 'Containment And Follow-up Script',
+    intro:
+      'Use this before closing the visit so immediate controls, recounts, coaching, and escalation are all documented clearly.',
+    prompts: [
+      '"What needs correcting or securing immediately before the visit closes?"',
+      '"What further recounts, delivery checks, or investigation work are still required?"',
+      '"Who owns the next step, and what follow-up or escalation will now happen?"',
+    ],
+  },
+}
+
+const RED_STOCK_COUNT_INVESTIGATION_COUNTED_ITEMS_GUIDE: StoreVisitActivityGuideCard = {
+  title: 'Red Count Fragrance Prompts',
+  intro:
+    'Use the live fragrance search to select the high-variance lines, capture the system and counted positions, and test what is driving the loss.',
+  prompts: [
+    '"Which fragrance line are we checking here, what is the website price, and why is this line in scope for the red result?"',
+    '"What should the stock position be, what was physically counted, and when was this line last delivered, sold, adjusted, tested, or damaged?"',
+    '"Does the variance on this line point more toward internal theft, external theft, or lack of process?"',
+  ],
 }
 
 export const STORE_VISIT_ACTIVITY_OPTIONS = [
@@ -1367,6 +1421,211 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
       nextSteps: 'postInterviewActions',
       peopleInvolved: 'subjectProfile',
       reference: 'caseReference',
+    },
+  },
+  {
+    key: 'red_stock_count_investigation',
+    label: 'Red stock count investigation',
+    description:
+      'Investigates red stock-count results by questioning staff, reviewing deliveries, and line-checking fragrances to assess internal theft, external theft, or lack of process.',
+    detailPlaceholder:
+      'Capture the red stock-count concern, the delivery and staff checks completed, the fragrance lines reviewed, and the likely cause assessment.',
+    formVariant: 'line-check',
+    evidenceLabel: 'Red stock-count evidence',
+    sectionGuides: RED_STOCK_COUNT_INVESTIGATION_SECTION_GUIDES,
+    countedItemsGuide: RED_STOCK_COUNT_INVESTIGATION_COUNTED_ITEMS_GUIDE,
+    fields: [
+      {
+        key: 'redCountContext',
+        label: 'Red stock-count context',
+        placeholder: 'What red result triggered the visit, for what period, and how significant is the variance?',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"What red stock-count result triggered this visit, what period is in scope, and what is the headline variance?"',
+        ],
+        captureHint:
+          'Record the red result, time period, variance value or percentage, and why the store required this investigation visit.',
+      },
+      {
+        key: 'staffRolesQuestioned',
+        label: 'Staff / managers questioned',
+        placeholder: 'Which managers, keyholders, advisors, or stock handlers were spoken to during the visit?',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"Which members of the store team have you spoken to about the red stock count, and what is each person\'s role?"',
+        ],
+        captureHint:
+          'List the staff members, managers, or keyholders questioned and why they were relevant to the stock-loss enquiry.',
+      },
+      {
+        key: 'deliveryChecksCompleted',
+        label: 'Delivery / paperwork checks completed',
+        placeholder: 'Which deliveries, shortages, damages, transfers, claims, or paperwork sets were checked?',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"Talk me through the recent deliveries, shortages, damages, transfers, and any supporting paperwork we need to check."',
+          '"Which delivery records, claims, or stock-control documents have been reviewed as part of this visit?"',
+        ],
+        captureHint:
+          'Record the delivery review completed, including paperwork, shortages, damages, claims, transfers, and any gaps found in the process.',
+      },
+      {
+        key: 'stockControlQuestionsAsked',
+        label: 'Stock-control questions asked',
+        placeholder: 'What was asked about adjustments, testers, damages, transfers, counts, stockroom control, and handling of live stock?',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"Talk me through how deliveries are checked in, how testers, damages, and adjustments are controlled, and how counts are completed."',
+          '"Who normally handles the high-risk lines, the stockroom, and the adjustment process?"',
+        ],
+        captureHint:
+          'Record the stock-control questions put to staff so the report shows how the process was tested during the visit.',
+      },
+      {
+        key: 'externalTheftExposureChecked',
+        label: 'External-theft exposure reviewed',
+        placeholder: 'What sales-floor exposure, tester/live-stock controls, CCTV coverage, greeting standards, or hotspot risks were checked?',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"What external-theft risks have we checked today, including floor exposure, tester control, live stock on display, greeting, and CCTV coverage?"',
+        ],
+        captureHint:
+          'Record the shop-floor and security controls reviewed to test whether external theft is a likely driver of the red result.',
+      },
+      {
+        key: 'staffExplanationSummary',
+        label: 'Staff explanation / account',
+        placeholder: 'What explanation did staff give for the red stock count and the missing lines?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"What explanation are you giving for the red stock-count result and the missing stock lines?"',
+        ],
+        captureHint:
+          'Summarise the explanation given by the team for the red result, using their wording where it matters.',
+      },
+      {
+        key: 'deliveryFindings',
+        label: 'Delivery / stock paperwork findings',
+        placeholder: 'What did the delivery and paperwork review actually show?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"What did the delivery checks, shortage review, and paperwork comparison actually show?"',
+        ],
+        captureHint:
+          'Record the key findings from the delivery and paperwork review, including whether shortages or process gaps were evidenced.',
+      },
+      {
+        key: 'internalTheftIndicators',
+        label: 'Indicators pointing to internal theft',
+        placeholder: 'What patterns, access issues, behaviour, or unexplained movements point toward internal theft?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"What evidence, behaviour, access, or stock pattern points toward internal theft?"',
+        ],
+        captureHint:
+          'List the indicators that make internal theft a possible or likely cause of the red result.',
+      },
+      {
+        key: 'externalTheftIndicators',
+        label: 'Indicators pointing to external theft',
+        placeholder: 'What product exposure, hotspot, customer access, or repeat shoplifting risk points toward external theft?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"What evidence or store-floor exposure points toward external theft as the driver of the losses?"',
+        ],
+        captureHint:
+          'List the indicators that make external theft a possible or likely cause of the red result.',
+      },
+      {
+        key: 'processGapIndicators',
+        label: 'Indicators pointing to lack of process',
+        placeholder: 'What failures in delivery checking, adjustments, counts, damages, testers, or stockroom control point toward lack of process?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"What failures in process, paperwork, stock handling, or count discipline point toward lack of process?"',
+        ],
+        captureHint:
+          'List the indicators that suggest the red result is being driven by weak process rather than theft alone.',
+      },
+      {
+        key: 'likelyCauseType',
+        label: 'Most likely driver at this stage',
+        placeholder: 'Select likely cause',
+        input: 'select',
+        section: 'findings',
+        options: RED_STOCK_COUNT_LIKELY_CAUSE_OPTIONS,
+        scriptLines: [
+          '"At this stage, does the evidence point more toward internal theft, external theft, lack of process, mixed factors, or is it still inconclusive?"',
+        ],
+        captureHint:
+          'Select the most likely overall cause based on the visit findings so far.',
+      },
+      {
+        key: 'likelyCauseRationale',
+        label: 'Likely-cause rationale',
+        placeholder: 'Why is that the most likely driver of the red stock count at this stage?',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"Explain why that is the most likely driver of the red stock count at this stage."',
+        ],
+        captureHint:
+          'Summarise the reasoning behind the likely-cause assessment, linking it to the staff questioning, delivery checks, and line-check results.',
+      },
+      {
+        key: 'recountsOrFurtherChecks',
+        label: 'Recounts / further checks required',
+        placeholder: 'What further line checks, delivery checks, recounts, or investigation steps are still required?',
+        input: 'textarea',
+        section: 'actions',
+        scriptLines: [
+          '"What further line checks, recounts, delivery checks, or investigation steps still need to be completed?"',
+        ],
+        captureHint:
+          'Record the additional checks or investigation work still required after the visit.',
+      },
+      {
+        key: 'controlsOrCoachingIssued',
+        label: 'Controls / coaching issued on site',
+        placeholder: 'What process fixes, stock controls, delivery disciplines, or staff coaching were put in place during the visit?',
+        input: 'textarea',
+        section: 'actions',
+        scriptLines: [
+          '"What process fixes, stock controls, or coaching were put in place on site before the visit closed?"',
+        ],
+        captureHint:
+          'Record the immediate process corrections, controls, or coaching delivered during the visit.',
+      },
+      {
+        key: 'investigationEscalation',
+        label: 'Investigation / escalation path',
+        placeholder: 'Who is the case being escalated to, and what will happen next if theft or process failure remains suspected?',
+        input: 'textarea',
+        section: 'actions',
+        scriptLines: [
+          '"Who is this being escalated to, and what is the next investigation or management step after today\'s visit?"',
+        ],
+        captureHint:
+          'Record the escalation route and the next stage of the investigation or process follow-up.',
+      },
+    ],
+    detailFieldKeys: ['redCountContext', 'likelyCauseType'],
+    legacyFieldMap: {
+      summary: 'redCountContext',
+      findings: 'likelyCauseRationale',
+      actionsTaken: 'investigationEscalation',
+      nextSteps: 'investigationEscalation',
+      peopleInvolved: 'staffRolesQuestioned',
     },
   },
   {

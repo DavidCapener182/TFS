@@ -21,7 +21,9 @@ export function ScreenZoomNormalizer() {
 
     function apply() {
       const dpr = window.devicePixelRatio
+      const viewportWidth = window.innerWidth
       const isDesktop =
+        viewportWidth >= 1024 &&
         window.screen.width >= 1280 &&
         !window.matchMedia('(pointer: coarse)').matches
 

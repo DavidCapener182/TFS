@@ -15,7 +15,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
   const tabItems = getMobileTabItems(userRole)
   const moreItems = getMobileMoreItems(userRole)
   const moreActive = !isPrimaryMobilePath(currentPath, userRole)
-  const featuredHref = userRole === 'admin' || userRole === 'ops' ? '/visit-tracker' : null
+  const featuredHref = tabItems[2]?.href ?? null
   const [moreOpen, setMoreOpen] = useState(false)
   const morePanelRef = useRef<HTMLDivElement | null>(null)
   const hideForFullscreenReports = currentPath === '/reports' || currentPath.startsWith('/reports/')

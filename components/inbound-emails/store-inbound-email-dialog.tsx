@@ -30,6 +30,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import {
+  getInboundEmailDetailedSummary,
   formatInboundEmailDateTime,
   getInboundEmailAnalysisPayloadObject,
   getInboundEmailTemplateLabel,
@@ -80,7 +81,7 @@ function buildDefaultNoteTitle(email: InboundEmailRow | null) {
 function buildDefaultNoteBody(email: InboundEmailRow | null) {
   if (!email) return ''
   const bodyParts = [
-    email.analysis_summary || email.body_preview || 'Inbound email reviewed.',
+    getInboundEmailDetailedSummary(email),
     `Received ${formatInboundEmailDateTime(email.received_at)} from ${email.sender_name || email.sender_email || 'Unknown sender'}.`,
   ].filter(Boolean)
 
@@ -199,9 +200,9 @@ export function StoreInboundEmailDialog({
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Parser Summary</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-800">
-                    {email.analysis_summary || email.body_preview || 'No summary available.'}
-                  </p>
+                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                    {getInboundEmailDetailedSummary(email)}
+                  </div>
                   {Number.isFinite(confidence) ? (
                     <p className="mt-2 text-xs text-slate-500">Confidence {Math.round(confidence * 100)}%</p>
                   ) : null}

@@ -94,13 +94,14 @@ async function persistInboundEmailAnalysis(supabase: SupabaseClient, email: Inbo
   const resolvedStoreId = email.matched_store_id || await resolveMatchedStoreId(supabase, analysis)
   const payload = buildAnalysisPayload(analysis)
   const needsReview = analysis.needsAction || analysis.needsVisit || analysis.needsIncident
+  const forcePendingUnknown = analysis.templateKey === 'unknown'
 
   const { error } = await supabase
     .from('tfs_inbound_emails')
     .update({
       matched_store_id: resolvedStoreId,
       // Keep inbox as a review queue: only items requiring follow-up stay pending.
-      processing_status: needsReview ? 'pending' : 'reviewed',
+      processing_status: needsReview || forcePendingUnknown ? 'pending' : 'reviewed',
       analysis_source: analysis.source,
       analysis_template_key: analysis.templateKey,
       analysis_summary: analysis.summary,
@@ -407,10 +408,21 @@ function parseSenderFromBodyFallback(bodyText: string): { senderName: string | n
 }
 
 function inferSubjectFromBody(bodyText: string): string | null {
-  if (!/\byour\s+stocktake\s+result\b/i.test(bodyText)) return null
+  const normalizedBody = bodyText.replace(/[\u200B-\u200D\uFEFF]/g, ' ')
 
-  const codeNameMatch = bodyText.match(/\bTFS\s+(\d{1,3})\s+([A-Za-z][A-Za-z '&-]{2,})\s*</i)
-  const colourMatch = bodyText.match(/\b(GREEN|AMBER|RED)\b/i)
+  if (/\b(store\s+theft|theft|crime reference)\b/i.test(normalizedBody)) {
+    const storeName =
+      normalizedBody.match(/\bthe fragrance shop\s+([a-z0-9 '&-]{2,})\b/i)?.[1]?.replace(/\s+/g, ' ').trim() ||
+      normalizedBody.match(/\bat\s+([a-z0-9 '&-]{2,})\s*(?:store)?\b/i)?.[1]?.replace(/\s+/g, ' ').trim() ||
+      null
+    if (storeName) return `Theft, Review - ${storeName}`
+    return 'Theft, Review'
+  }
+
+  if (!/\byour\s+stocktake\s+result\b/i.test(normalizedBody)) return null
+
+  const codeNameMatch = normalizedBody.match(/\bTFS\s+(\d{1,3})\s+([A-Za-z][A-Za-z '&-]{2,})\s*</i)
+  const colourMatch = normalizedBody.match(/\b(GREEN|AMBER|RED)\b/i)
   if (codeNameMatch?.[1] && codeNameMatch?.[2] && colourMatch?.[1]) {
     const storeCode = codeNameMatch[1].padStart(3, '0')
     const storeName = codeNameMatch[2].replace(/\s+/g, ' ').trim()

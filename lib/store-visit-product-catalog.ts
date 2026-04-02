@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache'
 
 const BLOOMREACH_ENDPOINT = 'https://core.dxpapi.com/api/v1/core/'
-const BLOOMREACH_PAGE_SIZE = 250
+const BLOOMREACH_PAGE_SIZE = 200
 const BLOOMREACH_MAX_PAGES = 12
 
 export interface StoreVisitProductCatalogItem {
@@ -24,8 +24,8 @@ interface BloomreachDoc {
   sale_price?: number | string | Array<number | string>
   url?: string
   thumb_image?: string
-  product_base_name?: string
-  variant_master_recordid?: string
+  product_base_name?: string | string[]
+  variant_master_recordid?: string | string[]
   variants?:
     | {
         values?: Array<{
@@ -52,6 +52,14 @@ function extractVariantSkuIds(variants: BloomreachDoc['variants'] | unknown): st
         .filter(Boolean)
     )
   )
+}
+
+function normalizeToString(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim() || null
+  }
+
+  return String(value || '').trim() || null
 }
 
 function normalizeOptionalPrice(
@@ -104,12 +112,66 @@ function normalizeBloomreachDoc(doc: BloomreachDoc): StoreVisitProductCatalogIte
     productId,
     title,
     brand: String(doc.brand || '').trim() || null,
-    productBaseName: String(doc.product_base_name || '').trim() || null,
+    productBaseName: normalizeToString(doc.product_base_name),
     price: normalizeOptionalPrice(doc.sale_price) ?? normalizeOptionalPrice(doc.price),
     url: String(doc.url || '').trim() || null,
     imageUrl: String(doc.thumb_image || '').trim() || null,
-    variantMasterRecordId: String(doc.variant_master_recordid || '').trim() || null,
+    variantMasterRecordId: normalizeToString(doc.variant_master_recordid),
     variantSkuIds,
+  }
+}
+
+function buildKeywordSearchUrl(query: string, limit: number): string {
+  const params = new URLSearchParams({
+    account_id: '7387',
+    domain_key: 'thefragranceshop',
+    catalog_views: 'thefragranceshop:GBP',
+    q: query,
+    fl: 'pid,title,brand,price,sale_price,url,thumb_image,product_base_name,variant_master_recordid,variants',
+    start: '0',
+    rows: String(limit),
+    request_type: 'search',
+    search_type: 'keyword',
+    view_id: 'GBP',
+    ref_url: '',
+    url: 'https://www.thefragranceshop.co.uk/search',
+  })
+
+  return `${BLOOMREACH_ENDPOINT}?${params.toString()}`
+}
+
+export async function searchStoreVisitProducts(query: string, limit = 8): Promise<StoreVisitProductCatalogItem[]> {
+  const normalizedQuery = String(query || '').trim()
+  const normalizedLimit = Math.max(1, Math.min(12, Number(limit) || 8))
+
+  if (normalizedQuery.length < 2) {
+    return []
+  }
+
+  try {
+    const upstreamResponse = await fetch(buildKeywordSearchUrl(normalizedQuery, normalizedLimit), {
+      headers: {
+        accept: 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!upstreamResponse.ok) {
+      throw new Error(`Search failed with status ${upstreamResponse.status}`)
+    }
+
+    const payload = (await upstreamResponse.json()) as BloomreachResponse
+    return Array.from(
+      new Map(
+        (payload.response?.docs || [])
+          .map(normalizeBloomreachDoc)
+          .filter((item): item is StoreVisitProductCatalogItem => item !== null)
+          .map((item) => [item.productId, item])
+      ).values()
+    )
+  } catch (error) {
+    console.error('Failed to search store visit products:', error)
+    return []
   }
 }
 

@@ -153,3 +153,192 @@ export function getInboundEmailTemplateLabel(templateKey: string | null | undefi
       return null
   }
 }
+
+function toText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function toFiniteNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+
+  const normalized = value.replace(/[£,\s]/g, '').trim()
+  if (!normalized) return null
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+type ParsedInboundTheftLineItem = {
+  quantity: number | null
+  stockId: string | null
+  description: string | null
+  valueGbp: number | null
+  catalogProductTitle: string | null
+  catalogLineValueGbp: number | null
+}
+
+function normalizeInboundTheftLineItem(value: unknown): ParsedInboundTheftLineItem | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+
+  const item = value as Record<string, unknown>
+  const quantity = toFiniteNumber(item.quantity)
+  const stockId = toText(item.stockId)
+  const description = toText(item.description)
+  const valueGbp = toFiniteNumber(item.valueGbp)
+  const catalogProductTitle = toText(item.catalogProductTitle)
+  const catalogLineValueGbp = toFiniteNumber(item.catalogLineValueGbp)
+
+  if (
+    quantity === null &&
+    !stockId &&
+    !description &&
+    valueGbp === null &&
+    !catalogProductTitle &&
+    catalogLineValueGbp === null
+  ) {
+    return null
+  }
+
+  return {
+    quantity: quantity === null ? null : Math.round(quantity),
+    stockId: stockId || null,
+    description: description || null,
+    valueGbp,
+    catalogProductTitle: catalogProductTitle || null,
+    catalogLineValueGbp,
+  }
+}
+
+function getInboundEmailExtractedFields(email: Pick<InboundEmailRow, 'analysis_payload'>) {
+  const payload = getInboundEmailAnalysisPayloadObject(email.analysis_payload)
+  const extractedFields = payload?.extractedFields
+
+  if (!extractedFields || typeof extractedFields !== 'object' || Array.isArray(extractedFields)) {
+    return null
+  }
+
+  return extractedFields as Record<string, unknown>
+}
+
+function isGenericInboundTheftDescription(value: string | null | undefined) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return true
+
+  return (
+    /^(stock\s*(?:id|code)?|sku)\b/i.test(normalized) ||
+    /\b(?:crime|police|incident)\s+reference\b/i.test(normalized)
+  )
+}
+
+function getInboundEmailTheftLineItems(email: Pick<InboundEmailRow, 'analysis_payload'>) {
+  const extractedFields = getInboundEmailExtractedFields(email)
+  const rawLineItems = Array.isArray(extractedFields?.lineItems) ? extractedFields.lineItems : []
+
+  return rawLineItems
+    .map(normalizeInboundTheftLineItem)
+    .filter((item): item is ParsedInboundTheftLineItem => item !== null)
+}
+
+function getInboundEmailTheftLineDescription(item: ParsedInboundTheftLineItem) {
+  const normalizedDescription = toText(item.description)
+  if (normalizedDescription && !isGenericInboundTheftDescription(normalizedDescription)) {
+    return normalizedDescription
+  }
+
+  return toText(item.catalogProductTitle) || 'Unknown'
+}
+
+function formatInboundEmailTheftLineItem(item: ParsedInboundTheftLineItem) {
+  const quantity = item.quantity && item.quantity > 0 ? `${item.quantity} x ` : ''
+  const description = getInboundEmailTheftLineDescription(item)
+  const stockId = item.stockId ? ` (Stock ID ${item.stockId})` : ''
+  const value = typeof item.catalogLineValueGbp === 'number'
+    ? ` - Website value ${formatCurrency(item.catalogLineValueGbp)}`
+    : typeof item.valueGbp === 'number'
+      ? ` - Reported value ${formatCurrency(item.valueGbp)}`
+      : ''
+
+  return `${quantity}${description}${stockId}${value}`
+}
+
+function getInboundEmailTheftTotalValue(email: Pick<InboundEmailRow, 'analysis_payload'>, lineItems: ParsedInboundTheftLineItem[]) {
+  const extractedFields = getInboundEmailExtractedFields(email)
+  const explicitTotal =
+    toFiniteNumber(extractedFields?.catalogTotalValueGbp) ??
+    toFiniteNumber(extractedFields?.reportedTotalValueGbp) ??
+    toFiniteNumber(extractedFields?.totalValueGbp) ??
+    toFiniteNumber(extractedFields?.valueGbp)
+
+  if (explicitTotal !== null) return explicitTotal
+
+  const lineItemTotal = lineItems.reduce((total, item) => {
+    return total + (item.catalogLineValueGbp ?? item.valueGbp ?? 0)
+  }, 0)
+
+  return lineItemTotal > 0 ? Math.round(lineItemTotal * 100) / 100 : null
+}
+
+function isInboundEmailTheft(email: Pick<InboundEmailRow, 'analysis_template_key' | 'analysis_payload'>) {
+  if (String(email.analysis_template_key || '').trim().toLowerCase() === 'store_theft') {
+    return true
+  }
+
+  return getInboundEmailTheftLineItems(email).length > 0
+}
+
+export function getInboundEmailDisplaySummary(
+  email: Pick<InboundEmailRow, 'analysis_template_key' | 'analysis_payload' | 'analysis_summary' | 'body_preview'>
+) {
+  if (!isInboundEmailTheft(email)) {
+    return email.analysis_summary || email.body_preview || 'No summary available.'
+  }
+
+  const lineItems = getInboundEmailTheftLineItems(email)
+  const totalValue = getInboundEmailTheftTotalValue(email, lineItems)
+  const parts = ['Theft reported by email.']
+
+  if (lineItems.length > 0) {
+    parts.push(`${lineItems.length} line${lineItems.length === 1 ? '' : 's'} identified.`)
+  }
+
+  if (typeof totalValue === 'number') {
+    parts.push(`Total reported ${formatCurrency(totalValue)}.`)
+  }
+
+  return parts.join(' ')
+}
+
+export function getInboundEmailDetailedSummary(
+  email: Pick<InboundEmailRow, 'analysis_template_key' | 'analysis_payload' | 'analysis_summary' | 'body_preview'>
+) {
+  if (!isInboundEmailTheft(email)) {
+    return email.analysis_summary || email.body_preview || 'No summary available.'
+  }
+
+  const lineItems = getInboundEmailTheftLineItems(email)
+  const totalValue = getInboundEmailTheftTotalValue(email, lineItems)
+  const lines = ['Theft reported by email.']
+
+  if (lineItems.length > 0) {
+    lines.push('Lines stolen:')
+    lines.push(...lineItems.map(formatInboundEmailTheftLineItem))
+  } else {
+    lines.push('Lines stolen: Not stated in email')
+  }
+
+  if (typeof totalValue === 'number') {
+    lines.push(`Total reported: ${formatCurrency(totalValue)}`)
+  }
+
+  return lines.join('\n')
+}
