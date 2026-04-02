@@ -476,6 +476,40 @@ const INTERNAL_THEFT_CCTV_AMOUNT_CHECKS_GUIDE: StoreVisitActivityGuideCard = {
   ],
 }
 
+const STAFF_THEFT_INTERVIEW_PLAN_SECTION_GUIDES: Partial<
+  Record<StoreVisitActivityFieldSection, StoreVisitActivityGuideCard>
+> = {
+  what_checked: {
+    title: 'Interview Opening Script',
+    intro:
+      'Use this while opening a Loss Prevention interview with a TFS staff member about suspected theft, setting the tone, and introducing the allegation and evidence.',
+    prompts: [
+      '"Confirm full name, job title, and length of service, then introduce yourself as the Loss Prevention interviewer."',
+      '"Explain the meeting is part of a fair and objective internal theft investigation and outline how LP investigations can arise."',
+      '"Cover the colleague\'s role and policy awareness, then put the allegation in neutral terms and present the evidence available."',
+    ],
+  },
+  findings: {
+    title: 'Challenge And Wider Enquiry Script',
+    intro: `Use this section to capture the direct answers given, the explanation of the evidence, and whether the theft concern is isolated or wider. ${INTERNAL_THEFT_FACTUAL_NOTE}`,
+    prompts: [
+      '"Ask the colleague to explain what they see on the evidence and then ask directly whether any item was removed without payment."',
+      '"Ask what was taken and record the answer accurately in their own words."',
+      '"Explore whether this was the first occurrence or whether there are any other incidents to disclose, without leading the answer."',
+    ],
+  },
+  actions: {
+    title: 'Closing And Escalation Script',
+    intro:
+      'Use this before ending the meeting so the close, evidence review, escalation, and pending outcome are documented clearly.',
+    prompts: [
+      '"Summarise the key points back to the colleague and offer the chance to add anything further."',
+      '"Explain the next steps and the internal review process after the interview."',
+      '"Record the post-interview evidence review, escalation to the appropriate Regional Director and stakeholders, and pending outcome stage."',
+    ],
+  },
+}
+
 export const STORE_VISIT_ACTIVITY_OPTIONS = [
   {
     key: 'checked_banking',
@@ -1097,6 +1131,241 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
       actionsTaken: 'recoveryOrFurtherChecks',
       nextSteps: 'recoveryOrFurtherChecks',
       peopleInvolved: 'subjectIdentified',
+      reference: 'caseReference',
+    },
+  },
+  {
+    key: 'staff_theft_interview_plan',
+    label: 'Interview plan - staff theft',
+    description:
+      'Specialist interview-plan template for Loss Prevention officers interviewing TFS staff about suspected theft, with a full script for each interview stage.',
+    detailPlaceholder:
+      'Capture the theft interview plan, the evidence discussed, and the staff member responses from opening through close.',
+    formVariant: 'structured',
+    evidenceLabel: 'Interview-plan evidence',
+    specialist: true,
+    sectionGuides: STAFF_THEFT_INTERVIEW_PLAN_SECTION_GUIDES,
+    fields: [
+      withFieldGuidance(getActivityFieldDefinition(COMMON_ACTIVITY_CONTEXT_FIELDS, 'lpObjective'), {
+        scriptLines: [
+          '"This interview is being conducted by Loss Prevention as part of a theft investigation involving a member of TFS staff."',
+          '"The purpose today is to put the allegation to you, review the evidence available, and give you a fair opportunity to explain."',
+        ],
+        captureHint:
+          'Record the theft concern, why Loss Prevention is holding the interview, and what the meeting needs to establish.',
+      }),
+      withFieldGuidance(getActivityFieldDefinition(COMMON_ACTIVITY_CONTEXT_FIELDS, 'peoplePresent'), {
+        scriptLines: [
+          '"For the record, confirm everyone present for this interview and the role each person holds."',
+        ],
+        captureHint:
+          'List the interviewer, note taker, witness, representative, manager, or any other attendee present during the meeting.',
+      }),
+      withFieldGuidance(getActivityFieldDefinition(COMMON_ACTIVITY_CONTEXT_FIELDS, 'recordsReviewed'), {
+        scriptLines: [
+          '"The evidence and records reviewed for this interview include..."',
+        ],
+        captureHint:
+          'Record the CCTV, stock records, till records, witness material, or other documents reviewed before or during the interview.',
+      }),
+      {
+        key: 'caseReference',
+        label: 'Case / incident reference',
+        placeholder: 'Investigation, HR, ER, or incident reference linked to the theft interview.',
+        input: 'text',
+        section: 'what_checked',
+        scriptLines: ['"For the record, this interview relates to case / incident reference..."'],
+        captureHint:
+          'Enter the main case, incident, HR, or ER reference attached to the interview plan.',
+      },
+      {
+        key: 'subjectProfile',
+        label: 'Employee (subject)',
+        placeholder: 'Full name, job title, and length of service.',
+        input: 'text',
+        section: 'what_checked',
+        scriptLines: [
+          '"Please confirm your full name, current job title, and length of service with The Fragrance Shop."',
+        ],
+        captureHint:
+          'Record the subject\'s full name, job title, and service length exactly as confirmed at the start of the meeting.',
+      },
+      {
+        key: 'interviewLocation',
+        label: 'Interview location',
+        placeholder: 'Store, office, or meeting room where the interview took place.',
+        input: 'text',
+        section: 'what_checked',
+        scriptLines: [
+          '"For the record, confirm where this interview is taking place and note the exact room or location."',
+        ],
+        captureHint:
+          'Record the interview location and whether it took place in the store office, another room, or another formal setting.',
+      },
+      {
+        key: 'evidenceAvailable',
+        label: 'Evidence available',
+        placeholder: 'CCTV footage, stock discrepancy, witness account, till data, or other evidence available for the interview.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"The evidence currently available for this interview is..."',
+        ],
+        captureHint:
+          'Record the evidence available at the point the interview started, including the key allegation-supporting material.',
+      },
+      {
+        key: 'introductionFormalities',
+        label: '1. Introduction & formalities',
+        placeholder: 'Record how full name, job title, service length, interviewer introduction, and internal-investigation context were covered.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"Before we begin, I need to confirm your full name, job title, and length of service."',
+          '"My name is [name], my role is [role], and my investigative background is [background]."',
+          '"This meeting forms part of an internal investigation and I will keep the questions neutral and factual."',
+        ],
+        captureHint:
+          'Summarise how the introduction and formalities were covered at the start of the meeting.',
+      },
+      {
+        key: 'toneSetting',
+        label: '2. Setting the tone',
+        placeholder: 'Record how fairness, objectivity, investigation scope, and investigation methods were explained.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"This investigation will be conducted fairly and objectively."',
+          '"People can make mistakes for different reasons, and this meeting is to understand what happened."',
+          '"Loss Prevention investigates theft of cash, theft of stock, and fraudulent transactions involving the business."',
+          '"Those investigations may arise from whistleblowing, CCTV review, stock discrepancies, till data, or other evidence."',
+        ],
+        captureHint:
+          'Record how the fair-process explanation and investigation context were set out to the subject.',
+      },
+      {
+        key: 'generalQuestions',
+        label: '3. General questions',
+        placeholder: 'Summarise the subject response about their day-to-day role and understanding of company policies.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"Talk me through your normal day-to-day role in the store."',
+          '"What is your understanding of the company policies that apply to stock, testers, cash, and unpaid items?"',
+        ],
+        captureHint:
+          'Summarise the subject\'s account of their role and their understanding of the relevant company policies.',
+      },
+      {
+        key: 'policyAwareness',
+        label: '4. Policy awareness',
+        placeholder: 'Record how the subject described the removal of an unpaid item and whether they accepted it would be theft / misconduct.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"How would the removal of an unpaid item from the store be viewed by the company?"',
+          '"Do you understand that removing an unpaid item would amount to theft or misconduct?"',
+        ],
+        captureHint:
+          'Record the subject\'s policy-awareness answer and whether they acknowledged the expected theft / misconduct position.',
+      },
+      {
+        key: 'allegationIntroduction',
+        label: '5. Introduction of allegation',
+        placeholder: 'Record exactly how the removal-of-stock-without-payment allegation was put in neutral terms.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"The allegation being investigated is the removal of stock or company property from the business without payment."',
+          '"At this stage I am putting that allegation to you in general terms and asking for your response."',
+        ],
+        captureHint:
+          'Record exactly how the allegation was introduced, keeping it neutral and non-specific at the outset.',
+      },
+      {
+        key: 'evidencePresentation',
+        label: '6. Presentation of evidence',
+        placeholder: 'Record how the CCTV was shown and what explanation the subject gave when asked what they could see.',
+        input: 'textarea',
+        section: 'what_checked',
+        scriptLines: [
+          '"I am now showing you the evidence relied on in this investigation."',
+          '"Please explain, in your own words, what you can see and what was happening at that point."',
+        ],
+        captureHint:
+          'Summarise how the evidence was presented and the subject\'s immediate explanation of what it showed.',
+      },
+      {
+        key: 'directQuestioning',
+        label: '7. Direct questioning',
+        placeholder: 'Record the answers given when asked directly whether any item was removed without payment and what item was taken.',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"Did you remove any item from the store without paying for it?"',
+          '"What item or items were taken?"',
+          '"I am recording your answers accurately, so please explain in your own words what happened."',
+        ],
+        captureHint:
+          'Record the direct answers given when the theft allegation was put plainly and the subject was asked to explain.',
+      },
+      {
+        key: 'widerInvestigation',
+        label: '8. Wider investigation',
+        placeholder: 'Summarise what was said about whether this was the first occurrence and whether any other incidents were disclosed.',
+        input: 'textarea',
+        section: 'findings',
+        scriptLines: [
+          '"Was this the first time anything like this has happened?"',
+          '"Are there any other incidents involving stock, testers, cash, or unpaid items that you need to disclose?"',
+          '"I am not going to lead you; I need you to answer in your own words and I will document your response exactly."',
+        ],
+        captureHint:
+          'Summarise what was said about any previous or wider incidents while keeping the notes factual and non-leading.',
+      },
+      {
+        key: 'closingInterview',
+        label: '9. Closing the interview',
+        placeholder: 'Record the key summary given, any final comments offered, and how next steps were explained.',
+        input: 'textarea',
+        section: 'actions',
+        scriptLines: [
+          '"To summarise, the key points from this interview are..."',
+          '"Is there anything further you want to add before we close the meeting?"',
+          '"The next step is for the evidence and your account to be reviewed through the internal process."',
+        ],
+        captureHint:
+          'Record how the meeting was summarised, whether the subject added anything further, and what next-step explanation was given.',
+      },
+      {
+        key: 'postInterviewActions',
+        label: '10. Post-interview actions',
+        placeholder: 'Record the evidence review, Steve Brant escalation, and the pending outcome position.',
+        input: 'textarea',
+        section: 'actions',
+        scriptLines: [
+          '"Following this interview, the evidence will be reviewed again in full."',
+          '"The case will be escalated to the appropriate Regional Director and any other relevant stakeholders for review."',
+          '"After that review, the business will await the outcome of the internal process."',
+        ],
+        captureHint:
+          'Record the post-interview action plan exactly, including the evidence review, escalation route, and pending outcome stage.',
+      },
+      withFieldGuidance(getActivityFieldDefinition(COMMON_ACTIVITY_ACTION_FIELDS, 'escalatedTo'), {
+        scriptLines: [
+          '"This case is being escalated to the appropriate Regional Director and any other agreed stakeholders."',
+        ],
+        captureHint:
+          'Record the Regional Director, HR/ER lead, and any other stakeholder updated immediately after the interview.',
+      }),
+    ],
+    detailFieldKeys: ['subjectProfile', 'directQuestioning'],
+    legacyFieldMap: {
+      summary: 'evidencePresentation',
+      findings: 'directQuestioning',
+      actionsTaken: 'postInterviewActions',
+      nextSteps: 'postInterviewActions',
+      peopleInvolved: 'subjectProfile',
       reference: 'caseReference',
     },
   },
@@ -1874,6 +2143,7 @@ const STORE_VISIT_ACTIVITY_KEYS_WITH_EVIDENCE_CHAIN = new Set<StoreVisitActivity
   'reviewed_security_procedures',
   'internal_theft_interview',
   'internal_theft_cctv_confirmed',
+  'staff_theft_interview_plan',
 ])
 
 const STORE_VISIT_ACTIVITY_CORE_WHAT_CHECKED_FIELDS: readonly StoreVisitActivityFieldDefinition[] = [

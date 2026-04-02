@@ -144,6 +144,7 @@ describe('store visit activity payloads', () => {
       'reviewed_security_procedures',
       'internal_theft_interview',
       'internal_theft_cctv_confirmed',
+      'staff_theft_interview_plan',
     ])
 
     for (const option of STORE_VISIT_ACTIVITY_OPTIONS) {
@@ -635,6 +636,43 @@ describe('store visit activity payloads', () => {
     expect(detail).toContain('1 item check recorded, 1 variance found')
     expect(detail).toContain('1 cash check recorded, 1 mismatch found')
     expect(detail).toContain('Amount discrepancy found')
+  })
+
+  it('normalizes staff-theft interview-plan payloads', () => {
+    const payloads = normalizeStoreVisitActivityPayloads(
+      {
+        staff_theft_interview_plan: {
+          fields: {
+            subjectProfile: 'Sales advisor, 2 years\' service',
+            evidencePresentation:
+              'CCTV was shown and the subject said the footage looked like them placing a tester into a jacket pocket.',
+            directQuestioning: 'Denied theft but accepted handling the tester.',
+            postInterviewActions: 'Escalated to the Regional Director and awaiting outcome.',
+          },
+        },
+      },
+      ['staff_theft_interview_plan']
+    )
+
+    expect(payloads.staff_theft_interview_plan?.fields).toEqual({
+      subjectProfile: 'Sales advisor, 2 years\' service',
+      evidencePresentation:
+        'CCTV was shown and the subject said the footage looked like them placing a tester into a jacket pocket.',
+      directQuestioning: 'Denied theft but accepted handling the tester.',
+      postInterviewActions: 'Escalated to the Regional Director and awaiting outcome.',
+    })
+  })
+
+  it('builds a compact detail for the staff-theft interview plan', () => {
+    const detail = buildStoreVisitActivityDetailText('staff_theft_interview_plan', '', {
+      fields: {
+        subjectProfile: 'Sales advisor, 2 years\' service',
+        directQuestioning: 'Denied theft but accepted handling the tester.',
+      },
+    })
+
+    expect(detail).toContain('Sales advisor, 2 years\' service')
+    expect(detail).toContain('Denied theft but accepted handling the tester.')
   })
 
   it('adds the factual-recording note to both internal theft findings guides', () => {

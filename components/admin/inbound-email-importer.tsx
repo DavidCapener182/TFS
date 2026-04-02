@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, MailPlus } from 'lucide-react'
 
-import { createInboundEmailFromPaste } from '@/app/actions/inbound-emails'
+import { createInboundEmailFromPaste, linkInboundEmailToStore } from '@/app/actions/inbound-emails'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -143,10 +143,48 @@ export function InboundEmailImporter() {
                   variant: 'success',
                 })
 
+                let linkedStoreId: string | null = result.matchedStoreId ? String(result.matchedStoreId) : null
+                if (!result.matchedStoreId) {
+                  const storeCode = window.prompt(
+                    'Could not match this email to a store.\n\nEnter the store code (e.g. 042) to link it now:',
+                    ''
+                  )
+                  if (storeCode && storeCode.trim()) {
+                    try {
+                      const linkResult = await linkInboundEmailToStore({ emailId: result.id, storeCode })
+                      linkedStoreId = linkResult.storeId
+                      toast({
+                        title: 'Store linked',
+                        description: `Linked to store ${storeCode.trim()}.`,
+                        variant: 'success',
+                      })
+                      router.push(`/stores/${linkResult.storeId}`)
+                    } catch (linkError) {
+                      toast({
+                        title: 'Could not link store',
+                        description: linkError instanceof Error ? linkError.message : 'Unknown error',
+                        variant: 'destructive',
+                      })
+                    }
+                  } else {
+                    toast({
+                      title: 'Store not linked',
+                      description: 'This email was saved but is not linked to a store yet.',
+                      variant: 'destructive',
+                    })
+                  }
+                }
+
                 if (!result.needsReview) {
+                  if (!linkedStoreId) {
+                    window.alert(
+                      `Saved and auto-reviewed:\n\n${result.subject}\n\nThis email will not appear in the Inbound Email review queue because it didn’t need follow-up.\n\nHowever, it is not linked to a store yet — enter the store code when prompted (or use Advanced overrides) so it shows on the correct store page.`
+                    )
+                  } else {
                   window.alert(
                     `Saved and auto-reviewed:\n\n${result.subject}\n\nThis email will not appear in the Inbound Email review queue. Check the store page / latest emails instead.`
                   )
+                  }
                 }
 
                 setSubject('')

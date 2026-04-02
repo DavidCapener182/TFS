@@ -577,5 +577,66 @@ export async function createInboundEmailFromPaste(input: {
     subject: String(insertedEmail.subject || subject),
     templateKey: analysisResult.templateKey,
     needsReview: analysisResult.needsAction || analysisResult.needsVisit || analysisResult.needsIncident,
+    matchedStoreId: analysisResult.matchedStoreId,
   }
+}
+
+export async function linkInboundEmailToStore(input: { emailId: string; storeCode: string }) {
+  const { supabase } = await getWritableContext()
+
+  const emailId = String(input.emailId || '').trim()
+  if (!emailId) throw new Error('Missing email id.')
+
+  const rawCode = String(input.storeCode || '').trim()
+  const digits = rawCode.match(/\d{1,3}/)?.[0] || ''
+  if (!digits) throw new Error('Enter a store code like 042.')
+
+  const normalized = String(Number(digits))
+  const padded = digits.padStart(3, '0')
+
+  const { data: stores, error: storeError } = await supabase
+    .from('tfs_stores')
+    .select('id, store_code')
+    .in('store_code', Array.from(new Set([digits, padded, normalized])))
+    .limit(2)
+
+  if (storeError) throw new Error(storeError.message)
+  const storeId = stores?.[0]?.id ? String(stores[0].id) : null
+  if (!storeId) throw new Error(`No store found for code ${padded}.`)
+
+  const { data: existingEmail, error: existingError } = await supabase
+    .from('tfs_inbound_emails')
+    .select('raw_payload')
+    .eq('id', emailId)
+    .maybeSingle()
+
+  if (existingError) throw new Error(existingError.message)
+
+  const existingPayload =
+    existingEmail?.raw_payload && typeof existingEmail.raw_payload === 'object' && !Array.isArray(existingEmail.raw_payload)
+      ? (existingEmail.raw_payload as Record<string, unknown>)
+      : {}
+
+  const nextPayload: Record<string, unknown> = {
+    ...existingPayload,
+    store_code_hint: padded,
+  }
+
+  const { error: updateError } = await supabase
+    .from('tfs_inbound_emails')
+    .update({
+      matched_store_id: storeId,
+      raw_payload: nextPayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', emailId)
+
+  if (updateError) throw new Error(updateError.message)
+
+  revalidatePath('/inbound-emails')
+  revalidatePath('/visit-tracker')
+  revalidatePath('/dashboard')
+  revalidatePath(`/stores/${storeId}`)
+
+  return { storeId }
 }
