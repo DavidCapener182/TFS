@@ -733,6 +733,85 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
     detailFieldKeys: ['linesChecked', 'areasChecked', 'highRiskProductsChecked'],
   },
   {
+    key: 'random_lp_visit',
+    label: 'Random LP visit (banking + line checks)',
+    description:
+      'General unplanned LP visit combining quick banking controls and stock line checks in one template.',
+    detailPlaceholder:
+      'Capture the random LP visit covering both banking checks and stock line checks, including any variances and actions.',
+    formVariant: 'structured',
+    evidenceLabel: 'Visit evidence',
+    fields: [
+      ...COMMON_ACTIVITY_CONTEXT_FIELDS,
+      {
+        key: 'bankingReference',
+        label: 'Banking reference',
+        placeholder: 'Deposit number, bag reference, banking slip...',
+        input: 'text',
+        section: 'what_checked',
+      },
+      {
+        key: 'bankingItemsChecked',
+        label: 'Banking items checked',
+        placeholder: 'List the bags, envelopes, safe contents, or deposits reviewed.',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'linesChecked',
+        label: 'Lines / ranges checked',
+        placeholder: 'Which brands, bays, cabinets, drawers, or high-risk ranges were checked?',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      {
+        key: 'areasChecked',
+        label: 'Areas checked',
+        placeholder: 'Sales floor, stockroom, till point, fragrance wall, promo table...',
+        input: 'textarea',
+        section: 'what_checked',
+      },
+      ...COMMON_ACTIVITY_FINDINGS_FIELDS,
+      {
+        key: 'bankingDiscrepancy',
+        label: 'Banking discrepancy / irregularity',
+        placeholder: 'Short banking, bag mismatch, missing slip, late banking, or paperwork gap...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      {
+        key: 'lineCheckVariance',
+        label: 'Line-check variance / concern',
+        placeholder: 'Missing stock, repeat variance, damaged items, or unexplained movement...',
+        input: 'textarea',
+        section: 'findings',
+      },
+      ...COMMON_ACTIVITY_ACTION_FIELDS,
+      {
+        key: 'bankingActionsTaken',
+        label: 'Banking actions taken',
+        placeholder: 'Record what was corrected, escalated, or contained for banking controls.',
+        input: 'textarea',
+        section: 'actions',
+      },
+      {
+        key: 'lineCheckActionsTaken',
+        label: 'Line-check actions taken',
+        placeholder: 'Record what was corrected, re-counted, coached, or escalated for stock lines.',
+        input: 'textarea',
+        section: 'actions',
+      },
+    ],
+    detailFieldKeys: ['bankingItemsChecked', 'linesChecked', 'lineCheckVariance'],
+    legacyFieldMap: {
+      summary: 'linesChecked',
+      findings: 'lineCheckVariance',
+      actionsTaken: 'lineCheckActionsTaken',
+      nextSteps: 'lineCheckActionsTaken',
+      reference: 'bankingReference',
+    },
+  },
+  {
     key: 'internal_theft_interview',
     label: 'Internal theft interview',
     description:
@@ -2629,6 +2708,35 @@ const STORE_VISIT_ACTIVITY_SECTION_GUIDES: Partial<
       ],
     },
   },
+  random_lp_visit: {
+    what_checked: {
+      title: 'Random LP Visit Script',
+      intro: 'Use this on unplanned visits where you are combining banking controls with stock line checks.',
+      prompts: [
+        '"Which banking references, bags, safe amounts, or paperwork are we checking today?"',
+        '"Which stock lines, ranges, or high-risk areas are we checking during this visit?"',
+        '"Who completed the review with you, and what records were used to verify both checks?"',
+      ],
+    },
+    findings: {
+      title: 'Random LP Findings Script',
+      intro: 'Use this to capture both banking discrepancies and stock-line variance in one clear outcome.',
+      prompts: [
+        '"What discrepancy or control gap came out of the banking review?"',
+        '"What stock variance or line-check concern was identified?"',
+        '"What root cause or control weakness links these findings, if any?"',
+      ],
+    },
+    actions: {
+      title: 'Random LP Action Script',
+      intro: 'Use this before closing so both cash and stock follow-up ownership is explicit.',
+      prompts: [
+        '"What was corrected, secured, re-counted, or contained before leaving site?"',
+        '"Who was updated about both banking and line-check outcomes?"',
+        '"Who owns the follow-up actions and by when?"',
+      ],
+    },
+  },
   supported_investigation: {
     what_checked: {
       title: 'Investigation Support Script',
@@ -3053,6 +3161,40 @@ const STORE_VISIT_ACTIVITY_FIELD_GUIDANCE: Partial<
     highRiskProductsChecked: {
       scriptLines: ['"Which high-risk products or fragrances were prioritised?"'],
       captureHint: 'List the high-risk products or lines that were specifically checked.',
+    },
+  },
+  random_lp_visit: {
+    bankingReference: {
+      scriptLines: ['"Which deposit, bag, or banking reference are we reviewing on this random visit?"'],
+      captureHint: 'Record the banking identifier used during the random LP visit.',
+    },
+    bankingItemsChecked: {
+      scriptLines: ['"Which banking items, safe contents, or cash packs were physically checked?"'],
+      captureHint: 'List the cash items or banking units checked during the visit.',
+    },
+    linesChecked: {
+      scriptLines: ['"Which stock lines or ranges did we include in this random check?"'],
+      captureHint: 'List the main lines or ranges checked during the visit.',
+    },
+    areasChecked: {
+      scriptLines: ['"Which physical store areas were included in these line checks?"'],
+      captureHint: 'Record the store areas covered by the line-check review.',
+    },
+    bankingDiscrepancy: {
+      scriptLines: ['"What discrepancy or irregularity was found in the banking review?"'],
+      captureHint: 'Describe any shortfall, mismatch, paperwork gap, or other banking concern found.',
+    },
+    lineCheckVariance: {
+      scriptLines: ['"What stock variance, count issue, or unexplained movement was found?"'],
+      captureHint: 'Summarise the main stock-line variance or concern identified.',
+    },
+    bankingActionsTaken: {
+      scriptLines: ['"What banking action was completed or escalated before leaving site?"'],
+      captureHint: 'Capture the immediate banking action taken during the visit.',
+    },
+    lineCheckActionsTaken: {
+      scriptLines: ['"What stock-line action was completed, re-counted, or escalated?"'],
+      captureHint: 'Capture the immediate line-check action taken during the visit.',
     },
   },
   supported_investigation: {
