@@ -927,6 +927,40 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
     }
   }
 
+  const updateRoutePurposeForStore = async (
+    group: (typeof plannedRoutes)[number],
+    storeId: string,
+    newPurpose: string,
+    newPurposeNote?: string | null
+  ) => {
+    const targetStore = group.stores.find((store) => store.id === storeId)
+    if (!targetStore) return
+
+    const normalizedPurpose = String(newPurpose || '').trim() || 'general_follow_up'
+    const normalizedNote =
+      newPurposeNote === undefined
+        ? String(targetStore.compliance_audit_2_planned_note || '').trim() || null
+        : String(newPurposeNote || '').trim() || null
+
+    setLoading((current) => ({ ...current, [storeId]: true }))
+    try {
+      const { updateComplianceAudit2Tracking } = await import('@/app/actions/stores')
+      await updateComplianceAudit2Tracking(
+        storeId,
+        group.managerId,
+        group.plannedDate,
+        normalizedPurpose,
+        normalizedNote
+      )
+      router.refresh()
+    } catch (error) {
+      console.error('Error updating store purpose:', error)
+      alert('Error updating visit type. Please try again.')
+    } finally {
+      setLoading((current) => ({ ...current, [storeId]: false }))
+    }
+  }
+
   const plannedStoreCount = plannedRoutes.reduce((total, route) => total + route.stores.length, 0)
   const managerCount = profiles.length
   const storesInRouteAreaMissingCoordsCount = storesInRouteArea.length - storesInRouteAreaWithLocations.length
@@ -1725,27 +1759,70 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                               </div>
 
                               {isEditing && (
-                                <div className="mt-3 flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleReorderStore(groupKey, store.id, 'up')}
-                                    disabled={!canMoveUp}
-                                    className="min-h-[40px] flex-1 rounded-xl"
+                                <div className="mt-3 space-y-2">
+                                  <Select
+                                    defaultValue={String(
+                                      store.compliance_audit_2_planned_purpose || 'general_follow_up'
+                                    )}
+                                    onValueChange={(value) => {
+                                      void updateRoutePurposeForStore(
+                                        group,
+                                        store.id,
+                                        value,
+                                        store.compliance_audit_2_planned_note || null
+                                      )
+                                    }}
                                   >
-                                    <ChevronUp className="mr-1.5 h-4 w-4" />
-                                    Earlier
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleReorderStore(groupKey, store.id, 'down')}
-                                    disabled={!canMoveDown}
-                                    className="min-h-[40px] flex-1 rounded-xl"
-                                  >
-                                    <ChevronDown className="mr-1.5 h-4 w-4" />
-                                    Later
-                                  </Button>
+                                    <SelectTrigger className="h-10 min-h-[40px] rounded-xl text-sm">
+                                      <SelectValue placeholder="Select visit type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {PLANNED_VISIT_PURPOSE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    type="text"
+                                    defaultValue={store.compliance_audit_2_planned_note || ''}
+                                    placeholder="Optional note for this visit"
+                                    onBlur={(e) => {
+                                      void updateRoutePurposeForStore(
+                                        group,
+                                        store.id,
+                                        String(
+                                          store.compliance_audit_2_planned_purpose ||
+                                            'general_follow_up'
+                                        ),
+                                        e.target.value
+                                      )
+                                    }}
+                                    className="h-10 min-h-[40px] rounded-xl text-sm"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleReorderStore(groupKey, store.id, 'up')}
+                                      disabled={!canMoveUp}
+                                      className="min-h-[40px] flex-1 rounded-xl"
+                                    >
+                                      <ChevronUp className="mr-1.5 h-4 w-4" />
+                                      Earlier
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleReorderStore(groupKey, store.id, 'down')}
+                                      disabled={!canMoveDown}
+                                      className="min-h-[40px] flex-1 rounded-xl"
+                                    >
+                                      <ChevronDown className="mr-1.5 h-4 w-4" />
+                                      Later
+                                    </Button>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1907,6 +1984,34 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                                         <span className="text-gray-500 text-xs ml-2">({getDisplayStoreCode(store.store_code)})</span>
                                       )}
                                     </span>
+                                    {isEditing && (
+                                      <div className="ml-2 min-w-[200px]">
+                                        <Select
+                                          defaultValue={String(
+                                            store.compliance_audit_2_planned_purpose || 'general_follow_up'
+                                          )}
+                                          onValueChange={(value) => {
+                                            void updateRoutePurposeForStore(
+                                              group,
+                                              store.id,
+                                              value,
+                                              store.compliance_audit_2_planned_note || null
+                                            )
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-7 text-xs">
+                                            <SelectValue placeholder="Visit type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {PLANNED_VISIT_PURPOSE_OPTIONS.map((option) => (
+                                              <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })}
