@@ -1903,38 +1903,43 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
   {
     key: 'conducted_stop_on_close',
     label: 'Stop on close',
-    description: 'Completed an end-of-day stop-on-close review with the store team.',
-    detailPlaceholder: 'Record who was present, what was checked at close, and any concerns identified.',
+    description:
+      'Completed an end-of-day stop-on-close intervention where Loss Prevention attended at close due to evidence or suspicion of internal theft.',
+    detailPlaceholder:
+      'Record the reason for the stop, who was searched, search outcome, and any suspension / notice / property handover actions.',
     formVariant: 'structured',
     evidenceLabel: 'Stop-on-close evidence',
     fields: [
       ...COMMON_ACTIVITY_CONTEXT_FIELDS,
       {
         key: 'teamPresent',
-        label: 'Team present',
-        placeholder: 'Manager, keyholder, staff members, guard...',
+        label: 'People present at stop on close',
+        placeholder: 'Loss Prevention officer, manager, keyholder, staff member searched, witness...',
         input: 'text',
         section: 'what_checked',
       },
       {
         key: 'closingChecksCompleted',
-        label: 'Closing checks completed',
-        placeholder: 'Cash secure, doors checked, stockroom clear, alarm set, keys controlled...',
+        label: 'Reason and scope of stop',
+        placeholder:
+          'What evidence or suspicion triggered the stop on close, and what search scope was explained to the colleague?',
         input: 'textarea',
         section: 'what_checked',
       },
       {
         key: 'cashAndKeysVerified',
-        label: 'Cash / keys / alarm verification',
-        placeholder: 'Who held keys, how cash was secured, alarm set confirmation, locking checks...',
+        label: 'Search and property control',
+        placeholder:
+          'How was the search carried out, what was found (if anything), and what keys or company property were taken into LP control?',
         input: 'textarea',
         section: 'what_checked',
       },
       ...COMMON_ACTIVITY_FINDINGS_FIELDS,
       {
         key: 'issuesAtClose',
-        label: 'Issues found at close',
-        placeholder: 'Record any missed steps, unsecured stock, or process breaches.',
+        label: 'Search outcome and theft finding',
+        placeholder:
+          'Record whether theft items were found, what was recovered, and any admission or denial made by the colleague.',
         input: 'textarea',
         section: 'findings',
       },
@@ -1942,7 +1947,8 @@ export const STORE_VISIT_ACTIVITY_OPTIONS = [
       {
         key: 'actionsBeforeLeaving',
         label: 'Actions before leaving',
-        placeholder: 'What was corrected or agreed before the store closed?',
+        placeholder:
+          'Record suspension outcome, notice option offered, HR/police escalation decision, and final handover actions before leaving.',
         input: 'textarea',
         section: 'actions',
       },
@@ -2742,29 +2748,32 @@ const STORE_VISIT_ACTIVITY_SECTION_GUIDES: Partial<
   conducted_stop_on_close: {
     what_checked: {
       title: 'Stop On Close Script',
-      intro: 'Use this while walking the closing routine with the team before final lock-up.',
+      intro:
+        'Use this when Loss Prevention attends at close because there is evidence or suspicion of internal theft.',
       prompts: [
-        '"Who is present for close and who holds key responsibility tonight?"',
-        '"Which closing checks were physically completed before lock-up?"',
-        '"How were cash, keys, alarms, and final access controls verified?"',
+        '"Who attended the stop on close, who was searched, and who witnessed the process?"',
+        '"What evidence or suspicion triggered the stop and what was explained to the colleague?"',
+        '"How was the search carried out and what keys or company property were secured by LP?"',
       ],
     },
     findings: {
       title: 'Stop On Close Findings Script',
-      intro: 'Use this section to record any exposure left in the close-down process.',
+      intro:
+        'Use this section to record the factual search outcome and whether internal theft was evidenced.',
       prompts: [
-        '"What steps were missed, rushed, or completed incorrectly at close?"',
-        '"Was any stock, cash, key, alarm, or access point left exposed?"',
-        '"What weakness in process or supervision caused the issue?"',
+        '"Were any stolen goods or company assets found during the search?"',
+        '"Did the colleague admit, deny, or provide an explanation for the items found?"',
+        '"What risk or control weakness does this outcome highlight?"',
       ],
     },
     actions: {
       title: 'Stop On Close Action Script',
-      intro: 'Use this before leaving so the final corrections and ownership are documented.',
+      intro:
+        'Use this before leaving to document the disciplinary options given and all immediate safeguarding actions.',
       prompts: [
-        '"What was corrected before the team left the building?"',
-        '"Who was informed about any close-down concern?"',
-        '"What follow-up action is still needed after tonight?"',
+        '"Was the colleague suspended and what was explained about next steps?"',
+        '"Was the option to resign (hand in notice) offered to avoid further escalation, and what was their response?"',
+        '"Who was informed, was police escalation required, and what follow-up actions remain?"',
       ],
     },
   },
@@ -3164,24 +3173,24 @@ const STORE_VISIT_ACTIVITY_FIELD_GUIDANCE: Partial<
   },
   conducted_stop_on_close: {
     teamPresent: {
-      scriptLines: ['"Who was present for close and who held responsibility?"'],
-      captureHint: 'List the staff, manager, keyholder, or guard present at close.',
+      scriptLines: ['"Who attended the stop on close and who witnessed the search?"'],
+      captureHint: 'List the LP officer, manager, colleague searched, and any witness present.',
     },
     closingChecksCompleted: {
-      scriptLines: ['"Which close-down checks were physically completed?"'],
-      captureHint: 'Record the specific closing checks completed during the visit.',
+      scriptLines: ['"What evidence or suspicion triggered this stop on close and what scope was explained?"'],
+      captureHint: 'Record why the stop happened and what was communicated before the search began.',
     },
     cashAndKeysVerified: {
-      scriptLines: ['"How were cash, keys, and alarm status verified?"'],
-      captureHint: 'Summarise how key security items were checked before lock-up.',
+      scriptLines: ['"How was the search completed and what keys/company property were placed under LP control?"'],
+      captureHint: 'Summarise the search process, items found, and property/keys secured by LP.',
     },
     issuesAtClose: {
-      scriptLines: ['"What issue, missed step, or exposure did you find at close?"'],
-      captureHint: 'Describe the close-down issue or security concern identified.',
+      scriptLines: ['"What was the search outcome and was internal theft evidenced?"'],
+      captureHint: 'Describe what was recovered and whether the colleague admitted, denied, or explained the finding.',
     },
     actionsBeforeLeaving: {
-      scriptLines: ['"What did you put right before the team left site?"'],
-      captureHint: 'Record the final corrections or agreements completed before leaving.',
+      scriptLines: ['"What disciplinary and escalation actions were completed before leaving?"'],
+      captureHint: 'Record suspension, notice option offered, escalation decisions, and final handover actions.',
     },
   },
   took_statements_or_interviews: {
