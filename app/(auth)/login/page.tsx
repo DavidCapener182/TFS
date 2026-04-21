@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,6 +125,19 @@ function LoginContent() {
               <Button type="submit" className="w-full bg-[#232154] text-white hover:bg-[#1c0259]" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign in'}
               </Button>
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <Link href="/store-login" className="block">
+                <Button type="button" variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50">
+                  Store login with code
+                </Button>
+              </Link>
+              <p className="text-center text-xs text-slate-500">
+                Stores can sign in with their store code only.
+              </p>
               <div className="space-y-2 text-center">
                 <a
                   href="/login/forgot-password"
