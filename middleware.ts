@@ -44,10 +44,12 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
-  const isPublicRoute = request.nextUrl.pathname.startsWith('/api/store-visits/products/search')
+  const pathname = request.nextUrl.pathname
+  const isAuthRoute = pathname.startsWith('/login')
+  const isStorePortalRoute = pathname.startsWith('/store-login') || pathname.startsWith('/store-portal')
+  const isPublicRoute = pathname.startsWith('/api/store-visits/products/search')
 
-  if (!user && !isAuthRoute && !isPublicRoute) {
+  if (!user && !isAuthRoute && !isStorePortalRoute && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
