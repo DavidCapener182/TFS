@@ -124,6 +124,57 @@ function getVisitNeedTone(level: string | null | undefined): string {
   return 'border-emerald-200 bg-emerald-50 text-emerald-700'
 }
 
+function getTheftMeta(incident: any) {
+  const meta = incident?.persons_involved
+  if (!meta || typeof meta !== 'object') return null
+  const payload = meta as Record<string, unknown>
+  if (payload.reportType !== 'theft') return null
+  return payload
+}
+
+function normalizeReferenceToken(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '')
+}
+
+function buildStoreStyleIncidentReference(
+  referenceNo: string | null | undefined,
+  storeCode: string | null | undefined,
+  storeName: string | null | undefined,
+  occurredAt: string | null | undefined,
+  sequence: number
+) {
+  const currentReference = String(referenceNo || '').trim()
+  if (!/^INC-/i.test(currentReference)) return currentReference
+
+  const parsedDate = new Date(String(occurredAt || ''))
+  const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate
+  const dateToken = safeDate.toISOString().slice(0, 10).replace(/-/g, '')
+  const codeToken = normalizeReferenceToken(String(storeCode || '')) || 'STORE'
+  const storeToken = normalizeReferenceToken(String(storeName || '')) || 'Store'
+
+  return `${codeToken}-${storeToken}-${dateToken}-${String(sequence).padStart(3, '0')}`
+}
+
+function formatTheftItems(items: unknown) {
+  if (!Array.isArray(items) || items.length === 0) return null
+
+  const labels = items
+    .map((item) => {
+      const payload = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+      const title = String(payload.title || '').trim()
+      const quantity = Math.max(1, Number(payload.quantity) || 1)
+      if (!title) return null
+      return quantity > 1 ? `${title} x${quantity}` : title
+    })
+    .filter(Boolean)
+
+  if (labels.length === 0) return null
+  if (labels.length <= 3) return labels.join(', ')
+  return `${labels.slice(0, 3).join(', ')} + ${labels.length - 3} more`
+}
+
 function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: string | null): string | null {
   if (!plannedDate) return null
   if (!lastVisitDate) return plannedDate
@@ -258,6 +309,40 @@ export function StoreDetailWorkspace({
     })
     return counts
   }, [actions])
+  const displayReferenceByIncidentId = useMemo(() => {
+    const nextSequenceByPrefix = new Map<string, number>()
+    const output = new Map<string, string>()
+
+    incidents.forEach((incident) => {
+      const currentReference = String(incident.reference_no || '').trim()
+      if (!/^INC-/i.test(currentReference)) {
+        output.set(incident.id, currentReference)
+        return
+      }
+
+      const parsedDate = new Date(String(incident.occurred_at || ''))
+      const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate
+      const dateToken = safeDate.toISOString().slice(0, 10).replace(/-/g, '')
+      const codeToken = normalizeReferenceToken(String(store.store_code || '')) || 'STORE'
+      const storeToken = normalizeReferenceToken(String(store.store_name || '')) || 'Store'
+      const prefix = `${codeToken}-${storeToken}-${dateToken}`
+      const sequence = (nextSequenceByPrefix.get(prefix) || 0) + 1
+      nextSequenceByPrefix.set(prefix, sequence)
+
+      output.set(
+        incident.id,
+        buildStoreStyleIncidentReference(
+          currentReference,
+          store.store_code,
+          store.store_name,
+          incident.occurred_at,
+          sequence
+        )
+      )
+    })
+
+    return output
+  }, [incidents, store.store_code, store.store_name])
   const incidentLinkedActions = useMemo(
     () => actions.filter((action) => action.source_type !== 'store'),
     [actions]
@@ -791,6 +876,9 @@ export function StoreDetailWorkspace({
                     ? buildVisitReportPdfUrl(linkedVisitReportId)
                     : null
                   const linkedActionCount = incidentActionCounts.get(incident.id) || 0
+                  const theftMeta = getTheftMeta(incident)
+                  const theftItemsSummary = formatTheftItems(theftMeta?.theftItems)
+                  const theftValue = Number(theftMeta?.theftValueGbp)
                   const incidentCategoryLabel = String(incident.incident_category || 'security')
                     .split('_')
                     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -802,7 +890,7 @@ export function StoreDetailWorkspace({
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-500">
-                              {incident.reference_no}
+                              {displayReferenceByIncidentId.get(incident.id) || incident.reference_no}
                             </span>
                             <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
                               {String(incident.status || 'open').replace(/_/g, ' ')}
@@ -810,6 +898,11 @@ export function StoreDetailWorkspace({
                             <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
                               {String(incident.severity || 'low')}
                             </Badge>
+                            {theftMeta ? (
+                              <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">
+                                Theft
+                              </Badge>
+                            ) : null}
                             {linkedVisitReportUrl ? (
                               <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
                                 Visit report linked
@@ -834,6 +927,11 @@ export function StoreDetailWorkspace({
                                 {incident.description}
                               </p>
                             ) : null}
+                            {theftItemsSummary ? (
+                              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+                                <span className="font-medium text-slate-700">Items:</span> {theftItemsSummary}
+                              </p>
+                            ) : null}
                           </div>
 
                           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
@@ -841,6 +939,7 @@ export function StoreDetailWorkspace({
                             <span>Category: {incidentCategoryLabel}</span>
                             <span>People: {getIncidentPersonLabel(incident, incident.incident_category)}</span>
                             <span>Linked actions: {linkedActionCount}</span>
+                            {Number.isFinite(theftValue) ? <span>Estimated value: £{theftValue.toFixed(2)}</span> : null}
                           </div>
                         </div>
 
@@ -877,7 +976,7 @@ export function StoreDetailWorkspace({
                           {canManageIncidents ? (
                             <CloseIncidentButton
                               incidentId={incident.id}
-                              incidentReference={incident.reference_no}
+                              incidentReference={displayReferenceByIncidentId.get(incident.id) || incident.reference_no}
                               currentStatus={incident.status}
                             />
                           ) : null}
@@ -927,7 +1026,10 @@ export function StoreDetailWorkspace({
                     ? `/incidents/${action.incident_id}?tab=actions`
                     : null
                   const incidentReference =
-                    action.incident?.reference_no || action.incident?.referenceNo || null
+                    (action.incident_id ? displayReferenceByIncidentId.get(action.incident_id) : null) ||
+                    action.incident?.reference_no ||
+                    action.incident?.referenceNo ||
+                    null
 
                   return (
                     <button
@@ -1000,27 +1102,47 @@ export function StoreDetailWorkspace({
               {completedIncidents.length === 0 ? (
                 <div className="p-6 text-sm text-slate-500">No closed incidents available for this store.</div>
               ) : (
-                completedIncidents.map((incident) => (
-                  <div key={incident.id} className="flex flex-col gap-6 p-6 transition-colors hover:bg-slate-50 sm:flex-row">
-                    <div className="shrink-0">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                        <AlertCircle size={20} />
+                completedIncidents.map((incident) => {
+                  const theftMeta = getTheftMeta(incident)
+                  const theftItemsSummary = formatTheftItems(theftMeta?.theftItems)
+                  const theftValue = Number(theftMeta?.theftValueGbp)
+
+                  return (
+                    <div key={incident.id} className="flex flex-col gap-6 p-6 transition-colors hover:bg-slate-50 sm:flex-row">
+                      <div className="shrink-0">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                          <AlertCircle size={20} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="mb-2 flex justify-between gap-3">
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-400">
-                          {incident.reference_no}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-slate-500">
-                          <Clock size={12} />{' '}
-                          {incident.closed_at
-                            ? format(new Date(incident.closed_at), 'dd MMM yyyy')
-                            : format(new Date(incident.occurred_at), 'dd MMM yyyy')}
-                        </span>
+                      <div className="flex-1">
+                        <div className="mb-2 flex justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-400">
+                              {displayReferenceByIncidentId.get(incident.id) || incident.reference_no}
+                            </span>
+                            {theftMeta ? (
+                              <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">
+                                Theft
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <span className="flex items-center gap-1 text-xs text-slate-500">
+                            <Clock size={12} />{' '}
+                            {incident.closed_at
+                              ? format(new Date(incident.closed_at), 'dd MMM yyyy')
+                              : format(new Date(incident.occurred_at), 'dd MMM yyyy')}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium leading-relaxed text-slate-700">{incident.summary}</p>
+                        {theftItemsSummary ? (
+                          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                            <span className="font-medium text-slate-700">Items:</span> {theftItemsSummary}
+                          </p>
+                        ) : null}
+                        {Number.isFinite(theftValue) ? (
+                          <p className="mt-2 text-sm text-slate-600">Estimated value: £{theftValue.toFixed(2)}</p>
+                        ) : null}
                       </div>
-                      <p className="text-sm font-medium leading-relaxed text-slate-700">{incident.summary}</p>
-                    </div>
                     <div className="shrink-0">
                       <div className="flex flex-wrap justify-end gap-2">
                         {extractLinkedVisitReportId(incident) ? (
@@ -1035,7 +1157,7 @@ export function StoreDetailWorkspace({
                         {canManageIncidents ? (
                           <CloseIncidentButton
                             incidentId={incident.id}
-                            incidentReference={incident.reference_no}
+                            incidentReference={displayReferenceByIncidentId.get(incident.id) || incident.reference_no}
                             currentStatus={String(incident.status || 'closed')}
                           />
                         ) : null}
@@ -1047,8 +1169,9 @@ export function StoreDetailWorkspace({
                         </Link>
                       </div>
                     </div>
-                  </div>
-                ))
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>

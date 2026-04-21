@@ -1,6 +1,7 @@
 import { getUserProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import { HeaderClient } from './header-client'
 
 async function signOut() {
@@ -18,5 +19,9 @@ export async function Header() {
     role: profile?.role || 'pending',
   }
 
-  return <HeaderClient signOut={signOut} currentUser={currentUser} />
+  return (
+    <Suspense fallback={null}>
+      <HeaderClient signOut={signOut} currentUser={currentUser} />
+    </Suspense>
+  )
 }

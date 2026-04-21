@@ -1180,17 +1180,6 @@ export function VisitReportsWorkspace({
 
     try {
       const endpoint = `/api/reports/visit-reports/${draft.reportId}/pdf?mode=download`
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        throw new Error('Unable to generate PDF for download.')
-      }
-
-      const pdfBlob = await response.blob()
-      const blobUrl = window.URL.createObjectURL(pdfBlob)
       const downloadLink = document.createElement('a')
       const sanitizedTitle = (draft.title || 'visit-report')
         .trim()
@@ -1198,13 +1187,12 @@ export function VisitReportsWorkspace({
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
 
-      downloadLink.href = blobUrl
+      downloadLink.href = endpoint
       downloadLink.download = `${sanitizedTitle || 'visit-report'}.pdf`
       downloadLink.rel = 'noopener'
       document.body.appendChild(downloadLink)
       downloadLink.click()
       document.body.removeChild(downloadLink)
-      window.URL.revokeObjectURL(blobUrl)
     } catch (error) {
       toast({
         variant: 'destructive',

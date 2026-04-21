@@ -32,7 +32,7 @@ export function StoreLoginForm() {
       <Input
         value={code}
         onChange={(event) => setCode(event.target.value)}
-        placeholder="Store code (example: S0101)"
+        placeholder="Store code (example: 11)"
         className="min-h-[44px]"
       />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

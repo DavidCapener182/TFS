@@ -9,13 +9,55 @@ function getTheftMeta(incident: any) {
   return payload
 }
 
+function formatTheftItems(items: unknown) {
+  if (!Array.isArray(items) || items.length === 0) return null
+
+  const labels = items
+    .map((item) => {
+      const payload = item && typeof item === 'object' ? (item as Record<string, any>) : {}
+      const title = String(payload.title || '').trim()
+      const quantity = Math.max(1, Number(payload.quantity) || 1)
+      if (!title) return null
+      return quantity > 1 ? `${title} x${quantity}` : title
+    })
+    .filter(Boolean)
+
+  if (labels.length === 0) return null
+  if (labels.length <= 3) return labels.join(', ')
+  return `${labels.slice(0, 3).join(', ')} + ${labels.length - 3} more`
+}
+
+function normalizeReferenceToken(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '')
+}
+
+function buildDisplayIncidentReference(
+  referenceNo: string | null | undefined,
+  storeCode: string | null | undefined,
+  storeName: string | null | undefined,
+  occurredAt: string | null | undefined,
+  sequence: number
+) {
+  const currentReference = String(referenceNo || '').trim()
+  if (!/^INC-/i.test(currentReference)) return currentReference
+
+  const parsedDate = new Date(String(occurredAt || ''))
+  const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate
+  const dateToken = safeDate.toISOString().slice(0, 10).replace(/-/g, '')
+  const codeToken = normalizeReferenceToken(String(storeCode || '')) || 'STORE'
+  const storeToken = normalizeReferenceToken(String(storeName || '')) || 'Store'
+  return `${codeToken}-${storeToken}-${dateToken}-${String(sequence).padStart(3, '0')}`
+}
+
 export default async function TheftTrackerPage() {
   await requireAuth()
   const supabase = createClient()
 
   const { data } = await supabase
     .from('tfs_incidents')
-    .select('id, reference_no, summary, occurred_at, status, persons_involved, tfs_stores:store_id(store_name, store_code)')
+    .select('id, reference_no, summary, description, occurred_at, status, persons_involved, tfs_stores:store_id(store_name, store_code)')
     .order('occurred_at', { ascending: false })
     .limit(200)
 
@@ -24,29 +66,137 @@ export default async function TheftTrackerPage() {
     .filter((entry) => Boolean(entry.meta))
 
   const totalValue = thefts.reduce((acc, entry) => acc + (Number(entry.meta?.theftValueGbp) || 0), 0)
+  const sequenceByPrefix = new Map<string, number>()
+  const rows = thefts.flatMap(({ incident, meta }) => {
+    const storeRelation = Array.isArray((incident as any).tfs_stores)
+      ? (incident as any).tfs_stores[0]
+      : (incident as any).tfs_stores
+    const storeName = String(storeRelation?.store_name || 'Store')
+    const storeCode = String(storeRelation?.store_code || '')
+    const parsedDate = new Date(String(incident.occurred_at || ''))
+    const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate
+    const dateToken = safeDate.toISOString().slice(0, 10).replace(/-/g, '')
+    const codeToken = normalizeReferenceToken(storeCode) || 'STORE'
+    const storeToken = normalizeReferenceToken(storeName) || 'Store'
+    const prefix = `${codeToken}-${storeToken}-${dateToken}`
+    const sequence = (sequenceByPrefix.get(prefix) || 0) + 1
+    sequenceByPrefix.set(prefix, sequence)
+    const displayReference = buildDisplayIncidentReference(
+      incident.reference_no,
+      storeCode,
+      storeName,
+      incident.occurred_at,
+      sequence
+    )
+
+    const theftItems = Array.isArray(meta?.theftItems) ? meta.theftItems : []
+    const normalizedItems = theftItems
+      .map((item) => {
+        const payload = item && typeof item === 'object' ? (item as Record<string, any>) : {}
+        return {
+          title: String(payload.title || '').trim(),
+          barcode: String(payload.barcode || payload.productId || '').trim(),
+          quantity: Math.max(1, Number(payload.quantity) || 1),
+          unitPrice: Number.isFinite(Number(payload.unitPrice)) ? Number(payload.unitPrice) : null,
+        }
+      })
+      .filter((item) => item.title || item.barcode)
+
+    const baseRow = {
+      id: incident.id,
+      referenceNo: displayReference,
+      date: Number.isNaN(parsedDate.getTime()) ? String(incident.occurred_at || '') : parsedDate.toLocaleString(),
+      status: String(incident.status || 'open'),
+      description: String(incident.summary || '').trim(),
+      incidentDetails: String(incident.description || '').trim(),
+      hasTheftBeenReported: meta?.hasTheftBeenReported !== false,
+      adjustedThroughTill: meta?.adjustedThroughTill === true,
+      stockRecovered: meta?.stockRecovered === true,
+    }
+
+    if (normalizedItems.length === 0) {
+      return [
+        {
+          ...baseRow,
+          barcode: '-',
+          quantity: '-',
+          price: Number(meta?.theftValueGbp) ? `£${Number(meta?.theftValueGbp).toFixed(2)}` : '-',
+          perfumeDescription: formatTheftItems(meta?.theftItems) || baseRow.description || '-',
+        },
+      ]
+    }
+
+    return normalizedItems.map((item) => ({
+      ...baseRow,
+      barcode: item.barcode || '-',
+      quantity: String(item.quantity),
+      price: typeof item.unitPrice === 'number' ? `£${item.unitPrice.toFixed(2)}` : '-',
+      perfumeDescription: item.title || baseRow.description || '-',
+    }))
+  })
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <h1 className="text-2xl font-bold">Overall Theft Tracker</h1>
+      <h1 className="text-2xl font-bold">Theft log</h1>
       <p className="text-sm text-slate-600">All theft reports submitted by stores and team users.</p>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-lg border bg-white p-3"><p className="text-xs text-slate-500">Total theft reports</p><p className="text-2xl font-semibold">{thefts.length}</p></div>
-        <div className="rounded-lg border bg-white p-3"><p className="text-xs text-slate-500">Estimated value</p><p className="text-2xl font-semibold">£{totalValue.toFixed(2)}</p></div>
-        <div className="rounded-lg border bg-white p-3"><p className="text-xs text-slate-500">Open theft reports</p><p className="text-2xl font-semibold">{thefts.filter((entry) => entry.incident.status !== 'closed').length}</p></div>
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-xs text-slate-500">Total theft reports</p>
+          <p className="text-2xl font-semibold">{thefts.length}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-xs text-slate-500">Estimated value</p>
+          <p className="text-2xl font-semibold">£{totalValue.toFixed(2)}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-3">
+          <p className="text-xs text-slate-500">Open theft reports</p>
+          <p className="text-2xl font-semibold">
+            {thefts.filter((entry) => entry.incident.status !== 'closed').length}
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        {thefts.map(({ incident, meta }) => (
-          <div key={incident.id} className="rounded-lg border bg-white p-3 text-sm">
-            <div className="font-semibold">{incident.reference_no} · {incident.summary}</div>
-            <div className="text-slate-600">
-              {(incident as any).tfs_stores?.store_name || 'Store'} ({(incident as any).tfs_stores?.store_code || 'n/a'}) · {new Date(incident.occurred_at).toLocaleString()} · {incident.status}
-            </div>
-            <div className="text-slate-700">Estimated value: £{Number(meta?.theftValueGbp || 0).toFixed(2)}</div>
-          </div>
-        ))}
-        {thefts.length === 0 ? <p className="text-sm text-slate-500">No theft logs yet.</p> : null}
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <table className="min-w-[1300px] w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-3 py-2">Reference</th>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Description (Perfumes stolen)</th>
+              <th className="px-3 py-2">Barcode</th>
+              <th className="px-3 py-2">Quantity</th>
+              <th className="px-3 py-2">Price</th>
+              <th className="px-3 py-2">Reported</th>
+              <th className="px-3 py-2">Adjusted Through Till</th>
+              <th className="px-3 py-2">Stock Recovered</th>
+              <th className="px-3 py-2">Incident details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row, index) => (
+              <tr key={`${row.id}-${index}`} className="align-top">
+                <td className="px-3 py-2 font-mono text-xs text-slate-700">{row.referenceNo}</td>
+                <td className="px-3 py-2 text-slate-700">{row.date}</td>
+                <td className="px-3 py-2 text-slate-900">{row.perfumeDescription}</td>
+                <td className="px-3 py-2 text-slate-700">{row.barcode}</td>
+                <td className="px-3 py-2 text-slate-700">{row.quantity}</td>
+                <td className="px-3 py-2 text-slate-700">{row.price}</td>
+                <td className="px-3 py-2 text-slate-700">{row.hasTheftBeenReported ? 'Y' : 'N'}</td>
+                <td className="px-3 py-2 text-slate-700">{row.adjustedThroughTill ? 'Y' : 'N'}</td>
+                <td className="px-3 py-2 text-slate-700">{row.stockRecovered ? 'Y' : 'N'}</td>
+                <td className="px-3 py-2 text-slate-700">{row.incidentDetails || row.description || '-'}</td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="px-3 py-6 text-center text-slate-500">
+                  No theft logs yet.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </div>
     </div>
   )

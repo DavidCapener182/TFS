@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1b4b',
     borderRadius: 10,
     padding: 16,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   heroEyebrow: {
     color: '#c7d2fe',
@@ -75,24 +75,18 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     lineHeight: 1.2,
   },
-  heroSummary: {
-    color: '#e2e8f0',
-    fontSize: 9.5,
-    marginTop: 8,
-    lineHeight: 1.4,
-  },
   metaGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   metaCard: {
     width: '48%',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 8,
+    padding: 10,
     backgroundColor: '#f8fafc',
   },
   metaLabel: {
@@ -109,45 +103,29 @@ const styles = StyleSheet.create({
     fontWeight: 600,
   },
   section: {
-    marginBottom: 10,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 10,
+    padding: 12,
   },
   sectionTitle: {
     fontSize: 10,
     color: '#1e1b4b',
     fontWeight: 700,
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  row: {
-    marginBottom: 6,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  rowLabel: {
-    fontSize: 8,
-    color: '#475569',
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
-    fontWeight: 700,
-    width: '34%',
-    paddingRight: 8,
-  },
-  rowValue: {
-    fontSize: 9.5,
-    color: '#0f172a',
-    width: '66%',
+  rowGroup: {
+    marginBottom: 10,
   },
   rowColumns: {
-    marginBottom: 6,
+    marginBottom: 3,
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   rowLabelColumn: {
     width: '34%',
-    paddingRight: 8,
+    paddingRight: 10,
   },
   rowLabelPlain: {
     fontSize: 8,
@@ -162,11 +140,7 @@ const styles = StyleSheet.create({
   rowValueFlow: {
     fontSize: 9.5,
     color: '#0f172a',
-  },
-  bullet: {
-    fontSize: 9.5,
-    color: '#0f172a',
-    marginTop: 2,
+    lineHeight: 1.5,
   },
 })
 
@@ -210,7 +184,39 @@ function splitValueLines(value: unknown): string[] {
   return lines.length > 0 ? lines : ['N/A']
 }
 
-function chunkAnswerForRows(value: string, maxLength = 260): string[] {
+function chunkWords(value: string, maxLength: number): string[] {
+  const words = value.split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+
+  const chunks: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length <= maxLength) {
+      current = candidate
+      continue
+    }
+
+    if (current) {
+      chunks.push(current)
+      current = word
+      continue
+    }
+
+    for (let index = 0; index < word.length; index += maxLength) {
+      chunks.push(word.slice(index, index + maxLength))
+    }
+  }
+
+  if (current) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+function chunkAnswerForRows(value: string, maxLength = 200): string[] {
   const text = String(value || '').trim()
   if (!text) return ['N/A']
 
@@ -236,18 +242,26 @@ function chunkAnswerForRows(value: string, maxLength = 260): string[] {
       current = ''
     }
 
-    if (part.length <= maxLength) {
-      current = part
+    const sentenceChunks = chunkWords(part, maxLength)
+    if (sentenceChunks.length === 0) {
+      continue
+    }
+    if (sentenceChunks.length === 1) {
+      current = sentenceChunks[0] || ''
       continue
     }
 
-    // Fallback for very long sentence fragments.
-    for (let i = 0; i < part.length; i += maxLength) {
-      chunks.push(part.slice(i, i + maxLength).trim())
-    }
+    chunks.push(...sentenceChunks.slice(0, -1))
+    current = sentenceChunks[sentenceChunks.length - 1] || ''
   }
 
   if (current) chunks.push(current)
+  return chunks.length > 0 ? chunks : ['N/A']
+}
+
+function chunkValueForRows(value: unknown, maxLength = 200): string[] {
+  const lines = splitValueLines(value)
+  const chunks = lines.flatMap((line) => chunkAnswerForRows(line, maxLength))
   return chunks.length > 0 ? chunks : ['N/A']
 }
 
@@ -379,8 +393,27 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
     },
   ] as const
 
+  function renderRowGroup(label: string, value: unknown) {
+    const lines = chunkValueForRows(value)
+
+    return (
+      <View key={label} style={styles.rowGroup}>
+        {lines.map((line, index) => (
+          <View key={`${label}-${index}`} style={styles.rowColumns} wrap={false}>
+            <View style={styles.rowLabelColumn}>
+              <Text style={styles.rowLabelPlain}>{index === 0 ? label : ' '}</Text>
+            </View>
+            <View style={styles.rowValueColumn}>
+              <Text style={styles.rowValueFlow}>{line}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    )
+  }
+
   return (
-    <Document>
+    <Document title={reportTitle}>
       <Page size="A4" style={styles.page} wrap>
         <View style={styles.header} fixed>
           <Text style={styles.headerTitle}>KSS NW LTD - TFS VISIT REPORT</Text>
@@ -398,17 +431,17 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>Targeted theft visit report</Text>
           <Text style={styles.heroTitle}>{reportTitle}</Text>
-          <Text style={styles.heroSummary}>
-            {joinTruthy([
-              `Store: ${storeName}${storeCode ? ` (${storeCode})` : ''}`,
-              `Visit date: ${formatDate(visitDate)}`,
-              `Status: ${status === 'final' ? 'Final' : 'Draft'}`,
-              createdByName ? `Created by: ${createdByName}` : null,
-            ])}
-          </Text>
         </View>
 
         <View style={styles.metaGrid}>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>Store</Text>
+            <Text style={styles.metaValue}>{storeCode ? `${storeName} (${storeCode})` : storeName}</Text>
+          </View>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>Visit status</Text>
+            <Text style={styles.metaValue}>{status === 'final' ? 'Final' : 'Draft'}</Text>
+          </View>
           <View style={styles.metaCard}>
             <Text style={styles.metaLabel}>Prepared by</Text>
             <Text style={styles.metaValue}>{payload.preparedBy || 'N/A'}</Text>
@@ -416,6 +449,14 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
           <View style={styles.metaCard}>
             <Text style={styles.metaLabel}>Store manager</Text>
             <Text style={styles.metaValue}>{payload.storeManager || 'N/A'}</Text>
+          </View>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>Visit date</Text>
+            <Text style={styles.metaValue}>{formatDate(visitDate)}</Text>
+          </View>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>Created by</Text>
+            <Text style={styles.metaValue}>{createdByName || 'N/A'}</Text>
           </View>
           <View style={styles.metaCard}>
             <Text style={styles.metaLabel}>Time in/out</Text>
@@ -433,77 +474,19 @@ export function VisitReportPdfDocument(props: VisitReportPdfProps) {
             {section.items.map(([label, value]) => {
               const isDetailedRecommendations =
                 section.title === 'Recommendations and sign-off' && label === 'Detailed recommendations'
-              const useWrappedColumns =
-                section.title === 'Recommendations and sign-off' &&
-                (label === 'Risk justification' || label === 'Detailed recommendations')
 
               if (isDetailedRecommendations) {
                 const parsedSections = parseDetailedRecommendations(value)
                 return (
                   <View key={`${section.title}-${label}`}>
                     {parsedSections.map((entry, entryIndex) => {
-                      const lines = chunkAnswerForRows(entry.value)
-                      const [firstLine, ...remainingLines] = lines
-                      return (
-                        <View key={`${section.title}-${label}-entry-${entryIndex}`}>
-                          <View style={styles.rowColumns} wrap={false}>
-                            <View style={styles.rowLabelColumn}>
-                              <Text style={styles.rowLabelPlain}>{entry.label}</Text>
-                            </View>
-                            <View style={styles.rowValueColumn}>
-                              <Text style={styles.rowValueFlow}>{firstLine}</Text>
-                            </View>
-                          </View>
-                          {remainingLines.map((line, index) => (
-                            <View key={`${section.title}-${label}-entry-${entryIndex}-line-${index}`} style={styles.rowColumns} wrap={false}>
-                              <View style={styles.rowLabelColumn}>
-                                <Text style={styles.rowLabelPlain}>{' '}</Text>
-                              </View>
-                              <View style={styles.rowValueColumn}>
-                                <Text style={styles.rowValueFlow}>{line}</Text>
-                              </View>
-                            </View>
-                          ))}
-                        </View>
-                      )
+                      return <View key={`${section.title}-${label}-entry-${entryIndex}`}>{renderRowGroup(entry.label, entry.value)}</View>
                     })}
                   </View>
                 )
               }
 
-              if (useWrappedColumns) {
-                const [firstLine, ...remainingLines] = chunkAnswerForRows(String(value || 'N/A'))
-                return (
-                  <View key={`${section.title}-${label}`}>
-                    <View style={styles.rowColumns} wrap={false}>
-                      <View style={styles.rowLabelColumn}>
-                        <Text style={styles.rowLabelPlain}>{label}</Text>
-                      </View>
-                      <View style={styles.rowValueColumn}>
-                        <Text style={styles.rowValueFlow}>{firstLine}</Text>
-                      </View>
-                    </View>
-
-                    {remainingLines.map((line, index) => (
-                      <View key={`${section.title}-${label}-line-${index}`} style={styles.rowColumns} wrap={false}>
-                        <View style={styles.rowLabelColumn}>
-                          <Text style={styles.rowLabelPlain}>{' '}</Text>
-                        </View>
-                        <View style={styles.rowValueColumn}>
-                          <Text style={styles.rowValueFlow}>{line}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )
-              }
-
-              return (
-                <View key={`${section.title}-${label}`} style={styles.row} wrap={false}>
-                  <Text style={styles.rowLabel}>{label}</Text>
-                  <Text style={styles.rowValue}>{value}</Text>
-                </View>
-              )
+              return renderRowGroup(label, value)
             })}
           </View>
         ))}

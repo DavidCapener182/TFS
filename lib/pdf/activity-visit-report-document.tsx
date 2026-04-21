@@ -1,7 +1,6 @@
 import React from 'react'
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import {
-  buildVisitReportSummary,
   getVisitReportTypeLabel,
   type ActivityVisitReportPayload,
   type ActivityVisitReportType,
@@ -76,7 +75,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1b4b',
     borderRadius: 10,
     padding: 16,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   heroEyebrow: {
     color: '#c7d2fe',
@@ -92,24 +91,18 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     lineHeight: 1.2,
   },
-  heroSummary: {
-    color: '#e2e8f0',
-    fontSize: 9.5,
-    marginTop: 8,
-    lineHeight: 1.4,
-  },
   metaGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   metaCard: {
     width: '48%',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 8,
+    padding: 10,
     backgroundColor: '#f8fafc',
   },
   metaLabel: {
@@ -126,22 +119,29 @@ const styles = StyleSheet.create({
     fontWeight: 600,
   },
   section: {
-    marginBottom: 10,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 10,
+    padding: 12,
   },
   sectionTitle: {
     fontSize: 10,
     color: '#1e1b4b',
     fontWeight: 700,
-    marginBottom: 6,
+    marginBottom: 10,
+  },
+  rowGroup: {
+    marginBottom: 10,
   },
   row: {
-    marginBottom: 6,
+    marginBottom: 3,
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  rowLabelColumn: {
+    width: '34%',
+    paddingRight: 10,
   },
   rowLabel: {
     fontSize: 8,
@@ -149,17 +149,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.7,
     fontWeight: 700,
-    width: '34%',
-    paddingRight: 8,
+  },
+  rowValueColumn: {
+    width: '66%',
   },
   rowValue: {
     fontSize: 9.5,
     color: '#0f172a',
-    width: '66%',
+    lineHeight: 1.5,
   },
   subheading: {
-    marginTop: 6,
-    marginBottom: 4,
+    marginTop: 8,
+    marginBottom: 6,
     fontSize: 8,
     color: '#475569',
     textTransform: 'uppercase',
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
   card: {
-    marginTop: 6,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
@@ -211,6 +212,98 @@ function valueOrFallback(value: string | null | undefined): string {
   return trimmed || 'N/A'
 }
 
+function chunkWords(value: string, maxLength: number): string[] {
+  const words = value.split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+
+  const chunks: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length <= maxLength) {
+      current = candidate
+      continue
+    }
+
+    if (current) {
+      chunks.push(current)
+      current = word
+      continue
+    }
+
+    for (let index = 0; index < word.length; index += maxLength) {
+      chunks.push(word.slice(index, index + maxLength))
+    }
+  }
+
+  if (current) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+function chunkParagraph(value: string, maxLength = 200): string[] {
+  const text = value.trim()
+  if (!text) return []
+
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (sentences.length <= 1) {
+    return chunkWords(text, maxLength)
+  }
+
+  const chunks: string[] = []
+  let current = ''
+
+  for (const sentence of sentences) {
+    const candidate = current ? `${current} ${sentence}` : sentence
+    if (candidate.length <= maxLength) {
+      current = candidate
+      continue
+    }
+
+    if (current) {
+      chunks.push(current)
+      current = ''
+    }
+
+    const sentenceChunks = chunkWords(sentence, maxLength)
+    if (sentenceChunks.length === 0) continue
+    if (sentenceChunks.length === 1) {
+      current = sentenceChunks[0] || ''
+      continue
+    }
+
+    chunks.push(...sentenceChunks.slice(0, -1))
+    current = sentenceChunks[sentenceChunks.length - 1] || ''
+  }
+
+  if (current) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+function chunkValueForRows(value: string, maxLength = 200): string[] {
+  const paragraphs = value
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  if (paragraphs.length === 0) {
+    return ['N/A']
+  }
+
+  const chunks = paragraphs.flatMap((paragraph) => chunkParagraph(paragraph, maxLength))
+  return chunks.length > 0 ? chunks : ['N/A']
+}
+
 function formatStatus(value: VisitReportStatus): string {
   return value === 'final' ? 'Final' : 'Draft'
 }
@@ -239,10 +332,20 @@ function MetaCard({ label, value }: { label: string; value: string }) {
 }
 
 function DataRow({ label, value }: { label: string; value: string }) {
+  const lines = chunkValueForRows(valueOrFallback(value))
+
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View style={styles.rowGroup}>
+      {lines.map((line, index) => (
+        <View key={`${label}-${index}`} style={styles.row} wrap={false}>
+          <View style={styles.rowLabelColumn}>
+            <Text style={styles.rowLabel}>{index === 0 ? label : ' '}</Text>
+          </View>
+          <View style={styles.rowValueColumn}>
+            <Text style={styles.rowValue}>{line}</Text>
+          </View>
+        </View>
+      ))}
     </View>
   )
 }
@@ -269,7 +372,6 @@ export function ActivityVisitReportPdfDocument({
     (field) => getStoreVisitActivityFieldSection(reportType, field) === 'actions'
   )
   const activitySummary = buildStoreVisitActivityDetailText(reportType, undefined, payload.activityPayload)
-  const summary = buildVisitReportSummary(reportType, payload)
   const itemChecks = payload.activityPayload.itemsChecked || []
   const amountChecks = payload.activityPayload.amountChecks || []
   const confidenceLabel = formatStoreVisitActivityFieldValue(
@@ -299,7 +401,6 @@ export function ActivityVisitReportPdfDocument({
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>{getVisitReportTypeLabel(reportType)}</Text>
           <Text style={styles.heroTitle}>{reportTitle}</Text>
-          <Text style={styles.heroSummary}>{summary || 'Structured visit report export.'}</Text>
         </View>
 
         <View style={styles.metaGrid}>
@@ -307,6 +408,8 @@ export function ActivityVisitReportPdfDocument({
           <MetaCard label="Visit status" value={formatStatus(status)} />
           <MetaCard label="Prepared by" value={valueOrFallback(payload.preparedBy || createdByName)} />
           <MetaCard label="Store manager" value={valueOrFallback(payload.storeManager)} />
+          <MetaCard label="Visit date" value={formatDate(visitDate)} />
+          <MetaCard label="Created by" value={valueOrFallback(createdByName)} />
           <MetaCard label="Time in / out" value={`${valueOrFallback(payload.timeIn)} / ${valueOrFallback(payload.timeOut)}`} />
           <MetaCard label="Visited by / rep" value={`${valueOrFallback(payload.signOff.visitedBy)} / ${valueOrFallback(payload.signOff.storeRepresentative)}`} />
           {confidenceLabel ? <MetaCard label="Confidence" value={confidenceLabel} /> : null}

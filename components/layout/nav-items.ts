@@ -29,7 +29,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
-  { href: '/theft-tracker', label: 'Theft Tracker', icon: AlertTriangle },
+  { href: '/theft-tracker', label: 'Theft log', icon: AlertTriangle },
   { href: '/actions', label: 'Actions', icon: CheckSquare },
   { href: '/inbound-emails', label: 'Inbound Emails', icon: Mail, allowedRoles: ['admin', 'ops'] },
   { href: '/visit-tracker', label: 'Stores', icon: ClipboardList },
