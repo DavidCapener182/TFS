@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createIncident } from '@/app/actions/incidents'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatStoreName } from '@/lib/store-display'
 import { shouldHideStore } from '@/lib/store-normalization'
@@ -28,7 +28,7 @@ const incidentSchema = z.object({
 
 type IncidentFormValues = z.infer<typeof incidentSchema>
 
-export default function NewIncidentPage() {
+function NewIncidentPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [stores, setStores] = useState<Array<{ id: string; store_name: string; store_code: string | null }>>([])
@@ -226,5 +226,31 @@ export default function NewIncidentPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function NewIncidentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">New Incident</h1>
+            <p className="text-muted-foreground mt-1">Report a new incident</p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Incident Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Loading incident form...</p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <NewIncidentPageContent />
+    </Suspense>
   )
 }
