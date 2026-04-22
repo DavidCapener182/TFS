@@ -15,7 +15,15 @@ import { updateIncident } from '@/app/actions/incidents'
 import { Pencil } from 'lucide-react'
 
 const editIncidentSchema = z.object({
-  incident_category: z.enum(['accident', 'near_miss', 'security', 'fire', 'health_safety', 'other']),
+  incident_category: z.enum([
+    'accident',
+    'near_miss',
+    'security',
+    'theft',
+    'fire',
+    'health_safety',
+    'other',
+  ]),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
   status: z.enum(['open', 'under_investigation', 'actions_in_progress', 'closed', 'cancelled']),
   summary: z.string().min(1, 'Summary is required'),
@@ -129,6 +137,7 @@ export function EditIncidentDialog({ incident }: EditIncidentDialogProps) {
                         <SelectItem value="accident">Accident</SelectItem>
                         <SelectItem value="near_miss">Near Miss</SelectItem>
                         <SelectItem value="security">Security</SelectItem>
+                        <SelectItem value="theft">Theft</SelectItem>
                         <SelectItem value="fire">Fire</SelectItem>
                         <SelectItem value="health_safety">Health & Safety</SelectItem>
                         <SelectItem value="other">Other</SelectItem>

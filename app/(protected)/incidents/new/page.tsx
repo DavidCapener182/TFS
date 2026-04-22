@@ -18,7 +18,15 @@ import { shouldHideStore } from '@/lib/store-normalization'
 
 const incidentSchema = z.object({
   store_id: z.string().min(1, 'Store is required'),
-  incident_category: z.enum(['accident', 'near_miss', 'security', 'fire', 'health_safety', 'other']),
+  incident_category: z.enum([
+    'accident',
+    'near_miss',
+    'security',
+    'theft',
+    'fire',
+    'health_safety',
+    'other',
+  ]),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
   summary: z.string().min(1, 'Summary is required'),
   description: z.string().optional(),
@@ -139,6 +147,7 @@ function NewIncidentPageContent() {
                         <SelectItem value="accident">Accident</SelectItem>
                         <SelectItem value="near_miss">Near Miss</SelectItem>
                         <SelectItem value="security">Security</SelectItem>
+                        <SelectItem value="theft">Theft</SelectItem>
                         <SelectItem value="fire">Fire</SelectItem>
                         <SelectItem value="health_safety">Health & Safety</SelectItem>
                         <SelectItem value="other">Other</SelectItem>

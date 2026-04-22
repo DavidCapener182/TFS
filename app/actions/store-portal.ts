@@ -222,14 +222,16 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
     stockRecovered: input.kind === 'theft' ? input.stockRecovered === true : null,
   }
 
+  const resolvedSeverity = input.kind === 'theft' ? 'low' : input.severity
+
   const { data, error } = await supabase
     .from('tfs_incidents')
     .insert({
       reference_no,
       store_id: store.id,
       reported_by_user_id: reporterProfileId,
-      incident_category: input.kind === 'theft' ? 'security' : 'other',
-      severity: input.severity,
+      incident_category: input.kind === 'theft' ? 'theft' : 'other',
+      severity: resolvedSeverity,
       summary: resolvedSummary,
       description: input.description || null,
       occurred_at: input.occurredAt,
@@ -249,6 +251,7 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
   revalidatePath(`/stores/${store.id}`)
   revalidatePath('/theft-tracker')
   revalidatePath('/store-portal')
+  revalidatePath('/monthly-reports')
 
   return data
 }

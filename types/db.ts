@@ -10,7 +10,14 @@ export type Json =
   | Json[]
 
 export type FaUserRole = 'admin' | 'ops' | 'readonly' | 'client' | 'pending'
-export type FaIncidentCategory = 'accident' | 'near_miss' | 'security' | 'fire' | 'health_safety' | 'other'
+export type FaIncidentCategory =
+  | 'accident'
+  | 'near_miss'
+  | 'security'
+  | 'theft'
+  | 'fire'
+  | 'health_safety'
+  | 'other'
 export type FaSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type FaIncidentStatus = 'open' | 'under_investigation' | 'actions_in_progress' | 'closed' | 'cancelled'
 export type FaInvestigationType = 'light_touch' | 'formal'
