@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import {
   Activity,
@@ -11,16 +11,26 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
-  Mail,
   Route,
   ShieldAlert,
+  Search,
+  Store,
 } from 'lucide-react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WorkflowStrip, type WorkflowStep } from '@/components/workspace/workflow-strip'
 import { getStoreVisitNeedLevelLabel, type StoreVisitNeedLevel } from '@/lib/visit-needs'
 import { cn, formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 
 type IncidentPeriod = 'fiscalYear' | 'month' | 'week'
+
+const dashboardWorkflowSteps: WorkflowStep[] = [
+  { label: 'Store reported', icon: Store },
+  { label: 'Triage', icon: ClipboardList },
+  { label: 'Investigation', icon: Search },
+  { label: 'Actions', icon: ShieldAlert },
+  { label: 'Closed / logged', icon: CheckCircle2 },
+]
 
 interface SeverityBreakdown {
   low: number
@@ -67,26 +77,6 @@ interface DashboardPlannedVisit {
   purposeNote: string | null
 }
 
-interface DashboardTheftReview {
-  emailId: string
-  storeId: string
-  storeName: string
-  storeCode: string | null
-  subject: string
-  summary: string | null
-  receivedAt: string | null
-}
-
-interface DashboardStocktakeReview {
-  emailId: string
-  storeId: string
-  storeName: string
-  storeCode: string | null
-  subject: string
-  summary: string | null
-  receivedAt: string | null
-}
-
 interface DashboardQueueReviewCase {
   caseId: string
   storeId: string
@@ -115,8 +105,6 @@ interface DashboardData {
   }
   priorityStores: DashboardPriorityStore[]
   plannedVisits: DashboardPlannedVisit[]
-  theftReviews: DashboardTheftReview[]
-  stocktakeReviews: DashboardStocktakeReview[]
   queueReviews: DashboardQueueReviewCase[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
@@ -214,6 +202,12 @@ function EmptyState({
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const [incidentPeriod, setIncidentPeriod] = useState<IncidentPeriod>('fiscalYear')
+  const [updatedTime, setUpdatedTime] = useState('')
+
+  useEffect(() => {
+    setUpdatedTime(format(new Date(), 'HH:mm'))
+  }, [])
+
   const incidentBreakdown =
     initialData.incidentBreakdownByPeriod?.[incidentPeriod] ||
     initialData.incidentBreakdownByPeriod?.fiscalYear || {
@@ -224,9 +218,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       total: 0,
     }
 
-  const updatedTime = format(new Date(), 'HH:mm')
-  const reviewItems = [...initialData.theftReviews, ...initialData.stocktakeReviews]
-  const reviewQueueCount = initialData.queueReviews.length + reviewItems.length
+  const reviewQueueCount = initialData.queueReviews.length
   const severityRows = [
     { label: 'Critical', value: incidentBreakdown.critical, tone: 'critical' as const },
     { label: 'High', value: incidentBreakdown.high, tone: 'warning' as const },
@@ -259,13 +251,40 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       label: 'Reviews queued',
       value: reviewQueueCount,
       note: `${initialData.queueReviews.length} from case queue`,
-      icon: Mail,
+      icon: ClipboardList,
+      tone: 'info' as const,
+    },
+  ]
+  const todayPriorities = [
+    {
+      label: 'Review queue',
+      value: reviewQueueCount,
+      note: 'Items waiting for triage',
+      href: '/queue',
+      icon: ClipboardList,
       tone: 'info' as const,
     },
     {
-      label: 'Planned routes',
-      value: initialData.visitStats.plannedRoutes,
-      note: `${initialData.visitStats.plannedRoutesNext14Days} in 14 days`,
+      label: 'Visit demand',
+      value: initialData.visitStats.visitsNeeded,
+      note: `${initialData.visitStats.urgentStores} urgent stores`,
+      href: '/visit-tracker',
+      icon: Store,
+      tone: 'warning' as const,
+    },
+    {
+      label: 'Overdue actions',
+      value: initialData.overdueActions,
+      note: 'Needs owner follow-up',
+      href: '/actions?overdue=1',
+      icon: Clock3,
+      tone: 'critical' as const,
+    },
+    {
+      label: 'Route plan',
+      value: initialData.visitStats.plannedRoutesNext14Days,
+      note: 'Stops planned in 14 days',
+      href: '/route-planning',
       icon: Route,
       tone: 'success' as const,
     },
@@ -289,11 +308,47 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
         <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-subtle px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">
           <span className="h-2 w-2 rounded-full bg-success" />
-          Updated {updatedTime}
+          {updatedTime ? `Updated ${updatedTime}` : 'Updated'}
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <section className="app-panel rounded-[1.5rem] p-4 md:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Today&apos;s priorities</h2>
+            <p className="text-sm text-ink-soft">Start here for the work most likely to need action today.</p>
+          </div>
+          <Link href="/queue" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+            Open queue <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {todayPriorities.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="rounded-[1.15rem] border border-line bg-surface-raised px-4 py-4 transition-colors hover:bg-surface-subtle"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    <p className="mt-1 text-xs text-ink-soft">{item.note}</p>
+                  </div>
+                  <span className={cn('inline-flex shrink-0 rounded-full border px-2 py-1', toneClass(item.tone))}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground">{item.value}</p>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => {
           const Icon = kpi.icon
 
@@ -309,6 +364,11 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           )
         })}
       </section>
+
+      <WorkflowStrip
+        title="Store reports move through triage, investigation, action, and closure"
+        steps={dashboardWorkflowSteps}
+      />
 
       <section className="grid gap-4 xl:grid-cols-[1.05fr,1.35fr,0.95fr]">
         <div className="app-panel rounded-[1.5rem] p-4 md:p-5">
@@ -366,7 +426,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Reviews waiting</p>
-                <p className="text-sm text-ink-soft">Queue and inbound items currently waiting for review.</p>
+                <p className="text-sm text-ink-soft">Queue and review items currently waiting for triage.</p>
               </div>
               <Link href="/queue" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
                 Review <ChevronRight className="h-4 w-4" />
@@ -383,7 +443,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{formatCaseTypeLabel(review.caseType)}</p>
                 </Link>
               ))}
-              {initialData.queueReviews.length === 0 && reviewItems.length === 0 ? (
+              {initialData.queueReviews.length === 0 ? (
                 <p className="text-sm text-ink-soft">No review items are waiting right now.</p>
               ) : null}
             </div>
@@ -631,24 +691,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   {review.summary ? <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{review.summary}</p> : null}
                 </Link>
               ))}
-              {reviewItems.map((review) => (
-                <Link
-                  key={review.emailId}
-                  href="/inbound-emails"
-                  className="rounded-xl border border-line bg-surface-raised px-4 py-4 transition-colors hover:bg-surface-subtle"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-foreground">{review.storeName}</p>
-                    <span className="rounded-full border border-info/20 bg-info-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info">
-                      Review
-                    </span>
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-sm text-ink-soft">{review.subject}</p>
-                  {review.summary ? <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{review.summary}</p> : null}
-                </Link>
-              ))}
-              {initialData.queueReviews.length === 0 && reviewItems.length === 0 ? (
-                <EmptyState title="No queued reviews" body="Queue or inbound review work will surface here when triage is needed." />
+              {initialData.queueReviews.length === 0 ? (
+                <EmptyState title="No queued reviews" body="Queue or review work will surface here when triage is needed." />
               ) : null}
             </div>
           </TabsContent>

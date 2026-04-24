@@ -5,12 +5,6 @@ import { extractLinkedVisitReportId } from '@/lib/incidents/incident-utils'
 import { buildVisitReportSourceMarker } from '@/lib/reports/visit-report-follow-ups'
 import { formatStoreName } from '@/lib/store-display'
 import {
-  enrichTheftLineItemsWithCatalog,
-  extractStoreTheftLineItems,
-  extractStoreTheftReportedValue,
-  type ParsedTheftLineItem,
-} from '@/lib/inbound-email-parser'
-import {
   APP_LOCALE,
   APP_TIME_ZONE,
   getDisplayStoreCode,
@@ -76,20 +70,6 @@ type MonthlyVisitReportRow = {
   created_by: RelatedProfileRow | RelatedProfileRow[] | null
 }
 
-type MonthlyIncidentEmailRow = {
-  id: string
-  matched_store_id: string | null
-  subject: string | null
-  analysis_summary: string | null
-  analysis_template_key: string | null
-  analysis_payload: unknown
-  received_at: string | null
-  created_at: string
-  body_text: string | null
-  body_preview: string | null
-  store: RelatedStoreRow | RelatedStoreRow[] | null
-}
-
 type MonthlyLinkedIncidentRow = {
   id: string
   summary: string | null
@@ -153,7 +133,7 @@ export function getMonthlyTheftRowKindLabel(row: MonthlyReportRow) {
   if (row.source !== 'incident' || row.incidentCategory !== 'theft') return 'Incident'
   return row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
     ? 'Store portal theft'
-    : 'Theft email'
+    : 'Theft incident'
 }
 
 export interface MonthlyReportData {
@@ -540,101 +520,6 @@ function buildVisitActivityDetails(
   ])
 }
 
-function buildIncidentEmailDetails(email: MonthlyIncidentEmailRow) {
-  const isTheftIncident = isTheftIncidentEmail(email)
-  const subject = toText(email.subject)
-  const summary = toText(email.analysis_summary)
-  const theftLineItems = getTheftLineItems(email)
-  const monthlyTheftSubject = isTheftIncident ? normalizeMonthlyTheftText(subject) : subject
-  const catalogTotalValueGbp = getTheftCatalogTotalValue(email, theftLineItems)
-  const reportedTotalValueGbp = getTheftReportedTotalValue(email, theftLineItems)
-  const totalValueLine = catalogTotalValueGbp !== null
-    ? `Estimated website value: ${formatCurrency(catalogTotalValueGbp)}`
-    : reportedTotalValueGbp !== null
-      ? `Reported total value: ${formatCurrency(reportedTotalValueGbp)}`
-      : 'Reported total value: Not stated in email'
-
-  if (!isTheftIncident) {
-    return uniqueLines([
-      summary ? `Incident reported by email: ${summary}` : 'Incident reported by email',
-      subject ? `Email subject: ${subject}` : null,
-    ]).join('\n')
-  }
-
-  if (theftLineItems.length > 0) {
-    return uniqueLines([
-      'Theft reported by email.',
-      'Lines stolen:',
-      ...theftLineItems.map(formatTheftLineItem),
-      totalValueLine,
-      monthlyTheftSubject ? `Email subject: ${monthlyTheftSubject}` : null,
-    ]).join('\n')
-  }
-
-  return uniqueLines([
-    'Theft reported by email.',
-    'Lines stolen: Not stated in email',
-    totalValueLine,
-    monthlyTheftSubject ? `Email subject: ${monthlyTheftSubject}` : null,
-  ]).join('\n')
-}
-
-function getDisplayedTheftValueGbp(email: MonthlyIncidentEmailRow, lineItems: ParsedTheftLineItem[]) {
-  const catalogTotalValueGbp = getTheftCatalogTotalValue(email, lineItems)
-  if (catalogTotalValueGbp !== null) return catalogTotalValueGbp
-  return getTheftReportedTotalValue(email, lineItems)
-}
-
-function normalizeMonthlyTheftText(value: string) {
-  return value
-    .replace(/\bTheft,\s*Review\s*-\s*/g, 'Theft - ')
-    .replace(/\btheft,\s*review\s*-\s*/g, 'theft - ')
-    .replace(/\bTheft,\s*Review\b/g, 'Theft')
-    .replace(/\btheft,\s*review\b/g, 'theft')
-    .replace(/\bTheft\s+Review\b/g, 'Theft')
-    .replace(/\btheft\s+review\b/g, 'theft')
-}
-
-function getMonthlyTheftSummary(
-  email: MonthlyIncidentEmailRow,
-  theftLineItems: ParsedTheftLineItem[],
-  summary: string
-) {
-  const normalizedSummary = normalizeMonthlyTheftText(summary)
-  if (
-    normalizedSummary &&
-    !/\bstock\s*(?:id|code)?\b/i.test(normalizedSummary) &&
-    !/^store theft reported\.?$/i.test(normalizedSummary)
-  ) {
-    return normalizedSummary
-  }
-
-  const extractedFields = getExtractedFields(email)
-  const relatedStore = getRelatedRow(email.store)
-  const storeName = toText(relatedStore?.store_name) || toText(extractedFields?.storeName)
-  const firstLineDescription = theftLineItems[0]
-    ? getTheftLineDisplayDescription(theftLineItems[0])
-    : toText(extractedFields?.productDescription)
-
-  return [
-    'Store theft reported',
-    storeName ? `by ${formatStoreName(storeName)}` : null,
-    firstLineDescription ? `involving ${firstLineDescription}` : null,
-  ].filter(Boolean).join(' ')
-}
-
-function getAnalysisPayloadObject(value: unknown) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
-function getExtractedFields(email: MonthlyIncidentEmailRow) {
-  const payload = getAnalysisPayloadObject(email.analysis_payload)
-  const extractedFields = payload?.extractedFields
-  if (!extractedFields || typeof extractedFields !== 'object' || Array.isArray(extractedFields)) return null
-  return extractedFields as Record<string, unknown>
-}
-
 function toFiniteNumber(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value !== 'string') return null
@@ -644,215 +529,6 @@ function toFiniteNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function normalizeTheftLineItem(value: unknown): ParsedTheftLineItem | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-
-  const item = value as Record<string, unknown>
-  const quantity = toFiniteNumber(item.quantity)
-  const stockId = toText(item.stockId)
-  const description = toText(item.description)
-  const valueGbp = toFiniteNumber(item.valueGbp)
-  const catalogProductId = toText(item.catalogProductId)
-  const catalogProductTitle = toText(item.catalogProductTitle)
-  const catalogUnitPriceGbp = toFiniteNumber(item.catalogUnitPriceGbp)
-  const catalogLineValueGbp = toFiniteNumber(item.catalogLineValueGbp)
-  const catalogMatchType =
-    item.catalogMatchType === 'stock_id' || item.catalogMatchType === 'description'
-      ? item.catalogMatchType
-      : null
-
-  if (
-    !stockId &&
-    !description &&
-    quantity === null &&
-    valueGbp === null &&
-    !catalogProductId &&
-    !catalogProductTitle &&
-    catalogUnitPriceGbp === null &&
-    catalogLineValueGbp === null
-  ) {
-    return null
-  }
-
-  return {
-    quantity: quantity === null ? null : Math.round(quantity),
-    stockId: stockId || null,
-    description: description || null,
-    valueGbp,
-    catalogProductId: catalogProductId || null,
-    catalogProductTitle: catalogProductTitle || null,
-    catalogUnitPriceGbp,
-    catalogLineValueGbp,
-    catalogMatchType,
-  }
-}
-
-function getTheftBodyText(email: MonthlyIncidentEmailRow) {
-  return [email.body_text, email.body_preview].map((value) => String(value || '').trim()).filter(Boolean).join('\n')
-}
-
-function dedupeTheftLineItems(items: ParsedTheftLineItem[]) {
-  const output = new Map<string, ParsedTheftLineItem>()
-
-  for (const item of items) {
-    const normalizedDescription = toText(item.description).toLowerCase()
-    const key = item.stockId
-      ? `stock:${item.quantity ?? ''}:${item.stockId}`
-      : `description:${item.quantity ?? ''}:${normalizedDescription}`
-    const existing = output.get(key)
-
-    if (!existing) {
-      output.set(key, item)
-      continue
-    }
-
-    const existingScore =
-      (existing.catalogProductTitle ? 50 : 0) +
-      (typeof existing.catalogLineValueGbp === 'number' ? 25 : 0) +
-      (typeof existing.catalogUnitPriceGbp === 'number' ? 10 : 0) +
-      (typeof existing.valueGbp === 'number' ? 5 : 0) +
-      (existing.description && !/^(stock\s*(?:id|code)?|sku)\b/i.test(existing.description) ? 5 : 0)
-    const nextScore =
-      (item.catalogProductTitle ? 50 : 0) +
-      (typeof item.catalogLineValueGbp === 'number' ? 25 : 0) +
-      (typeof item.catalogUnitPriceGbp === 'number' ? 10 : 0) +
-      (typeof item.valueGbp === 'number' ? 5 : 0) +
-      (item.description && !/^(stock\s*(?:id|code)?|sku)\b/i.test(item.description) ? 5 : 0)
-
-    if (nextScore > existingScore) {
-      output.set(key, item)
-    }
-  }
-
-  return Array.from(output.values())
-}
-
-function getTheftLineItems(email: MonthlyIncidentEmailRow) {
-  const extractedFields = getExtractedFields(email)
-  const extractedLineItems = Array.isArray(extractedFields?.lineItems)
-    ? extractedFields.lineItems.map(normalizeTheftLineItem).filter((item): item is ParsedTheftLineItem => Boolean(item))
-    : []
-  const bodyLineItems = extractStoreTheftLineItems(getTheftBodyText(email))
-
-  const stockId = toText(extractedFields?.stockId)
-  const productDescription = toText(extractedFields?.productDescription)
-  if (stockId || productDescription) {
-    const fallbackLineItem: ParsedTheftLineItem = {
-      quantity: 1,
-      stockId: stockId || null,
-      description: productDescription || null,
-      valueGbp: toFiniteNumber(extractedFields?.valueGbp),
-      catalogProductId: toText(extractedFields?.catalogProductId) || null,
-      catalogProductTitle: toText(extractedFields?.catalogProductTitle) || null,
-      catalogUnitPriceGbp: toFiniteNumber(extractedFields?.catalogUnitPriceGbp),
-      catalogLineValueGbp: toFiniteNumber(extractedFields?.catalogLineValueGbp),
-      catalogMatchType:
-        extractedFields?.catalogMatchType === 'stock_id' || extractedFields?.catalogMatchType === 'description'
-          ? extractedFields.catalogMatchType
-          : null,
-    }
-
-    return dedupeTheftLineItems([
-      ...extractedLineItems,
-      fallbackLineItem,
-      ...bodyLineItems,
-    ])
-  }
-
-  return dedupeTheftLineItems([
-    ...extractedLineItems,
-    ...bodyLineItems,
-  ])
-}
-
-async function hydrateIncidentEmailForMonthlyReport(email: MonthlyIncidentEmailRow) {
-  if (!isTheftIncidentEmail(email)) return email
-
-  const theftLineItems = getTheftLineItems(email)
-  if (theftLineItems.length === 0) return email
-
-  const enrichedLineItems = dedupeTheftLineItems(
-    await enrichTheftLineItemsWithCatalog(theftLineItems)
-  )
-  const existingPayload = getAnalysisPayloadObject(email.analysis_payload) || {}
-  const existingExtractedFields = getExtractedFields(email) || {}
-  const existingReportedTotal =
-    toFiniteNumber(existingExtractedFields.reportedTotalValueGbp) ??
-    toFiniteNumber(existingExtractedFields.totalValueGbp) ??
-    toFiniteNumber(existingExtractedFields.valueGbp) ??
-    toFiniteNumber(existingExtractedFields.lossValueGbp)
-  const catalogTotalValueRaw = enrichedLineItems.reduce((total, item) => {
-    return typeof item.catalogLineValueGbp === 'number' ? total + item.catalogLineValueGbp : total
-  }, 0)
-  const catalogTotalValueGbp = catalogTotalValueRaw > 0
-    ? Math.round(catalogTotalValueRaw * 100) / 100
-    : null
-
-  return {
-    ...email,
-    analysis_payload: {
-      ...existingPayload,
-      extractedFields: {
-        ...existingExtractedFields,
-        lineItems: enrichedLineItems,
-        productDescription:
-          toText(existingExtractedFields.productDescription) ||
-          enrichedLineItems[0]?.description ||
-          null,
-        reportedTotalValueGbp: existingReportedTotal,
-        catalogTotalValueGbp,
-        totalValueGbp: existingReportedTotal ?? catalogTotalValueGbp,
-      },
-    },
-  }
-}
-
-function hasTheftSignal(value: string | null | undefined) {
-  return /\b(theft|stolen|shoplift(?:ed|ing)?)\b/i.test(String(value || ''))
-}
-
-function isTheftIncidentEmail(email: MonthlyIncidentEmailRow) {
-  if (toText(email.analysis_template_key).toLowerCase() === 'store_theft') {
-    return true
-  }
-
-  const extractedFields = getExtractedFields(email)
-  if (Array.isArray(extractedFields?.lineItems) && extractedFields.lineItems.length > 0) {
-    return true
-  }
-
-  return (
-    hasTheftSignal(email.subject) ||
-    hasTheftSignal(email.analysis_summary) ||
-    hasTheftSignal(getTheftBodyText(email))
-  )
-}
-
-function getTheftReportedTotalValue(email: MonthlyIncidentEmailRow, lineItems: ParsedTheftLineItem[]) {
-  const extractedFields = getExtractedFields(email)
-  const extractedTotal =
-    toFiniteNumber(extractedFields?.reportedTotalValueGbp) ??
-    toFiniteNumber(extractedFields?.totalValueGbp) ??
-    toFiniteNumber(extractedFields?.valueGbp) ??
-    toFiniteNumber(extractedFields?.lossValueGbp)
-
-  if (extractedTotal !== null) return extractedTotal
-  return extractStoreTheftReportedValue(getTheftBodyText(email), lineItems)
-}
-
-function getTheftCatalogTotalValue(email: MonthlyIncidentEmailRow, lineItems: ParsedTheftLineItem[]) {
-  const extractedFields = getExtractedFields(email)
-  const extractedTotal = toFiniteNumber(extractedFields?.catalogTotalValueGbp)
-
-  if (extractedTotal !== null) return extractedTotal
-
-  const catalogLineValueTotal = lineItems.reduce((total, item) => {
-    return typeof item.catalogLineValueGbp === 'number' ? total + item.catalogLineValueGbp : total
-  }, 0)
-
-  return catalogLineValueTotal > 0 ? Math.round(catalogLineValueTotal * 100) / 100 : null
-}
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat(APP_LOCALE, {
     style: 'currency',
@@ -860,32 +536,6 @@ function formatCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
-}
-
-function getTheftLineDisplayDescription(item: ParsedTheftLineItem) {
-  const normalizedDescription = toText(item.description)
-
-  if (
-    normalizedDescription &&
-    !/^(stock\s*(?:id|code)?|sku)\b/i.test(normalizedDescription) &&
-    !/\b(?:crime|police|incident)\s+reference\b/i.test(normalizedDescription)
-  ) {
-    return normalizedDescription
-  }
-
-  return toText(item.catalogProductTitle) || 'Unknown'
-}
-
-function formatTheftLineItem(item: ParsedTheftLineItem) {
-  const quantity = item.quantity && item.quantity > 0 ? `${item.quantity} x ` : ''
-  const description = getTheftLineDisplayDescription(item)
-  const stockId = item.stockId ? ` (Stock ID ${item.stockId})` : ''
-  const value = typeof item.catalogLineValueGbp === 'number'
-    ? ` - Website value ${formatCurrency(item.catalogLineValueGbp)}`
-    : typeof item.valueGbp === 'number'
-      ? ` - Reported value ${formatCurrency(item.valueGbp)}`
-      : ''
-  return `${quantity}${description}${stockId}${value}`
 }
 
 function getStoreLabelParts(store: RelatedStoreRow | null, fallbackStoreName?: string | null) {
@@ -1173,66 +823,6 @@ async function getCompletedVisitReports(
   return (result.data || []) as MonthlyVisitReportRow[]
 }
 
-async function getIncidentEmailCount(
-  supabase: SupabaseClient,
-  period: ReturnType<typeof getMonthlyPeriod>,
-  warnings: string[]
-) {
-  const result = await supabase
-    .from('tfs_inbound_emails')
-    .select('id', { count: 'exact', head: true })
-    .gte('received_at', period.start)
-    .lt('received_at', period.endExclusive)
-    .eq('analysis_needs_incident', true)
-    .neq('processing_status', 'ignored')
-    .or('analysis_template_key.is.null,analysis_template_key.neq.stocktake_result')
-
-  if (result.error) {
-    console.error('Error fetching monthly report incident email count:', result.error)
-    warnings.push('Inbound-email incident totals could not be loaded for this month.')
-    return 0
-  }
-
-  return result.count || 0
-}
-
-async function getIncidentEmailRows(
-  supabase: SupabaseClient,
-  period: ReturnType<typeof getMonthlyPeriod>,
-  warnings: string[]
-) {
-  const result = await supabase
-    .from('tfs_inbound_emails')
-    .select(`
-      id,
-      matched_store_id,
-      subject,
-      analysis_summary,
-      analysis_template_key,
-      analysis_payload,
-      received_at,
-      created_at,
-      body_text,
-      body_preview,
-      store:tfs_stores!tfs_inbound_emails_matched_store_id_fkey(store_name, store_code)
-    `)
-    .gte('received_at', period.start)
-    .lt('received_at', period.endExclusive)
-    .eq('analysis_needs_incident', true)
-    .neq('processing_status', 'ignored')
-    .or('analysis_template_key.is.null,analysis_template_key.neq.stocktake_result')
-    .order('received_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-
-  if (result.error) {
-    console.error('Error fetching monthly report incident email rows:', result.error)
-    warnings.push('Incident email rows could not be loaded for this month.')
-    return [] as MonthlyIncidentEmailRow[]
-  }
-
-  return (result.data || []) as MonthlyIncidentEmailRow[]
-}
-
 async function getLinkedVisitReportIncidentsFromTable(
   supabase: SupabaseClient,
   tableName: 'tfs_incidents' | 'tfs_closed_incidents',
@@ -1372,13 +962,12 @@ export async function buildMonthlyReportData(
   const period = getMonthlyPeriod(month)
   const warnings: string[] = []
 
-  const [visits, reports, incidentsReported, incidentEmails, storePortalTheftIncidents] = await Promise.all([
+  const [visits, reports, storePortalTheftIncidents] = await Promise.all([
     getCompletedStoreVisits(supabase, period, warnings),
     getCompletedVisitReports(supabase, period, warnings),
-    getIncidentEmailCount(supabase, period, warnings),
-    getIncidentEmailRows(supabase, period, warnings),
     getStorePortalTheftIncidentsForMonthlyReport(supabase, period, warnings),
   ])
+  const incidentsReported = 0
   const { incidentsByReportId, actionsByIncidentId } = await getLinkedVisitReportFollowUpData(
     supabase,
     reports,
@@ -1493,34 +1082,6 @@ export async function buildMonthlyReportData(
       incidentTemplateKey: null,
       incidentCategory: null,
       theftValueGbp: null,
-    })
-  }
-
-  const hydratedIncidentEmails = await Promise.all(
-    incidentEmails.map((email) => hydrateIncidentEmailForMonthlyReport(email))
-  )
-
-  for (const email of hydratedIncidentEmails) {
-    const store = getRelatedRow(email.store)
-    const { storeName, storeCode } = getStoreLabelParts(store)
-    const incidentCategory = isTheftIncidentEmail(email) ? 'theft' : 'other'
-    const theftLineItems = incidentCategory === 'theft' ? getTheftLineItems(email) : []
-
-    rows.push({
-      id: `incident-${email.id}`,
-      storeId: email.matched_store_id || null,
-      storeName,
-      storeCode,
-      visitedAt: email.received_at || email.created_at,
-      createdByName: null,
-      generatedDetails: buildIncidentEmailDetails(email),
-      summarySourceDetails: buildIncidentEmailDetails(email),
-      reportCount: 0,
-      reportLabels: [],
-      source: 'incident',
-      incidentTemplateKey: email.analysis_template_key,
-      incidentCategory,
-      theftValueGbp: incidentCategory === 'theft' ? getDisplayedTheftValueGbp(email, theftLineItems) : null,
     })
   }
 

@@ -15,17 +15,15 @@ import {
   WorkspaceStat,
   WorkspaceStatGrid,
   WorkspaceToolbar,
-  workspaceDesktopDateInputClass,
-  workspaceDesktopFilterActionsClass,
-  workspaceDesktopFilterFormClass,
-  workspaceDesktopFilterSearchClass,
   workspaceDesktopSelectClass,
 } from '@/components/workspace/workspace-shell'
+import { MobileFilterSheet } from '@/components/workspace/mobile-filter-sheet'
 import { IncidentMobileCard } from '@/components/incidents/incident-mobile-card'
+import { IncidentPreviewDrawer } from '@/components/incidents/incident-preview-drawer'
 import { ClosedIncidentMobileCard } from '@/components/incidents/closed-incident-mobile-card'
 import { LazyIncidentsAnalyticsCharts } from '@/components/incidents/lazy-incidents-analytics-charts'
 import Link from 'next/link'
-import { Search, AlertTriangle, FileText, Eye, CheckCircle2, SlidersHorizontal, XCircle } from 'lucide-react'
+import { Search, AlertTriangle, FileText, Eye, CheckCircle2, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   buildVisitReportPdfUrl,
@@ -797,8 +795,8 @@ export default async function IncidentsPage({
 
       <WorkspaceToolbar>
         <div className="space-y-3">
-          <form method="get" className="space-y-3 md:hidden">
-            <div className="relative">
+          <div className="space-y-3 md:hidden">
+            <form method="get" className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 name="q"
@@ -806,20 +804,14 @@ export default async function IncidentsPage({
                 placeholder="Search incidents"
                 className="bg-white pl-12 sm:pl-12"
               />
-            </div>
+            </form>
 
-            <details open={hasActiveFilters} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <SlidersHorizontal className="h-4 w-4 text-slate-500" />
-                  Filters
-                </span>
-                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                  {activeFilterCount > 0 ? `${activeFilterCount} active` : 'Optional'}
-                </span>
-              </summary>
-
-              <div className="space-y-3 border-t border-slate-200 bg-white px-4 py-4">
+            <MobileFilterSheet
+              activeFilterCount={activeFilterCount}
+              description="Filter live and archived incident records."
+            >
+              <form method="get" className="space-y-3">
+                {searchParams.q ? <input type="hidden" name="q" value={searchParams.q} /> : null}
                 <select
                   name="status"
                   defaultValue={searchParams.status || 'all'}
@@ -879,12 +871,12 @@ export default async function IncidentsPage({
                     <Link href="/incidents">Reset</Link>
                   </Button>
                 </div>
-              </div>
-            </details>
-          </form>
+              </form>
+            </MobileFilterSheet>
+          </div>
 
-          <form method="get" className={workspaceDesktopFilterFormClass}>
-            <div className={workspaceDesktopFilterSearchClass}>
+          <form method="get" className="hidden space-y-3 md:block">
+            <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 name="q"
@@ -894,10 +886,11 @@ export default async function IncidentsPage({
               />
             </div>
 
+            <div className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-5">
             <select
               name="status"
               defaultValue={searchParams.status || 'all'}
-              className={`${workspaceDesktopSelectClass} lg:col-span-2`}
+              className={workspaceDesktopSelectClass}
             >
               <option value="all">All statuses</option>
               <option value="open">Open</option>
@@ -908,7 +901,7 @@ export default async function IncidentsPage({
             <select
               name="severity"
               defaultValue={searchParams.severity || 'all'}
-              className={`${workspaceDesktopSelectClass} lg:col-span-2`}
+              className={workspaceDesktopSelectClass}
             >
               <option value="all">All severities</option>
               <option value="critical">Critical</option>
@@ -920,7 +913,7 @@ export default async function IncidentsPage({
             <select
               name="year"
               defaultValue={searchParams.year || 'all'}
-              className={`${workspaceDesktopSelectClass} md:col-span-2 lg:col-span-2`}
+              className={workspaceDesktopSelectClass}
             >
               <option value="all">All years</option>
               {availableYears.map((year) => (
@@ -934,22 +927,30 @@ export default async function IncidentsPage({
               type="date"
               name="date_from"
               defaultValue={searchParams.date_from || ''}
-              className={workspaceDesktopDateInputClass}
+              className="min-h-[44px] bg-white"
             />
             <Input
               type="date"
               name="date_to"
               defaultValue={searchParams.date_to || ''}
-              className={workspaceDesktopDateInputClass}
+              className="min-h-[44px] bg-white"
             />
+            </div>
 
-            <div className={workspaceDesktopFilterActionsClass}>
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">Live {incidents.length}</Badge>
+                <Badge variant="outline">Archive {closedIncidents.length}</Badge>
+                {hasActiveFilters ? <Badge variant="info">Filtered view</Badge> : null}
+              </div>
+              <div className="flex gap-2">
               <Button type="submit" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                 Apply
               </Button>
               <Button asChild variant="outline" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                 <Link href="/incidents">Reset</Link>
               </Button>
+              </div>
             </div>
           </form>
         </div>
@@ -1163,12 +1164,14 @@ export default async function IncidentsPage({
       <Card id="incidents-table" className="shadow-sm border-slate-200 bg-white overflow-hidden">
         <CardHeader className="border-b bg-slate-50/40 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-base font-semibold text-slate-800">Open Incidents</CardTitle>
-            {hasActiveFilters ? (
-              <span className="text-xs text-slate-500">
-                Filtered results
-              </span>
-            ) : null}
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-800">Live cases</CardTitle>
+              <p className="mt-1 text-xs text-slate-500">Open incidents needing review, investigation, action, or closure.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="info">{incidents.length} live</Badge>
+              {hasActiveFilters ? <Badge variant="outline">Filtered</Badge> : null}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -1329,10 +1332,15 @@ export default async function IncidentsPage({
                               </Button>
                             </Link>
                           ) : null}
+                          <IncidentPreviewDrawer
+                            incident={incident}
+                            referenceLabel={incidentRefLabel(incident)}
+                            rootCause={getIncidentRootCause(incident, investigationMap)}
+                            recommendations={getInvestigationRecommendations(incident.id, investigationMap)}
+                          />
                           <Link href={`/incidents/${incident.id}`}>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
-                              <Eye className="h-4 w-4" />
-                              <span className="sr-only">View</span>
+                            <Button variant="outline" size="sm" className="h-8 px-2">
+                              Open
                             </Button>
                           </Link>
                           <DeleteIncidentButton incidentId={incident.id} referenceNo={incidentRefLabel(incident)} />
@@ -1350,7 +1358,13 @@ export default async function IncidentsPage({
       {/* Closed Incidents Table */}
       <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
         <CardHeader className="border-b bg-slate-50/40 px-6 py-4">
-          <CardTitle className="text-base font-semibold text-slate-800">Closed Incidents Log</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-800">Archive</CardTitle>
+              <p className="mt-1 text-xs text-slate-500">Closed incidents remain searchable for audit, claims, and trend review.</p>
+            </div>
+            <Badge variant="secondary">{closedIncidents.length} closed</Badge>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {closedIncidents.length === 0 ? (
@@ -1511,10 +1525,15 @@ export default async function IncidentsPage({
                                     </Button>
                                   </Link>
                                 ) : null}
+                                <IncidentPreviewDrawer
+                                  incident={incident}
+                                  referenceLabel={incidentRefLabel(incident)}
+                                  rootCause={getIncidentRootCause(incident, investigationMap)}
+                                  recommendations={getInvestigationRecommendations(incident.id, investigationMap)}
+                                />
                                 <Link href={`/incidents/${incident.id}`}>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
-                                    <Eye className="h-4 w-4" />
-                                    <span className="sr-only">View</span>
+                                  <Button variant="outline" size="sm" className="h-8 px-2">
+                                    Open
                                   </Button>
                                 </Link>
                                 <DeleteIncidentButton incidentId={incident.id} referenceNo={incidentRefLabel(incident)} />

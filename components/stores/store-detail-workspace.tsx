@@ -12,12 +12,9 @@ import {
   StoreCrmNote,
   StoreCrmTrackerEntry,
 } from '@/components/stores/store-crm-panel'
-import { InboundEmailStorePanel } from '@/components/inbound-emails/inbound-email-store-panel'
-import { StoreInboundEmailDialog } from '@/components/inbound-emails/store-inbound-email-dialog'
 import { StoreVisitModal } from '@/components/visit-tracker/store-visit-modal'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
 import { StoreCaseFile } from '@/components/cases/store-case-file'
-import type { InboundEmailRow } from '@/lib/inbound-emails'
 import type { StoreCaseFileData } from '@/lib/cases/service'
 import type { VisitHistoryEntry, VisitTrackerRow } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
@@ -75,7 +72,6 @@ interface StoreDetailWorkspaceProps {
     isAvailable: boolean
     unavailableMessage: string | null
   }
-  inboundEmails: InboundEmailRow[]
   canEdit: boolean
   visitTrackerRow: VisitTrackerRow
   productCatalog: StoreVisitProductCatalogItem[]
@@ -194,55 +190,6 @@ function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: st
   return lastVisitTime >= plannedTime ? null : plannedDate
 }
 
-type StoreStocktakeSnapshot = {
-  colour: 'green' | 'amber' | 'red'
-  amountGbp: number | null
-  resultType: 'profit' | 'loss' | null
-  receivedAt: string | null
-}
-
-function getRecentStocktakeSnapshot(emails: InboundEmailRow[]): StoreStocktakeSnapshot | null {
-  const stocktakeEmails = emails
-    .filter((email) => String(email.analysis_template_key || '').toLowerCase() === 'stocktake_result')
-    .sort((a, b) => {
-      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
-      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
-      return bTime - aTime
-    })
-
-  const latest = stocktakeEmails[0]
-  if (!latest) return null
-
-  const payload = (latest.analysis_payload && typeof latest.analysis_payload === 'object')
-    ? (latest.analysis_payload as Record<string, unknown>)
-    : null
-  const extractedFields = (payload?.extractedFields && typeof payload.extractedFields === 'object')
-    ? (payload.extractedFields as Record<string, unknown>)
-    : null
-  const colourRaw = String(extractedFields?.colour || '').toLowerCase()
-  const colour = colourRaw === 'green' || colourRaw === 'amber' || colourRaw === 'red' ? colourRaw : null
-  if (!colour) return null
-
-  const amountRaw = extractedFields?.amountGbp ?? extractedFields?.profitGbp
-  const parsedAmount = typeof amountRaw === 'number'
-    ? amountRaw
-    : Number(String(amountRaw ?? ''))
-  const amountGbp = Number.isFinite(parsedAmount) ? parsedAmount : null
-  const resultTypeRaw = String(extractedFields?.resultType || '').toLowerCase()
-  const resultType = resultTypeRaw === 'profit' || resultTypeRaw === 'loss'
-    ? resultTypeRaw
-    : amountGbp !== null
-      ? amountGbp < 0 ? 'loss' : 'profit'
-      : null
-
-  return {
-    colour,
-    amountGbp,
-    resultType,
-    receivedAt: latest.received_at || null,
-  }
-}
-
 export function StoreDetailWorkspace({
   store,
   incidents,
@@ -253,7 +200,6 @@ export function StoreDetailWorkspace({
   userRole,
   profiles,
   crmData,
-  inboundEmails,
   canEdit,
   visitTrackerRow,
   productCatalog,
@@ -263,7 +209,6 @@ export function StoreDetailWorkspace({
   const [activeTab, setActiveTab] = useState('crm')
   const [selectedActionIncident, setSelectedActionIncident] = useState<any | null>(null)
   const [selectedStoreAction, setSelectedStoreAction] = useState<any | null>(null)
-  const [selectedInboundEmailId, setSelectedInboundEmailId] = useState<string | null>(null)
   const [isVisitModalOpen, setIsVisitModalOpen] = useState(false)
 
   const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
@@ -287,26 +232,6 @@ export function StoreDetailWorkspace({
     () => actions.filter((action) => normalizeStatus(action.status) === 'complete'),
     [actions]
   )
-  const reviewableInboundEmails = useMemo(
-    () =>
-      inboundEmails.filter((email) =>
-        ['pending'].includes(normalizeStatus(email.processing_status))
-      ),
-    [inboundEmails]
-  )
-  const selectedInboundEmail = useMemo(
-    () => inboundEmails.find((email) => email.id === selectedInboundEmailId) || null,
-    [inboundEmails, selectedInboundEmailId]
-  )
-  const inboundEmailAlertCounts = useMemo(() => {
-    return {
-      total: reviewableInboundEmails.length,
-      linked: inboundEmails.length,
-      action: reviewableInboundEmails.filter((email) => email.analysis_needs_action).length,
-      visit: reviewableInboundEmails.filter((email) => email.analysis_needs_visit).length,
-      incident: reviewableInboundEmails.filter((email) => email.analysis_needs_incident).length,
-    }
-  }, [inboundEmails, reviewableInboundEmails])
   const directStoreActions = useMemo(
     () => actions.filter((action) => action.source_type === 'store'),
     [actions]
@@ -414,7 +339,6 @@ export function StoreDetailWorkspace({
   const canManageIncidents = userRole === 'admin' || userRole === 'ops'
   const canLaunchVisitWorkspace = canEdit && visitsAvailable
   const visitWorkspaceButtonLabel = visitTrackerRow.activeDraftVisit ? 'Continue Draft Visit' : 'Start Visit'
-  const hasLinkedInboundEmails = inboundEmailAlertCounts.linked > 0
   const supplementalContacts = useMemo<StoreCrmDisplayContact[]>(() => {
     if (!store.reporting_area_manager_name && !store.reporting_area_manager_email) {
       return []
@@ -444,18 +368,6 @@ export function StoreDetailWorkspace({
     store.reporting_area_manager_email,
     store.reporting_area_manager_name,
   ])
-  const recentStocktake = useMemo(
-    () => getRecentStocktakeSnapshot(inboundEmails),
-    [inboundEmails]
-  )
-  const stocktakeTone = recentStocktake?.colour === 'green'
-    ? 'bg-green-100 text-green-800'
-    : recentStocktake?.colour === 'amber'
-      ? 'bg-amber-100 text-amber-800'
-      : recentStocktake?.colour === 'red'
-        ? 'bg-red-100 text-red-800'
-        : null
-
   return (
     <WorkspaceShell className="space-y-6">
       <nav className="flex items-center gap-2 text-sm text-slate-400">
@@ -479,14 +391,6 @@ export function StoreDetailWorkspace({
             <Badge variant={store.is_active ? 'success' : 'outline'}>
               {store.is_active ? 'Active' : 'Inactive'}
             </Badge>
-            {inboundEmailAlertCounts.linked > 0 ? (
-              <Badge variant="outline">
-                {inboundEmailAlertCounts.linked} linked email{inboundEmailAlertCounts.linked === 1 ? '' : 's'}
-              </Badge>
-            ) : null}
-            {inboundEmailAlertCounts.total > 0 ? (
-              <Badge variant="warning">{inboundEmailAlertCounts.total} to review</Badge>
-            ) : null}
           </div>
         }
       />
@@ -514,13 +418,9 @@ export function StoreDetailWorkspace({
           tone="info"
         />
         <WorkspaceStat
-          label="Recent Stocktake"
-          value={recentStocktake ? recentStocktake.colour.toUpperCase() : '—'}
-          note={
-            recentStocktake && recentStocktake.amountGbp !== null
-              ? `£${Math.abs(recentStocktake.amountGbp).toLocaleString()}`
-              : 'No recent stocktake'
-          }
+          label="Visit Need"
+          value={getStoreVisitNeedLevelLabel(visitTrackerRow.visitNeedLevel)}
+          note={visitTrackerRow.visitNeedReasons[0] || 'No current visit signal'}
           icon={FileText}
           tone="neutral"
         />
@@ -618,37 +518,18 @@ export function StoreDetailWorkspace({
           { label: 'Operational Data', value: 'operational data' },
           { label: 'Incidents & Safety', value: 'incidents & safety' },
           { label: 'Visit History', value: 'visit history' },
-          ...(hasLinkedInboundEmails
-            ? [{ label: 'Emails', value: 'emails' as const }]
-            : []),
         ].map((tab) => {
-          const isEmailTab = tab.value === 'emails'
-          const isActive = !isEmailTab && activeTab === tab.value
-          const showInboundEmailCount = isEmailTab && inboundEmailAlertCounts.total > 0
+          const isActive = activeTab === tab.value
 
           return (
             <button
               key={tab.value}
-              onClick={() => {
-                if (isEmailTab) {
-                  const targetEmail = reviewableInboundEmails[0] || inboundEmails[0]
-                  if (targetEmail?.id) setSelectedInboundEmailId(targetEmail.id)
-                  return
-                }
-                setActiveTab(tab.value)
-              }}
+              onClick={() => setActiveTab(tab.value)}
               className={`relative whitespace-nowrap pb-4 text-sm font-semibold transition-all ${
                 isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <span className="inline-flex items-center gap-2">
-                <span>{tab.label}</span>
-                {showInboundEmailCount ? (
-                  <span className="inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                    {inboundEmailAlertCounts.total > 99 ? '99+' : inboundEmailAlertCounts.total}
-                  </span>
-                ) : null}
-              </span>
+              <span>{tab.label}</span>
               {isActive ? <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-blue-600" /> : null}
             </button>
           )
@@ -669,16 +550,6 @@ export function StoreDetailWorkspace({
             unavailableMessage={crmData.unavailableMessage}
             safetyCompliancePct={latestAuditScore ?? 0}
             actionResolutionPct={actionResolutionPct}
-            contactsFooter={
-              hasLinkedInboundEmails ? (
-                <InboundEmailStorePanel
-                  emails={inboundEmails}
-                  onOpenEmail={(email) => setSelectedInboundEmailId(email.id)}
-                  variant="compact"
-                  maxItems={3}
-                />
-              ) : null
-            }
           />
         </div>
       ) : null}
@@ -1345,20 +1216,6 @@ export function StoreDetailWorkspace({
         currentUserName={currentUserName}
         visitsAvailable={visitsAvailable}
         visitsUnavailableMessage={visitsUnavailableMessage}
-      />
-
-      <StoreInboundEmailDialog
-        email={selectedInboundEmail}
-        open={Boolean(selectedInboundEmail)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedInboundEmailId(null)
-        }}
-        store={{
-          id: String(store.id),
-          store_name: store.store_name,
-          compliance_audit_2_assigned_manager_user_id:
-            store.compliance_audit_2_assigned_manager_user_id || null,
-        }}
       />
 
       <ViewActionModal

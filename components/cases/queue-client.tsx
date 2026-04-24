@@ -18,6 +18,9 @@ import {
   WorkspaceStatGrid,
   WorkspaceToolbar,
   WorkspaceToolbarGroup,
+  WorkspaceEmptyState,
+  WorkspacePreviewPanel,
+  WorkspaceSplit,
 } from '@/components/workspace/workspace-shell'
 import {
   buildContinueWorkResolution,
@@ -29,7 +32,7 @@ import {
   queueSectionOrder,
   type QueueCaseRecord,
 } from '@/lib/cases/workflow'
-import { formatAppDate, getDisplayStoreCode } from '@/lib/utils'
+import { cn, formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 
 type QueueClientProps = {
   initialCases: QueueCaseRecord[]
@@ -40,11 +43,15 @@ function QueueRow({
   onReview,
   onClose,
   onViewIncidentDetails,
+  onPreview,
+  selected,
 }: {
   caseRecord: QueueCaseRecord
   onReview: (caseId: string) => void
   onClose: (caseId: string) => void
   onViewIncidentDetails: (caseId: string) => void
+  onPreview: (caseId: string) => void
+  selected?: boolean
 }) {
   const originHref =
     caseRecord.originTargetId &&
@@ -75,7 +82,13 @@ function QueueRow({
     )
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-raised p-4 shadow-soft">
+    <div
+      className={cn(
+        'rounded-2xl border border-line bg-surface-raised p-4 shadow-soft transition-colors',
+        selected ? 'bg-surface-subtle ring-1 ring-line-strong' : 'hover:bg-surface-subtle/60'
+      )}
+      onClick={() => onPreview(caseRecord.id)}
+    >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -128,7 +141,7 @@ function QueueRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end">
           {originHref ? (
             <Button type="button" variant="outline" size="sm" onClick={() => onViewIncidentDetails(caseRecord.id)}>
               View incident details
@@ -154,6 +167,97 @@ function QueueRow({
         </div>
       </div>
     </div>
+  )
+}
+
+function QueuePreviewPanel({
+  caseRecord,
+  onReview,
+  onClose,
+  onViewIncidentDetails,
+}: {
+  caseRecord: QueueCaseRecord | null
+  onReview: (caseId: string) => void
+  onClose: (caseId: string) => void
+  onViewIncidentDetails: (caseId: string) => void
+}) {
+  if (!caseRecord) {
+    return (
+      <WorkspacePreviewPanel title="No case selected" description="Select a queue item to preview the current work item.">
+        <WorkspaceEmptyState
+          icon={Inbox}
+          title="Select a queue item"
+          description="The preview rail keeps the next action, owner, blockers, and linked origin visible while you triage."
+        />
+      </WorkspacePreviewPanel>
+    )
+  }
+
+  const resolution = buildContinueWorkResolution(caseRecord)
+  const openMode = caseRecord.stage === 'ready_to_close' ? 'close' : 'review'
+  const isDrawerFlow = resolution.mode === 'review' || resolution.mode === 'close'
+
+  return (
+    <WorkspacePreviewPanel
+      title={caseRecord.storeName}
+      description={caseRecord.originReference || getCaseTypeLabel(caseRecord.caseType)}
+      actions={<Badge variant={getCaseStageTone(caseRecord.stage)}>{getQueueSectionLabel(caseRecord.stage)}</Badge>}
+    >
+      <div className="flex flex-wrap gap-2">
+        <Badge variant={getSeverityTone(caseRecord.severity)}>{caseRecord.severity}</Badge>
+        <Badge variant="outline">{getCaseTypeLabel(caseRecord.caseType)}</Badge>
+        {getDisplayStoreCode(caseRecord.storeCode) ? <Badge variant="secondary">{getDisplayStoreCode(caseRecord.storeCode)}</Badge> : null}
+      </div>
+
+      <div className="rounded-xl border border-line bg-surface-subtle/72 px-3 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Summary</p>
+        <p className="mt-1 text-sm text-foreground">
+          {caseRecord.originIncidentDescription ||
+            caseRecord.originIncidentSummary ||
+            caseRecord.lastUpdateSummary ||
+            'No update summary is recorded for this case yet.'}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-line bg-surface-subtle/72 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Owner</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{caseRecord.ownerName || 'Unassigned'}</p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle/72 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Due</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{caseRecord.dueAt ? formatAppDate(caseRecord.dueAt) : 'No due date'}</p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle/72 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Next action</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{caseRecord.nextActionLabel || 'Review case'}</p>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle/72 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Blockers</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{caseRecord.openBlockerCount}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {caseRecord.originTargetId ? (
+          <Button type="button" variant="outline" onClick={() => onViewIncidentDetails(caseRecord.id)}>
+            View incident details
+          </Button>
+        ) : null}
+        {isDrawerFlow ? (
+          <Button type="button" onClick={() => (openMode === 'close' ? onClose(caseRecord.id) : onReview(caseRecord.id))}>
+            {resolution.label}
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href={resolution.href} prefetch={false}>
+              {resolution.label}
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
+      </div>
+    </WorkspacePreviewPanel>
   )
 }
 
@@ -206,6 +310,7 @@ export function QueueClient({ initialCases }: QueueClientProps) {
       null,
     [filteredCases, initialCases, previewCaseId]
   )
+  const railCase = previewCase || selectedCase || filteredCases[0] || null
 
   const openCaseIds = filteredCases.filter((record) => record.stage !== 'closed')
   const closedCaseCount = filteredCases.filter((record) => record.stage === 'closed').length
@@ -280,65 +385,71 @@ export function QueueClient({ initialCases }: QueueClientProps) {
         </WorkspaceToolbarGroup>
       </WorkspaceToolbar>
 
-      <div className="space-y-6">
-        {queueSectionOrder.map((stage) => {
-          const rows = groupedCases.get(stage) || []
-          if (rows.length === 0) return null
+      <WorkspaceSplit
+        main={
+          <div className="space-y-6">
+            {queueSectionOrder.map((stage) => {
+              const rows = groupedCases.get(stage) || []
+              if (rows.length === 0) return null
 
-          return (
-            <Card key={stage} className="rounded-[1.5rem]">
-              <CardHeader className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle>{getQueueSectionLabel(stage)}</CardTitle>
-                  <CardDescription>
-                    {stage === 'new_submission'
-                      ? 'Portal submissions and fresh intake waiting for first review.'
-                      : stage === 'under_review'
-                        ? 'Cases still being assessed before the next action is agreed.'
-                        : stage === 'action_agreed'
-                          ? 'Linked follow-up is open and blocking closure.'
-                          : stage === 'visit_required'
-                            ? 'On-site follow-up is required before the case can move on.'
-                            : stage === 'awaiting_follow_up'
-                              ? 'The case is waiting on linked work or a next step after review.'
-                              : stage === 'ready_to_close'
-                                ? 'All blockers are clear and closure is available.'
-                                : 'Recently closed work items for quick review.'}
-                  </CardDescription>
-                </div>
-                <Badge variant={getCaseStageTone(stage)}>{rows.length}</Badge>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-6">
-                {rows.map((caseRecord) => (
-                  <QueueRow
-                    key={caseRecord.id}
-                    caseRecord={caseRecord}
-                    onReview={(caseId) => openDrawer(caseId, 'review')}
-                    onClose={(caseId) => openDrawer(caseId, 'close')}
-                    onViewIncidentDetails={openPreview}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          )
-        })}
+              return (
+                <Card key={stage} className="rounded-[1.5rem]">
+                  <CardHeader className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>{getQueueSectionLabel(stage)}</CardTitle>
+                      <CardDescription>
+                        {stage === 'new_submission'
+                          ? 'Portal submissions and fresh intake waiting for first review.'
+                          : stage === 'under_review'
+                            ? 'Cases still being assessed before the next action is agreed.'
+                            : stage === 'action_agreed'
+                              ? 'Linked follow-up is open and blocking closure.'
+                              : stage === 'visit_required'
+                                ? 'On-site follow-up is required before the case can move on.'
+                                : stage === 'awaiting_follow_up'
+                                  ? 'The case is waiting on linked work or a next step after review.'
+                                  : stage === 'ready_to_close'
+                                    ? 'All blockers are clear and closure is available.'
+                                    : 'Recently closed work items for quick review.'}
+                      </CardDescription>
+                    </div>
+                    <Badge variant={getCaseStageTone(stage)}>{rows.length}</Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-6">
+                    {rows.map((caseRecord) => (
+                      <QueueRow
+                        key={caseRecord.id}
+                        caseRecord={caseRecord}
+                        onReview={(caseId) => openDrawer(caseId, 'review')}
+                        onClose={(caseId) => openDrawer(caseId, 'close')}
+                        onViewIncidentDetails={openPreview}
+                        onPreview={openPreview}
+                        selected={caseRecord.id === railCase?.id}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
 
-        {filteredCases.length === 0 ? (
-          <Card className="rounded-[1.5rem] border-dashed">
-            <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <div className="rounded-full border border-line bg-surface-subtle p-4 text-ink-soft">
-                <Inbox className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">No queue items are visible</h3>
-                <p className="mt-1 text-sm text-ink-soft">
-                  Adjust the search, or create new work from store portal submissions and visit follow-ups.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
+            {filteredCases.length === 0 ? (
+              <WorkspaceEmptyState
+                icon={Inbox}
+                title="No queue items are visible"
+                description="Adjust the search, or create new work from store portal submissions and visit follow-ups."
+              />
+            ) : null}
+          </div>
+        }
+        preview={
+          <QueuePreviewPanel
+            caseRecord={railCase}
+            onReview={(caseId) => openDrawer(caseId, 'review')}
+            onClose={(caseId) => openDrawer(caseId, 'close')}
+            onViewIncidentDetails={openPreview}
+          />
+        }
+      />
 
       <CaseReviewDrawer
         caseRecord={selectedCase}

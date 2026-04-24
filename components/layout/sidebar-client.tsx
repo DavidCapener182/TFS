@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import { User, X } from 'lucide-react'
 
 import { FeedbackModal } from '@/components/FeedbackModal'
-import { AutoParseInboundEmails } from '@/components/inbound-emails/auto-parse-inbound-emails'
 import type { UserProfile } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -17,8 +16,6 @@ import { getVisibleNavSections, getVisibleUtilityNavItems, type NavItem } from '
 interface SidebarClientProps {
   userRole?: UserProfile['role'] | null
   userProfile?: UserProfile | null
-  /** Used only to trigger background parsing for pending inbound emails (no nav badge). */
-  pendingInboundEmailCount?: number
   /** Store portal thefts awaiting LP follow-up (Incidents nav badge). */
   storeTheftFollowUpCount?: number
 }
@@ -101,7 +98,6 @@ function SectionLink({
 export function SidebarClient({
   userRole,
   userProfile,
-  pendingInboundEmailCount = 0,
   storeTheftFollowUpCount = 0,
 }: SidebarClientProps) {
   const pathname = usePathname()
@@ -221,8 +217,6 @@ export function SidebarClient({
 
   return (
     <>
-      <AutoParseInboundEmails pendingCount={pendingInboundEmailCount} />
-
       <aside className="no-print hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-[18rem] md:flex-col tfs-shell-gradient">
         {sidebarContent}
       </aside>

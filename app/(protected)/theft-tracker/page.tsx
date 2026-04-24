@@ -1,10 +1,11 @@
-import { AlertTriangle, ClipboardList, FileText } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardList, FileText, XCircle } from 'lucide-react'
 import Link from 'next/link'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { TheftLogMobileRow } from '@/components/theft/theft-mobile-card'
+import { TheftTrackerClient } from '@/components/theft/theft-tracker-client'
+import { TheftWorkflowStrip } from '@/components/theft/theft-workflow-strip'
 import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
@@ -87,6 +88,11 @@ export default async function TheftTrackerPage() {
     .filter((entry) => Boolean(entry.meta))
 
   const totalValue = thefts.reduce((acc, entry) => acc + (Number(entry.meta?.theftValueGbp) || 0), 0)
+  const recoveredValue = thefts.reduce(
+    (acc, entry) => acc + (entry.meta?.stockRecovered === true ? Number(entry.meta?.theftValueGbp) || 0 : 0),
+    0
+  )
+  const unrecoveredValue = Math.max(0, totalValue - recoveredValue)
   const openTheftCount = thefts.filter((entry) => entry.incident.status !== 'closed').length
   const sequenceByPrefix = new Map<string, number>()
   const rows = thefts.flatMap(({ incident, meta }) => {
@@ -127,6 +133,7 @@ export default async function TheftTrackerPage() {
     const baseRow = {
       id: incident.id,
       referenceNo: displayReference,
+      storeName,
       date: Number.isNaN(parsedDate.getTime()) ? String(incident.occurred_at || '') : parsedDate.toLocaleString(),
       status: String(incident.status || 'open'),
       description: String(incident.summary || '').trim(),
@@ -155,7 +162,7 @@ export default async function TheftTrackerPage() {
       price: typeof item.unitPrice === 'number' ? `£${item.unitPrice.toFixed(2)}` : '-',
       perfumeDescription: item.title || baseRow.description || '-',
     }))
-  })
+  }) satisfies TheftLogMobileRow[]
 
   return (
     <WorkspaceShell className="p-4 md:p-6">
@@ -174,7 +181,7 @@ export default async function TheftTrackerPage() {
         }
       />
 
-      <WorkspaceStatGrid className="xl:grid-cols-3">
+      <WorkspaceStatGrid className="xl:grid-cols-5">
         <WorkspaceStat
           label="Total Theft Reports"
           value={thefts.length}
@@ -190,6 +197,20 @@ export default async function TheftTrackerPage() {
           tone="critical"
         />
         <WorkspaceStat
+          label="Recovered Value"
+          value={`£${recoveredValue.toFixed(2)}`}
+          note="Reports marked as stock recovered"
+          icon={CheckCircle2}
+          tone="success"
+        />
+        <WorkspaceStat
+          label="Unrecovered Value"
+          value={`£${unrecoveredValue.toFixed(2)}`}
+          note="Reported value still unrecovered"
+          icon={XCircle}
+          tone="warning"
+        />
+        <WorkspaceStat
           label="Open Theft Reports"
           value={openTheftCount}
           note="Incidents still under review"
@@ -198,73 +219,8 @@ export default async function TheftTrackerPage() {
         />
       </WorkspaceStatGrid>
 
-      <Card className="overflow-hidden rounded-[1.5rem]">
-        <CardHeader className="border-b border-line bg-surface-subtle/72">
-          <CardTitle>Theft incidents</CardTitle>
-          <CardDescription>
-            Detailed theft lines and context. Status can be closed — records are kept here for the estate log.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-0 pb-0 pt-0">
-          <div className="overflow-x-auto">
-            <Table className="min-w-[1420px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Description (Perfumes stolen)</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Reported</TableHead>
-                  <TableHead>Adjusted Through Till</TableHead>
-                  <TableHead>Stock Recovered</TableHead>
-                  <TableHead>Incident details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, index) => (
-                  <TableRow key={`${row.id}-${index}`} className="align-top">
-                    <TableCell className="font-mono text-xs text-slate-700">{row.referenceNo}</TableCell>
-                    <TableCell className="text-slate-700">{row.date}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(row.status)}>{formatStatusLabel(row.status)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-900">{row.perfumeDescription}</TableCell>
-                    <TableCell className="text-slate-700">{row.barcode}</TableCell>
-                    <TableCell className="text-slate-700">{row.quantity}</TableCell>
-                    <TableCell className="text-slate-700">{row.price}</TableCell>
-                    <TableCell>
-                      <Badge variant={row.hasTheftBeenReported ? 'success' : 'outline'}>
-                        {row.hasTheftBeenReported ? 'Yes' : 'No'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={row.adjustedThroughTill ? 'success' : 'outline'}>
-                        {row.adjustedThroughTill ? 'Yes' : 'No'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={row.stockRecovered ? 'success' : 'outline'}>
-                        {row.stockRecovered ? 'Yes' : 'No'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-700">{row.incidentDetails || row.description || '-'}</TableCell>
-                  </TableRow>
-                ))}
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-slate-500">
-                      No theft logs yet.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <TheftWorkflowStrip />
+      <TheftTrackerClient rows={rows} />
     </WorkspaceShell>
   )
 }

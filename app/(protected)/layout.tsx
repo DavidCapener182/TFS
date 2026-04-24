@@ -85,9 +85,9 @@ export default async function ProtectedLayout({
     <SidebarProvider>
       <div className="flex min-h-[100dvh] bg-shell md:h-screen-zoom md:min-h-0 md:overflow-hidden">
         <Sidebar />
-        <div className="flex min-h-[100dvh] flex-1 flex-col bg-canvas md:ml-[18rem] md:min-h-0 md:overflow-hidden">
+        <div className="flex min-h-[100dvh] min-w-0 flex-1 flex-col bg-canvas md:ml-[18rem] md:min-h-0 md:overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-x-hidden bg-canvas px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:px-6 md:pb-6 md:pt-6 lg:px-8 md:[-webkit-overflow-scrolling:touch]">
+          <main className="min-w-0 flex-1 overflow-x-hidden bg-canvas px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:px-6 md:pb-6 md:pt-6 lg:px-8 md:[-webkit-overflow-scrolling:touch]">
             <div className="max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:min-h-full">
               {children}
             </div>

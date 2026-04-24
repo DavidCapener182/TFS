@@ -32,7 +32,10 @@ export function FollowUpBanner({ className }: { className?: string }) {
         const next = json?.candidate || null
         if (!cancelled) setCandidate(next)
       } catch (e) {
-        console.error('Failed to load follow-up candidate:', e)
+        const message = e instanceof Error ? e.message : String(e || '')
+        if (!/failed to fetch|aborted/i.test(message)) {
+          console.error('Failed to load follow-up candidate:', e)
+        }
         if (!cancelled) setCandidate(null)
       } finally {
         if (!cancelled) setLoading(false)
@@ -116,4 +119,3 @@ export function FollowUpBanner({ className }: { className?: string }) {
     </div>
   )
 }
-

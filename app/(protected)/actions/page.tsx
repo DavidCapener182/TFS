@@ -12,13 +12,16 @@ import {
   WorkspaceShell,
   WorkspaceStat,
   WorkspaceStatGrid,
+  ResponsiveDataView,
+  WorkspaceEmptyState,
   workspaceDesktopDateInputClass,
   workspaceDesktopFilterActionsClass,
   workspaceDesktopFilterFormClass,
   workspaceDesktopFilterSearchClass,
   workspaceDesktopSelectClass,
 } from '@/components/workspace/workspace-shell'
-import { Search, CheckSquare2, FileText, Clock, AlertCircle, CheckCircle2, SlidersHorizontal } from 'lucide-react'
+import { MobileFilterSheet } from '@/components/workspace/mobile-filter-sheet'
+import { Search, CheckSquare2, FileText, Clock, AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { getInternalAreaDisplayName } from '@/lib/areas'
 import {
@@ -826,8 +829,8 @@ export default async function ActionsPage({
               Grouped by store/reference. Click a group to open tasks for that store.
             </p>
 
-            <form method="get" className="space-y-3 md:hidden">
-              <div className="relative">
+            <div className="space-y-3 md:hidden">
+              <form method="get" className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   name="q"
@@ -835,20 +838,14 @@ export default async function ActionsPage({
                   placeholder="Search action groups"
                   className="bg-white pl-12 sm:pl-12"
                 />
-              </div>
+              </form>
 
-              <details open={hasActiveFilters} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <SlidersHorizontal className="h-4 w-4 text-slate-500" />
-                    Filters
-                  </span>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                    {activeFilterCount > 0 ? `${activeFilterCount} active` : 'Optional'}
-                  </span>
-                </summary>
-
-                <div className="space-y-3 border-t border-slate-200 bg-white px-4 py-4">
+              <MobileFilterSheet
+                activeFilterCount={activeFilterCount}
+                description="Filter action groups by status, priority, store question, and due date."
+              >
+                <form method="get" className="space-y-3">
+                  {searchParams.q ? <input type="hidden" name="q" value={searchParams.q} /> : null}
                   <select
                     name="store_question"
                     defaultValue={searchParams.store_question || 'all'}
@@ -920,9 +917,9 @@ export default async function ActionsPage({
                   <Button asChild variant="outline" className="w-full">
                     <Link href="/actions">Reset</Link>
                   </Button>
-                </div>
-              </details>
-            </form>
+                </form>
+              </MobileFilterSheet>
+            </div>
 
             <form method="get" className={workspaceDesktopFilterFormClass}>
               <div className={workspaceDesktopFilterSearchClass}>
@@ -1008,110 +1005,97 @@ export default async function ActionsPage({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mobile Card View */}
-          <div className="md:hidden p-4 space-y-4">
-            {tableActions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-slate-500 py-12">
-                <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                  <FileText className="h-5 w-5 text-slate-400" />
-                </div>
-                <p className="font-medium text-slate-900">No actions found</p>
-                <p className="text-sm mt-1 text-center">
-                  {hiddenCompletedCount > 0
-                    ? `${hiddenCompletedCount} completed action${hiddenCompletedCount === 1 ? '' : 's'} hidden. Set Status to Complete to view.`
-                    : 'Actions will appear here when created for incidents or stores.'}
-                </p>
+          <ResponsiveDataView
+            isEmpty={tableActions.length === 0}
+            empty={
+              <div className="p-4">
+                <WorkspaceEmptyState
+                  icon={FileText}
+                  title="No actions found"
+                  description={
+                    hiddenCompletedCount > 0
+                      ? `${hiddenCompletedCount} completed action${hiddenCompletedCount === 1 ? '' : 's'} hidden. Set Status to Complete to view.`
+                      : 'Actions will appear here when created for incidents or stores.'
+                  }
+                />
               </div>
-            ) : (
-              groupedActions.map((group) => (
-                <details
-                  key={group.key}
-                  open={filters.status === 'complete'}
-                  className="rounded-xl border border-slate-200 bg-white"
-                >
-                  <summary className="cursor-pointer list-none px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
-                      <span className="text-[11px] text-slate-500">{group.actions.length} tasks</span>
+            }
+            mobile={
+              <div className="p-4 space-y-4">
+                {groupedActions.map((group) => (
+                  <details
+                    key={group.key}
+                    open={filters.status === 'complete'}
+                    className="rounded-xl border border-slate-200 bg-white"
+                  >
+                    <summary className="cursor-pointer list-none px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
+                        <span className="text-[11px] text-slate-500">{group.actions.length} tasks</span>
+                      </div>
+                    </summary>
+                    <div className="border-t p-3 space-y-3">
+                      {group.actions.map((action: any) => (
+                        <ActionMobileCard key={action.id} action={action} />
+                      ))}
+                      {group.isStoreGroup && group.summaryBullets.length > 0 ? (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                            Ops copy summary
+                          </p>
+                          <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-5 text-slate-700">{group.summaryBullets.map((bullet: string) => `- ${bullet}`).join('\n')}</pre>
+                        </div>
+                      ) : null}
                     </div>
-                  </summary>
-                  <div className="border-t p-3 space-y-3">
-                    {group.actions.map((action: any) => (
-                      <ActionMobileCard key={action.id} action={action} />
-                    ))}
+                  </details>
+                ))}
+              </div>
+            }
+            desktop={
+              <div className="p-4 space-y-3">
+                {groupedActions.map((group) => (
+                  <details
+                    key={group.key}
+                    open={filters.status === 'complete'}
+                    className="rounded-xl border border-slate-200 bg-white overflow-hidden"
+                  >
+                    <summary className="cursor-pointer list-none bg-slate-50 px-4 py-3 border-b">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
+                        <span className="text-xs text-slate-500">{group.actions.length} tasks</span>
+                      </div>
+                    </summary>
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="font-semibold text-slate-500">Title</TableHead>
+                          <TableHead className="font-semibold text-slate-500 w-[130px]">Reference</TableHead>
+                          <TableHead className="font-semibold text-slate-500">Assigned To</TableHead>
+                          <TableHead className="w-[100px] font-semibold text-slate-500">Priority</TableHead>
+                          <TableHead className="font-semibold text-slate-500 w-[130px]">Due Date</TableHead>
+                          <TableHead className="w-[120px] font-semibold text-slate-500">Status</TableHead>
+                          <TableHead className="w-[160px] text-right font-semibold text-slate-500">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.actions.map((action: any) => (
+                          <ActionsTableRow key={action.id} action={action} />
+                        ))}
+                      </TableBody>
+                    </Table>
                     {group.isStoreGroup && group.summaryBullets.length > 0 ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="border-t bg-slate-50/60 px-4 py-3">
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                           Ops copy summary
                         </p>
-                        <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-5 text-slate-700">{group.summaryBullets.map((bullet: string) => `- ${bullet}`).join('\n')}</pre>
+                        <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-6 text-slate-700">{group.summaryBullets.map((bullet: string) => `- ${bullet}`).join('\n')}</pre>
                       </div>
                     ) : null}
-                  </div>
-                </details>
-              ))
-            )}
-          </div>
-
-          {/* Desktop Table View */}
-          <div className="hidden md:block p-4 space-y-3">
-            {tableActions.length === 0 ? (
-              <div className="h-40 flex items-center justify-center">
-                <div className="flex flex-col items-center justify-center text-slate-500">
-                  <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                    <FileText className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <p className="font-medium text-slate-900">No actions found</p>
-                  <p className="text-sm mt-1 text-center">
-                    {hiddenCompletedCount > 0
-                      ? `${hiddenCompletedCount} completed action${hiddenCompletedCount === 1 ? '' : 's'} hidden. Set Status to Complete to view.`
-                      : 'Actions will appear here when created for incidents or stores.'}
-                  </p>
-                </div>
+                  </details>
+                ))}
               </div>
-            ) : (
-              groupedActions.map((group) => (
-                <details
-                  key={group.key}
-                  open={filters.status === 'complete'}
-                  className="rounded-xl border border-slate-200 bg-white overflow-hidden"
-                >
-                  <summary className="cursor-pointer list-none bg-slate-50 px-4 py-3 border-b">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-semibold text-slate-700">{group.label}</span>
-                      <span className="text-xs text-slate-500">{group.actions.length} tasks</span>
-                    </div>
-                  </summary>
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-semibold text-slate-500">Title</TableHead>
-                        <TableHead className="font-semibold text-slate-500 w-[130px]">Reference</TableHead>
-                        <TableHead className="font-semibold text-slate-500">Assigned To</TableHead>
-                        <TableHead className="w-[100px] font-semibold text-slate-500">Priority</TableHead>
-                        <TableHead className="font-semibold text-slate-500 w-[130px]">Due Date</TableHead>
-                        <TableHead className="w-[120px] font-semibold text-slate-500">Status</TableHead>
-                        <TableHead className="w-[160px] text-right font-semibold text-slate-500">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {group.actions.map((action: any) => (
-                        <ActionsTableRow key={action.id} action={action} />
-                      ))}
-                    </TableBody>
-                  </Table>
-                  {group.isStoreGroup && group.summaryBullets.length > 0 ? (
-                    <div className="border-t bg-slate-50/60 px-4 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                        Ops copy summary
-                      </p>
-                      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-6 text-slate-700">{group.summaryBullets.map((bullet: string) => `- ${bullet}`).join('\n')}</pre>
-                    </div>
-                  ) : null}
-                </details>
-              ))
-            )}
-          </div>
+            }
+          />
         </CardContent>
       </Card>
     </WorkspaceShell>

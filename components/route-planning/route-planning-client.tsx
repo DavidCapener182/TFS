@@ -982,8 +982,8 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
         <WorkspaceStat label="Managers" value={managerCount} note="Visible managers available for routing" icon={Users} tone="neutral" />
       </WorkspaceStatGrid>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-7">
+      <div className="grid grid-cols-1 gap-8 2xl:grid-cols-12">
+        <div className="space-y-6 2xl:col-span-7">
           <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b border-slate-100 p-4 md:p-6">
           <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
@@ -992,7 +992,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-4 md:space-y-6 md:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <Home className="h-4 w-4" />
@@ -1046,7 +1046,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             </div>
           </div>
 
-          <div className="hidden rounded-xl border border-blue-100 bg-blue-50/50 p-5 md:block">
+          <div className="hidden rounded-xl border border-blue-100 bg-blue-50/50 p-5 xl:block">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                 <Settings2 className="h-4 w-4 text-blue-500" />
@@ -1152,7 +1152,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
             )}
           </div>
 
-          <details className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80 md:hidden">
+          <details className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80 xl:hidden">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <Settings2 className="h-4 w-4 text-blue-500" />
@@ -1420,10 +1420,10 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
       </Card>
     </div>
 
-      <div className="space-y-6 lg:col-span-5">
+      <div className="space-y-6 2xl:col-span-5">
       {/* Map */}
       <details
-        className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:hidden"
+        className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:hidden"
         open={Boolean(routeArea || routeSelectedStores.size > 0)}
       >
         <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-4 text-left">
@@ -1469,7 +1469,7 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
           </div>
         </div>
       </details>
-      <Card className="hidden h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:flex">
+      <Card className="hidden h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:flex">
         <CardHeader className="border-b border-slate-200 bg-white p-6">
           <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
             <MapPin className="h-5 w-5 text-emerald-500" />

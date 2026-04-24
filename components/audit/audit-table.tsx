@@ -852,7 +852,7 @@ export function AuditTable({
   return (
     <div className="space-y-4">
       {/* Mobile Sticky Controls */}
-      <div className="md:hidden sticky top-2 z-20 px-0.5">
+      <div className="xl:hidden sticky top-2 z-20 px-0.5">
         <div className={cn('mobile-sticky-shell rounded-2xl border px-3 py-2.5', mobileFiltersOpen && 'shadow-md')}>
           <div className="flex items-center justify-between gap-2">
             <Button
@@ -936,7 +936,7 @@ export function AuditTable({
       </div>
 
       {/* Desktop Controls */}
-      <div className="hidden md:flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="hidden xl:flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-72">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1013,7 +1013,7 @@ export function AuditTable({
       }
 
       {/* Mobile Card View */}
-      <div className="md:hidden space-y-3">
+      <div className="xl:hidden space-y-3">
         {grouped.length === 0 ? (
           <div className="rounded-2xl border bg-white px-4 py-8 text-center text-sm text-muted-foreground">
             No audit data found matching your filters.
@@ -1179,7 +1179,7 @@ export function AuditTable({
       </div>
 
       {/* Desktop Table Container */}
-      <div className="hidden md:flex rounded-2xl border desktop-table-shell shadow-sm overflow-hidden flex-col">
+      <div className="hidden xl:flex rounded-2xl border desktop-table-shell shadow-sm overflow-hidden flex-col">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <div className="min-w-[1000px]">
             <Table className={cn('w-full border-separate border-spacing-0', desktopTableDensityClass)} style={{ tableLayout: 'fixed' }}>

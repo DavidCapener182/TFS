@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -94,12 +94,18 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!top-[2vh] !h-[96vh] !w-[98vw] !max-w-[98vw] overflow-y-auto p-0 md:!top-[2vh] md:!h-[96vh] md:!w-[96vw] md:!max-w-[96vw]">
-        <div className="flex h-full flex-col p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 break-words">{displayTitle}</DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col overflow-y-auto border-l border-line bg-surface-raised px-5 pb-5 pt-16 sm:w-[520px]"
+      >
+        <div className="flex min-h-full flex-col">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+              {isStoreAction ? 'Store action' : 'Incident action'}
+            </p>
+            <SheetTitle className="text-lg font-bold text-slate-900 sm:text-xl">{displayTitle}</SheetTitle>
+          </div>
         
         <div className="space-y-4 py-2 md:space-y-6 md:py-4">
           {/* Description */}
@@ -254,7 +260,7 @@ export function ViewActionModal({ action, open, onOpenChange, onActionUpdated }:
           </div>
         </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -417,7 +417,7 @@ export function MonthlyReportPdfDocument({
           <Text style={styles.heroEyebrow}>Loss prevention monthly reporting</Text>
           <Text style={styles.heroTitle}>Monthly Report - {data.period.label}</Text>
           <Text style={styles.heroSummary}>
-            Consolidated monthly view of completed LP activity, reported store thefts (emails and store portal), and final report templates across The Fragrance Shop estate.
+            Consolidated monthly view of completed LP activity, reported store thefts from the store portal, and final report templates across The Fragrance Shop estate.
           </Text>
         </View>
 

@@ -19,7 +19,6 @@ import {
   shouldHideStore,
   StoreMergeContext,
 } from '@/lib/store-normalization'
-import type { InboundEmailRow } from '@/lib/inbound-emails'
 import type { VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
 import type { VisitReportType } from '@/lib/reports/visit-report-types'
 
@@ -143,7 +142,6 @@ function buildStoreVisitTrackerRow(params: {
     visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
     openStoreActionCount: actions.filter((action) => !['complete', 'cancelled'].includes(String(action.status || '').trim().toLowerCase())).length,
     openIncidentCount: incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').trim().toLowerCase())).length,
-    pendingInboundEmailCount: 0,
     isActive: Boolean(store.is_active),
     recentVisits,
     activeDraftVisit,
@@ -415,26 +413,6 @@ async function getStoreCrmData(storeId: string) {
   }
 }
 
-async function getStoreInboundEmails(storeIds: string[]) {
-  if (storeIds.length === 0) return []
-
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('tfs_inbound_emails')
-    .select('*')
-    .in('matched_store_id', storeIds)
-    .order('received_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(25)
-
-  if (error) {
-    console.error('Error fetching store inbound emails:', error)
-    return []
-  }
-
-  return (data || []) as InboundEmailRow[]
-}
-
 async function getStoreVisits(storeIds: string[]) {
   if (storeIds.length === 0) {
     return {
@@ -653,13 +631,12 @@ export default async function StoreCrmPage({
 
   const mergedStoreIds = getStoreIdsIncludingAliases(params.id, mergeContext)
 
-  const [incidents, actions, crmData, visitData, profiles, inboundEmails, caseFileData] = await Promise.all([
+  const [incidents, actions, crmData, visitData, profiles, caseFileData] = await Promise.all([
     getStoreIncidents(mergedStoreIds),
     getStoreActions(mergedStoreIds),
     getStoreCrmData(params.id),
     getStoreVisits(mergedStoreIds),
     getIncidentProfiles(),
-    getStoreInboundEmails(mergedStoreIds),
     listStoreCaseFileData(mergedStoreIds),
   ])
 
@@ -684,7 +661,6 @@ export default async function StoreCrmPage({
       userRole={profile.role}
       profiles={profiles}
       crmData={crmData}
-      inboundEmails={inboundEmails}
       canEdit={canEdit}
       visitTrackerRow={visitTrackerRow}
       productCatalog={productCatalog}

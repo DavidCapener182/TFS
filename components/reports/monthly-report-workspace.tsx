@@ -60,6 +60,92 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function MonthlyReportRowCard({
+  row,
+  detailValue,
+  canEdit,
+  onDetailChange,
+  onReset,
+  isSummarizing = false,
+  helperText,
+}: {
+  row: MonthlyReportData['rows'][number]
+  detailValue: string
+  canEdit: boolean
+  onDetailChange: (value: string) => void
+  onReset: () => void
+  isSummarizing?: boolean
+  helperText: string
+}) {
+  const displayStoreCode = getDisplayStoreCode(row.storeCode)
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {formatAppDate(row.visitedAt, { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+          {row.storeId ? (
+            <Link
+              href={`/stores/${row.storeId}`}
+              className="mt-1 block text-base font-semibold text-slate-900 underline-offset-4 hover:underline"
+            >
+              {formatStoreName(row.storeName)}
+            </Link>
+          ) : (
+            <p className="mt-1 text-base font-semibold text-slate-900">{formatStoreName(row.storeName)}</p>
+          )}
+          <p className="mt-1 text-sm text-slate-500">
+            {displayStoreCode ? `Store ${displayStoreCode}` : 'Store code unavailable'}
+          </p>
+        </div>
+        <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+          {getRowSourceLabel(row)}
+        </span>
+      </div>
+
+      {row.createdByName ? (
+        <p className="mt-3 text-xs text-slate-500">LP manager: {row.createdByName}</p>
+      ) : null}
+
+      {row.reportLabels.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {row.reportLabels.map((label) => (
+            <span
+              key={`${row.id}-${label}`}
+              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 space-y-3">
+        <p className="text-xs text-slate-500">{helperText}</p>
+        {canEdit ? (
+          <Textarea
+            value={detailValue}
+            onChange={(event) => onDetailChange(event.target.value)}
+            className="min-h-[150px] whitespace-pre-wrap"
+          />
+        ) : (
+          <div className="min-h-[150px] whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {detailValue || '-'}
+          </div>
+        )}
+        {canEdit ? (
+          <Button type="button" size="sm" variant="outline" onClick={onReset} disabled={isSummarizing}>
+            <RotateCcw className={`mr-1.5 h-3.5 w-3.5${isSummarizing ? ' animate-spin' : ''}`} />
+            {isSummarizing ? 'Refreshing...' : 'Reset'}
+          </Button>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
 export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspaceProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -300,7 +386,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
         eyebrow="Monthly Reports"
         icon={BarChart3}
         title={`${data.period.label} monthly report`}
-        description="Monthly view of completed LP activity, store visits, reported thefts (emails and store portal), and completed report templates."
+        description="Monthly view of completed LP activity, store visits, store portal thefts, and completed report templates."
         actions={
           <div className="flex flex-wrap justify-end gap-2">
             <Badge variant={canEdit ? 'success' : 'outline'}>
@@ -416,7 +502,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
             <CardDescription>{data.period.label}</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="grid gap-3 md:hidden">
+            <div className="grid gap-3 xl:hidden">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Stores Visited</div>
                 <div className="mt-1 text-xl font-semibold text-slate-900">{data.summary.storesVisited}</div>
@@ -459,7 +545,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
                 )}
               </div>
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto xl:block">
               <Table>
               <TableHeader>
                 <TableRow>
@@ -555,7 +641,27 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
               No completed store visits or final templates were found for {data.period.label}.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 xl:hidden">
+              {activityRows.map((row) => {
+                const detailValue = detailEdits[row.id] ?? row.generatedDetails
+                const isSummarizing = Boolean(summarizingRowIds[row.id])
+
+                return (
+                  <MonthlyReportRowCard
+                    key={row.id}
+                    row={row}
+                    detailValue={detailValue}
+                    canEdit={canEdit}
+                    onDetailChange={(value) => handleDetailChange(row.id, value)}
+                    onReset={() => resetDetail(row)}
+                    isSummarizing={isSummarizing}
+                    helperText="Auto-filled from completed templates and visit activity. Edit or add extra report wording below."
+                  />
+                )
+              })}
+            </div>
+            <div className="hidden overflow-x-auto xl:block">
               <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow>
@@ -648,6 +754,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
               </TableBody>
               </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -667,7 +774,28 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="overflow-x-auto">
+              <div className="space-y-3 xl:hidden">
+                {theftRows.map((row) => {
+                  const detailValue = detailEdits[row.id] ?? row.generatedDetails
+
+                  return (
+                    <MonthlyReportRowCard
+                      key={row.id}
+                      row={row}
+                      detailValue={detailValue}
+                      canEdit={canEdit}
+                      onDetailChange={(value) => handleDetailChange(row.id, value)}
+                      onReset={() => resetDetail(row)}
+                      helperText={
+                        row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
+                          ? 'Submitted from the store portal. Edit the wording or value details below if needed.'
+                          : 'Auto-filled from theft email analysis. Edit the wording or value details below if needed.'
+                      }
+                    />
+                  )
+                })}
+              </div>
+              <div className="hidden overflow-x-auto xl:block">
                 <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow>

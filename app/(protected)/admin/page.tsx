@@ -2,7 +2,7 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AdminClient } from '@/components/admin/admin-client'
-import { Settings2, ShieldCheck, Bug, Mail, NotebookTabs } from 'lucide-react'
+import { Settings2, ShieldCheck, Bug, NotebookTabs } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 
@@ -59,7 +59,7 @@ export default async function AdminPage() {
       />
 
       <WorkspaceStatGrid className="xl:grid-cols-3">
-        <WorkspaceStat label="Modules" value={4} note="Bug tracker, releases, email inbox, and paste importer" icon={Settings2} tone="info" />
+        <WorkspaceStat label="Modules" value={3} note="Bug tracker, releases, and user controls" icon={Settings2} tone="info" />
         <WorkspaceStat label="Access" value="Admin" note="Restricted to the administrator account" icon={ShieldCheck} tone="critical" />
         <WorkspaceStat label="User management" value="Live" note="Role sync and admin client are active below" icon={NotebookTabs} tone="success" />
       </WorkspaceStatGrid>
@@ -94,24 +94,6 @@ export default async function AdminPage() {
               Manage Releases
             </a>
           </Button>
-        </div>
-
-        <div className="app-panel rounded-[1.5rem] p-5">
-          <div className="mb-3 inline-flex rounded-full border border-warning/20 bg-warning-soft px-2 py-1 text-warning">
-            <Mail className="h-4 w-4" />
-          </div>
-          <h2 className="mb-2 text-base font-semibold text-foreground sm:text-lg">Inbound emails</h2>
-          <p className="mb-4 text-sm text-ink-soft">
-            Review the shared inbox (same as the former Email Review nav item) or paste raw email text into the queue.
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button asChild className="w-full sm:w-auto">
-              <a href="/inbound-emails">Open email inbox</a>
-            </Button>
-            <Button asChild variant="outline" className="w-full sm:w-auto">
-              <a href="/admin/inbound-email-import">Open email importer</a>
-            </Button>
-          </div>
         </div>
 
       </div>

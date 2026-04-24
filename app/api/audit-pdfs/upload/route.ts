@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+const WRITABLE_ROLES = new Set(['admin', 'ops'])
+
+async function hasWritableProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  return !error && Boolean(profile && WRITABLE_ROLES.has(profile.role))
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -8,6 +20,10 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!(await hasWritableProfile(supabase, user.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const formData = await request.formData()

@@ -2,6 +2,20 @@
 
 import { createClient } from '@/lib/supabase/server'
 
+const WRITABLE_ROLES = new Set(['admin', 'ops'])
+
+async function requireWritableProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (error || !profile || !WRITABLE_ROLES.has(profile.role)) {
+    throw new Error('Forbidden')
+  }
+}
+
 /**
  * Upload a PDF file for a Fire Risk Assessment
  * @param storeId - The store ID
@@ -18,6 +32,8 @@ export async function uploadFRAPDF(
   if (!user) {
     throw new Error('Unauthorized')
   }
+
+  await requireWritableProfile(supabase, user.id)
 
   // Validate file type
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {

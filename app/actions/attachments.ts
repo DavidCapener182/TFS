@@ -5,6 +5,31 @@ import { logActivity } from '@/lib/activity-log'
 import { revalidatePath } from 'next/cache'
 import { FaEntityType } from '@/types/db'
 
+const WRITABLE_ROLES = new Set(['admin', 'ops'])
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+
+function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-')
+}
+
+function isAllowedAttachment(file: File) {
+  if (file.type === 'application/pdf') return true
+  if (file.type.startsWith('image/')) return true
+  return /\.(pdf|png|jpe?g|gif|webp|heic|heif)$/i.test(file.name)
+}
+
+async function requireWritableProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (error || !profile || !WRITABLE_ROLES.has(profile.role)) {
+    throw new Error('Forbidden')
+  }
+}
+
 export async function uploadAttachment(
   entityType: FaEntityType,
   entityId: string,
@@ -17,14 +42,27 @@ export async function uploadAttachment(
     throw new Error('Unauthorized')
   }
 
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${entityId}/${Date.now()}.${fileExt}`
+  await requireWritableProfile(supabase, user.id)
+
+  if (!isAllowedAttachment(file)) {
+    throw new Error('Only PDF or image files are allowed')
+  }
+
+  if (file.size > MAX_ATTACHMENT_SIZE) {
+    throw new Error('File size must be less than 10MB')
+  }
+
+  const safeName = sanitizeFileName(file.name || 'attachment')
+  const fileName = `${entityId}/${Date.now()}-${safeName}`
   const filePath = `${entityType}/${fileName}`
 
   // Upload to storage
   const { error: uploadError } = await supabase.storage
     .from('tfs-attachments')
-    .upload(filePath, file)
+    .upload(filePath, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    })
 
   if (uploadError) {
     throw new Error(`Failed to upload file: ${uploadError.message}`)
@@ -88,5 +126,4 @@ export async function getAttachmentDownloadUrl(attachmentId: string) {
 
   return data.signedUrl
 }
-
 

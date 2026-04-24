@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { MobileFilterSheet } from '@/components/workspace/mobile-filter-sheet'
 import {
   type WorkspaceDensity,
   WorkspaceDensityToggle,
@@ -266,6 +267,11 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
   )
 
   const tablePaddingClass = density === 'compact' ? 'px-4 py-3' : 'px-4 py-4'
+  const activeFilterCount = [
+    searchQuery.trim(),
+    groupFilter !== 'all' ? groupFilter : null,
+    view !== 'all' ? view : null,
+  ].filter(Boolean).length
 
   return (
     <div className="space-y-4 md:space-y-5">
@@ -283,22 +289,53 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
               />
             </div>
 
-            <Select value={groupFilter} onValueChange={setGroupFilter}>
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue placeholder="All groups" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All groups</SelectItem>
-                {groupOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-full xl:hidden">
+              <MobileFilterSheet
+                activeFilterCount={activeFilterCount}
+                title="Filters"
+                description="Refine the store CRM workspace by group, saved view, and display density."
+              >
+                <div className="space-y-4">
+                  <Select value={groupFilter} onValueChange={setGroupFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All groups</SelectItem>
+                      {groupOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <WorkspaceViewChips options={viewOptions} value={view} onValueChange={setView} />
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface-subtle px-3 py-3">
+                    <span className="text-sm font-semibold text-foreground">Density</span>
+                    <WorkspaceDensityToggle value={density} onValueChange={setDensity} />
+                  </div>
+                </div>
+              </MobileFilterSheet>
+            </div>
+
+            <div className="hidden xl:block">
+              <Select value={groupFilter} onValueChange={setGroupFilter}>
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue placeholder="All groups" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All groups</SelectItem>
+                  {groupOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </WorkspaceToolbarGroup>
 
-          <div className="flex flex-col gap-3 lg:items-end">
+          <div className="hidden flex-col gap-3 xl:flex lg:items-end">
             <WorkspaceViewChips options={viewOptions} value={view} onValueChange={setView} />
             <div className="flex items-center gap-3 self-start lg:self-end">
               <WorkspaceDensityToggle value={density} onValueChange={setDensity} />
@@ -332,7 +369,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
               </div>
             </div>
 
-            <div className="p-4 md:hidden">
+            <div className="p-4 xl:hidden">
               <div className="space-y-3">
                 {sortedStores.length === 0 ? (
                   <WorkspaceEmptyState
@@ -353,7 +390,7 @@ export function StoreDirectory({ stores }: StoreDirectoryProps) {
               </div>
             </div>
 
-            <div className="hidden md:block">
+            <div className="hidden xl:block">
               <div className="max-h-[70vh] overflow-auto">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-surface-raised">

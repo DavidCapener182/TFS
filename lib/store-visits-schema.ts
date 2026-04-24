@@ -1,4 +1,5 @@
 const STORE_VISITS_TABLE = 'tfs_store_visits'
+const CASE_VISITS_TABLE = 'tfs_visits'
 const STORE_VISITS_REQUIRED_COLUMNS = ['status'] as const
 const STORE_VISITS_LINKED_SESSIONS_MIGRATION =
   '20260330110000_add_linked_visit_report_sessions.sql'
@@ -50,6 +51,22 @@ export function isMissingStoreVisitsTableError(error: unknown): boolean {
 
 export function getStoreVisitsUnavailableMessage(): string {
   return `Store visit logging is unavailable because the connected Supabase project is missing required linked-visit schema (for example ${STORE_VISITS_TABLE}.status). Apply the latest Supabase migrations, including ${STORE_VISITS_LINKED_SESSIONS_MIGRATION}, and refresh.`
+}
+
+export function isMissingTfsVisitsColumnError(error: unknown, columns: readonly string[]): boolean {
+  const errorLike = getErrorLike(error)
+  if (!errorLike) return false
+
+  const haystack = `${errorLike.message || ''} ${errorLike.hint || ''}`.toLowerCase()
+  return (
+    (errorLike.code === '42703' || haystack.includes('schema cache') || haystack.includes('does not exist')) &&
+    haystack.includes(CASE_VISITS_TABLE) &&
+    columns.some((column) => haystack.includes(column.toLowerCase()))
+  )
+}
+
+export function isMissingTfsVisitsVisitTypeColumnError(error: unknown): boolean {
+  return isMissingTfsVisitsColumnError(error, ['visit_type'])
 }
 
 export function formatStoreVisitsActionError(actionLabel: string, error: unknown): string {

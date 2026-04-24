@@ -42,7 +42,7 @@ export function StoreLoginForm() {
           placeholder="e.g. 11"
           inputMode="numeric"
           autoComplete="one-time-code"
-          className="min-h-[44px]"
+          className="min-h-[44px] border-slate-200 bg-slate-50 focus-visible:ring-[hsl(var(--brand))]"
         />
       </div>
       {error ? (
@@ -50,7 +50,7 @@ export function StoreLoginForm() {
           {error}
         </div>
       ) : null}
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button type="submit" disabled={pending} className="w-full bg-slate-950 hover:bg-slate-800 hover:brightness-100">
         {pending ? 'Signing in…' : 'Sign in with store code'}
       </Button>
     </form>

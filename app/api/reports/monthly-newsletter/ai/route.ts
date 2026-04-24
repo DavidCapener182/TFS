@@ -106,6 +106,16 @@ async function generateCompletion(
   return stripMarkdownStyling(sanitizeText(data.choices?.[0]?.message?.content))
 }
 
+async function hasReportAccess(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  return !error && Boolean(profile && ['admin', 'ops', 'readonly'].includes(profile.role))
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -115,6 +125,10 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!(await hasReportAccess(supabase, user.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const apiKey = process.env.OPENAI_API_KEY

@@ -8,6 +8,9 @@ type AuthShellProps = {
   logoSize?: 'standard' | 'compact'
   contentClassName?: string
   desktopLogoPosition?: 'centered' | 'corner'
+  variant?: 'centered' | 'split'
+  splitTitle?: string
+  splitTagline?: string
 }
 
 export function AuthShell({
@@ -15,7 +18,43 @@ export function AuthShell({
   logoSize = 'standard',
   contentClassName,
   desktopLogoPosition = 'centered',
+  variant = 'centered',
+  splitTitle = 'The Fragrance Shop',
+  splitTagline = 'Operations, store visits, incidents, routes, and reporting in one secure workspace.',
 }: AuthShellProps) {
+  if (variant === 'split') {
+    return (
+      <main className="min-h-[100svh] bg-white text-slate-950">
+        <div className="grid min-h-[100svh] lg:grid-cols-[minmax(0,1.03fr)_minmax(420px,0.97fr)]">
+          <section className="relative isolate flex min-h-[320px] overflow-hidden bg-[hsl(var(--brand))] px-6 py-8 text-white sm:min-h-[380px] sm:px-10 lg:min-h-[100svh] lg:px-14 lg:py-12">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_24%,hsl(var(--shell-contrast)/0.2),transparent_30%),linear-gradient(145deg,hsl(var(--brand))_0%,hsl(var(--shell-elevated))_62%,hsl(var(--shell))_100%)]" />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-36 bg-[url('/tfs-auth-fragrance-pattern.png')] bg-[length:110%_auto] bg-[position:center_top] bg-no-repeat opacity-50 sm:h-40 sm:bg-[length:105%_auto] lg:h-80 lg:bg-[length:115%_auto] lg:opacity-55"
+            />
+            <div className="relative z-10 flex w-full flex-col">
+              <div className="mt-auto max-w-xl pb-2 pt-24 sm:pt-32 lg:pb-10">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                  TFS Operations Platform
+                </p>
+                <h1 className="text-4xl font-semibold leading-[1.02] tracking-normal text-white sm:text-5xl lg:text-6xl">
+                  {splitTitle}
+                </h1>
+                <p className="mt-5 max-w-md text-base leading-7 text-white/76 sm:text-lg">
+                  {splitTagline}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="flex min-h-[calc(100svh-320px)] items-center justify-center bg-white px-5 py-10 sm:px-8 lg:min-h-[100svh] lg:px-12">
+            <div className={cn('w-full max-w-[380px]', contentClassName)}>{children}</div>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <div className="tfs-auth-gradient relative min-h-[100svh] overflow-x-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,hsl(var(--shell-contrast)/0.1),transparent_28%)]" />

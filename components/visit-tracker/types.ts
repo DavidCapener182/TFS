@@ -87,7 +87,6 @@ export interface VisitTrackerRow {
   visitState: VisitState
   openStoreActionCount: number
   openIncidentCount: number
-  pendingInboundEmailCount: number
   isActive: boolean
   recentVisits: VisitHistoryEntry[]
   activeDraftVisit: VisitHistoryEntry | null

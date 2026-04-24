@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
   ClipboardList,
-  Mail,
   MapPinned,
   Search,
   ShieldAlert,
@@ -22,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { MobileFilterSheet } from '@/components/workspace/mobile-filter-sheet'
 import {
   type WorkspaceDensity,
   WorkspaceDensityToggle,
@@ -55,7 +55,7 @@ interface VisitTrackerClientProps {
 }
 
 type VisitBoardView = 'by-group' | 'all-stores'
-type VisitSavedView = 'all' | 'priority' | 'planned' | 'email-review'
+type VisitSavedView = 'all' | 'priority' | 'planned'
 
 function formatDate(value: string | null): string {
   return value ? formatAppDate(value) : 'Not recorded'
@@ -97,10 +97,6 @@ function sortRows(rows: VisitTrackerRow[]): VisitTrackerRow[] {
   }
 
   return [...rows].sort((a, b) => {
-    if (a.pendingInboundEmailCount !== b.pendingInboundEmailCount) {
-      return b.pendingInboundEmailCount - a.pendingInboundEmailCount
-    }
-
     const needDiff = needOrder[a.visitNeedLevel] - needOrder[b.visitNeedLevel]
     if (needDiff !== 0) return needDiff
 
@@ -225,12 +221,6 @@ function VisitTrackerPreview({
         {getDisplayStoreCode(row.storeCode) ? <Badge variant="outline">{getDisplayStoreCode(row.storeCode)}</Badge> : null}
         <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} reason={row.visitNeedReasons[0] || null} />
         {caseVisit ? <Badge variant="info">{getCaseTypeLabel(caseVisit.caseType)}</Badge> : null}
-        {row.pendingInboundEmailCount > 0 ? (
-          <Badge variant="warning" className="gap-1">
-            <Mail className="h-3 w-3" />
-            {row.pendingInboundEmailCount} review
-          </Badge>
-        ) : null}
       </div>
 
       {caseVisit ? (
@@ -364,7 +354,7 @@ function VisitTable({
 
   return (
     <div className="overflow-hidden rounded-[1.25rem] border border-line bg-surface-raised">
-      <div className="space-y-3 p-3 md:hidden">
+      <div className="space-y-3 p-3 xl:hidden">
         {rows.length === 0 ? (
           <WorkspaceEmptyState
             icon={Store}
@@ -394,12 +384,6 @@ function VisitTable({
                 <div className="flex flex-wrap items-center gap-2">
                   <VisitNeedBadge level={row.visitNeedLevel} score={row.visitNeedScore} reason={row.visitNeedReasons[0] || null} />
                   <VisitStateBadge state={row.visitState} />
-                  {row.pendingInboundEmailCount > 0 ? (
-                    <Badge variant="warning" className="gap-1">
-                      <Mail className="h-3 w-3" />
-                      {row.pendingInboundEmailCount} review
-                    </Badge>
-                  ) : null}
                 </div>
 
                 <p className="text-xs text-ink-soft">{getVisitNeedSummary(row)}</p>
@@ -447,7 +431,7 @@ function VisitTable({
         )}
       </div>
 
-      <div className="hidden max-h-[560px] overflow-auto md:block">
+      <div className="hidden max-h-[560px] overflow-auto xl:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-surface-raised">
             <TableRow>
@@ -492,12 +476,6 @@ function VisitTable({
                           {getDisplayStoreCode(row.storeCode) || 'No store code'}
                           {row.assignedManager ? ` • ${row.assignedManager}` : ''}
                         </div>
-                        {row.pendingInboundEmailCount > 0 ? (
-                          <Badge variant="warning" className="mt-1 gap-1">
-                            <Mail className="h-3 w-3" />
-                            {row.pendingInboundEmailCount} review
-                          </Badge>
-                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell className={tablePaddingClass}>
@@ -602,9 +580,8 @@ export function VisitTrackerClient({
       const matchesSavedView =
         savedView === 'all' ||
         (savedView === 'priority' &&
-          (row.visitNeeded || row.openIncidentCount > 0 || row.openStoreActionCount > 0 || row.pendingInboundEmailCount > 0)) ||
-        (savedView === 'planned' && (Boolean(row.nextPlannedVisitDate) || row.caseVisits.length > 0)) ||
-        (savedView === 'email-review' && row.pendingInboundEmailCount > 0)
+          (row.visitNeeded || row.openIncidentCount > 0 || row.openStoreActionCount > 0)) ||
+        (savedView === 'planned' && (Boolean(row.nextPlannedVisitDate) || row.caseVisits.length > 0))
 
       return matchesGroup && matchesSearch && matchesSavedView
     })
@@ -621,11 +598,6 @@ export function VisitTrackerClient({
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [filteredRows])
 
-  const emailReviewRows = useMemo(
-    () => sortRows(filteredRows.filter((row) => row.pendingInboundEmailCount > 0)),
-    [filteredRows]
-  )
-
   const orderedRows = useMemo(() => sortRows(filteredRows), [filteredRows])
 
   const savedViewOptions = useMemo(
@@ -635,7 +607,7 @@ export function VisitTrackerClient({
         value: 'priority' as const,
         label: 'Priority',
         count: rows.filter(
-          (row) => row.visitNeeded || row.openIncidentCount > 0 || row.openStoreActionCount > 0 || row.pendingInboundEmailCount > 0
+          (row) => row.visitNeeded || row.openIncidentCount > 0 || row.openStoreActionCount > 0
         ).length,
       },
       {
@@ -643,7 +615,6 @@ export function VisitTrackerClient({
         label: 'Planned',
         count: rows.filter((row) => Boolean(row.nextPlannedVisitDate) || row.caseVisits.length > 0).length,
       },
-      { value: 'email-review' as const, label: 'Email review', count: rows.filter((row) => row.pendingInboundEmailCount > 0).length },
     ],
     [rows]
   )
@@ -685,6 +656,11 @@ export function VisitTrackerClient({
     () => (selectedRow ? getPrimaryCaseVisit(selectedRow, requestedCaseId || null) : null),
     [requestedCaseId, selectedRow]
   )
+  const activeFilterCount = [
+    search.trim(),
+    groupFilter !== 'all' ? groupFilter : null,
+    savedView !== 'all' ? savedView : null,
+  ].filter(Boolean).length
 
   const updateSelectedStore = (storeId: string | null) => {
     setSelectedStoreId(storeId)
@@ -757,25 +733,58 @@ export function VisitTrackerClient({
                 />
               </div>
 
-              <Select value={groupFilter} onValueChange={setGroupFilter}>
-                <SelectTrigger className="w-full sm:w-56">
-                  <SelectValue placeholder="All groups" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All groups</SelectItem>
-                  {groupOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-full xl:hidden">
+                <MobileFilterSheet
+                  activeFilterCount={activeFilterCount}
+                  title="Filters"
+                  description="Refine the visit board by group, saved view, and display density."
+                >
+                  <div className="space-y-4">
+                    <Select value={groupFilter} onValueChange={setGroupFilter}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All groups" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All groups</SelectItem>
+                        {groupOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <WorkspaceViewChips options={savedViewOptions} value={savedView} onValueChange={setSavedView} />
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface-subtle px-3 py-3">
+                      <span className="text-sm font-semibold text-foreground">Density</span>
+                      <WorkspaceDensityToggle value={density} onValueChange={setDensity} />
+                    </div>
+                  </div>
+                </MobileFilterSheet>
+              </div>
+
+              <div className="hidden xl:block">
+                <Select value={groupFilter} onValueChange={setGroupFilter}>
+                  <SelectTrigger className="w-full sm:w-56">
+                    <SelectValue placeholder="All groups" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All groups</SelectItem>
+                    {groupOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </WorkspaceToolbarGroup>
 
-            <WorkspaceViewChips options={savedViewOptions} value={savedView} onValueChange={setSavedView} />
+            <div className="hidden xl:block">
+              <WorkspaceViewChips options={savedViewOptions} value={savedView} onValueChange={setSavedView} />
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 self-start xl:self-end">
+          <div className="hidden items-center gap-3 self-start xl:flex xl:self-end">
             <WorkspaceDensityToggle value={density} onValueChange={setDensity} />
             <Badge variant="secondary">{filteredRows.length} stores</Badge>
           </div>
@@ -815,53 +824,25 @@ export function VisitTrackerClient({
 
               <div className="p-4 md:p-5">
                 <TabsContent value="by-group" className="mt-0 space-y-4">
-                  {emailReviewRows.length > 0 ? (
-                    <section className="space-y-3">
-                      <div className="flex items-center justify-between rounded-[1.25rem] border border-warning/20 bg-warning-soft px-4 py-3">
-                        <div>
-                          <h3 className="font-semibold text-foreground">Email review queue</h3>
-                          <p className="text-xs text-ink-soft">
-                            {emailReviewRows.length} store{emailReviewRows.length === 1 ? '' : 's'} have inbound emails awaiting review.
-                          </p>
-                        </div>
-                        <Mail className="h-5 w-5 text-warning" />
-                      </div>
-                      <VisitTable
-                        rows={emailReviewRows}
-                        canPlanVisits={canPlanVisits}
-                        canLogVisits={canLogVisits}
-                        density={density}
-                        focusedCaseId={requestedCaseId || null}
-                        selectedStoreId={selectedStoreId}
-                        onSelectRow={(row) => updateSelectedStore(row.storeId)}
-                        onStartVisit={setVisitModalRow}
-                      />
-                    </section>
-                  ) : null}
-
-                  {groupedRows.length === 0 && emailReviewRows.length === 0 ? (
+                  {groupedRows.length === 0 ? (
                     <WorkspaceEmptyState
                       icon={Store}
                       title="No stores match"
                       description="Adjust the filters or saved view to widen the visit queue."
                     />
-                  ) : savedView === 'email-review' ? null : (
+                  ) : (
                     groupedRows.map(([group, groupRows]) => {
-                      const visibleRows = groupRows.filter((row) => row.pendingInboundEmailCount === 0)
-
-                      if (visibleRows.length === 0) return null
-
                       return (
                         <section key={group} className="space-y-3">
                           <div className="flex items-center justify-between rounded-[1.25rem] border border-line bg-surface-subtle/72 px-4 py-3">
                             <div>
                               <h3 className="font-semibold text-foreground">{group}</h3>
-                              <p className="text-xs text-ink-soft">{visibleRows.length} stores</p>
+                              <p className="text-xs text-ink-soft">{groupRows.length} stores</p>
                             </div>
                             <Store className="h-5 w-5 text-ink-muted" />
                           </div>
                           <VisitTable
-                            rows={visibleRows}
+                            rows={groupRows}
                             canPlanVisits={canPlanVisits}
                             canLogVisits={canLogVisits}
                             density={density}

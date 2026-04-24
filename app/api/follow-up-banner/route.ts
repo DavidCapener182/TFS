@@ -6,6 +6,17 @@ function normalizeStatus(value: unknown): string {
   return String(value || '').trim().toLowerCase()
 }
 
+async function getWritableProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (error || !profile) return null
+  return profile.role === 'admin' || profile.role === 'ops' ? profile : null
+}
+
 export async function GET() {
   const supabase = createClient()
   const {
@@ -14,6 +25,11 @@ export async function GET() {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const writableProfile = await getWritableProfile(supabase, user.id)
+  if (!writableProfile) {
+    return NextResponse.json({ candidate: null })
   }
 
   const { data: incidents, error } = await supabase
@@ -88,6 +104,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const writableProfile = await getWritableProfile(supabase, user.id)
+  if (!writableProfile) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const body = await request.json().catch(() => ({}))
   const incidentId = String((body as any)?.incidentId || '').trim()
   if (!incidentId) {
@@ -109,4 +130,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true })
 }
-

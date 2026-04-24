@@ -8,6 +8,8 @@ const Sheet = DialogPrimitive.Root
 const SheetTrigger = DialogPrimitive.Trigger
 const SheetClose = DialogPrimitive.Close
 const SheetPortal = DialogPrimitive.Portal
+const SheetTitle = DialogPrimitive.Title
+const SheetDescription = DialogPrimitive.Description
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -24,7 +26,7 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-type SheetSide = "right" | "left"
+type SheetSide = "right" | "left" | "bottom"
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
@@ -41,7 +43,9 @@ const SheetContent = React.forwardRef<
         "sm:w-[420px]",
         side === "right"
           ? "right-0 top-0 data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right"
-          : "left-0 top-0 data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
+          : side === "left"
+            ? "left-0 top-0 data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left"
+            : "inset-x-0 bottom-0 h-auto data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom sm:w-full",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
         className
       )}
@@ -57,4 +61,4 @@ const SheetContent = React.forwardRef<
 ))
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
-export { Sheet, SheetTrigger, SheetClose, SheetPortal, SheetOverlay, SheetContent }
+export { Sheet, SheetTrigger, SheetClose, SheetPortal, SheetOverlay, SheetContent, SheetTitle, SheetDescription }

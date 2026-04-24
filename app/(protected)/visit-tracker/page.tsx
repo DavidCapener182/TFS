@@ -1,6 +1,10 @@
 import { requireRole } from '@/lib/auth'
 import { shouldHideStore } from '@/lib/store-normalization'
-import { getStoreVisitsUnavailableMessage, isMissingStoreVisitsTableError } from '@/lib/store-visits-schema'
+import {
+  getStoreVisitsUnavailableMessage,
+  isMissingStoreVisitsTableError,
+  isMissingTfsVisitsColumnError,
+} from '@/lib/store-visits-schema'
 import {
   computeStoreVisitNeed,
   getStoreVisitTypeLabel,
@@ -36,15 +40,6 @@ type IncidentRow = {
   severity: string | null
   status: string | null
   occurred_at: string | null
-}
-
-type InboundEmailPendingRow = {
-  matched_store_id: string | null
-  processing_status: string | null
-  analysis_template_key: string | null
-  analysis_needs_action: boolean | null
-  analysis_needs_visit: boolean | null
-  analysis_needs_incident: boolean | null
 }
 
 type StoreVisitRow = {
@@ -217,8 +212,6 @@ async function getVisitTrackerData(): Promise<{
 
   const openStoreActionsByStore = new Map<string, StoreActionRow[]>()
   const openIncidentsByStore = new Map<string, IncidentRow[]>()
-  const pendingInboundEmailCountByStore = new Map<string, number>()
-  const inboundEmailVisitNeedReasonsByStore = new Map<string, Set<string>>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
   const caseVisitsByStore = new Map<string, CaseVisitSummary[]>()
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
@@ -265,38 +258,7 @@ async function getVisitTrackerData(): Promise<{
       }
     }
 
-    const { data: pendingEmailRows, error: pendingEmailsError } = await supabase
-      .from('tfs_inbound_emails')
-      .select('matched_store_id, processing_status, analysis_template_key, analysis_needs_action, analysis_needs_visit, analysis_needs_incident')
-      .in('matched_store_id', storeIds)
-      .or('processing_status.eq.pending,and(processing_status.eq.reviewed,or(analysis_needs_action.eq.true,analysis_needs_visit.eq.true,analysis_needs_incident.eq.true))')
-
-    if (pendingEmailsError) {
-      console.error('Error fetching pending inbound emails for visit tracker:', pendingEmailsError)
-    } else {
-      for (const row of (pendingEmailRows || []) as InboundEmailPendingRow[]) {
-        const storeId = String(row.matched_store_id || '')
-        if (!storeId) continue
-        pendingInboundEmailCountByStore.set(storeId, (pendingInboundEmailCountByStore.get(storeId) || 0) + 1)
-
-        const existingReasons = inboundEmailVisitNeedReasonsByStore.get(storeId) || new Set<string>()
-        const templateKey = String(row.analysis_template_key || '').toLowerCase()
-
-        if (row.analysis_needs_visit && templateKey === 'stocktake_result') {
-          existingReasons.add('Stocktake Red')
-        } else if (templateKey === 'store_theft' && (row.analysis_needs_action || row.analysis_needs_incident)) {
-          existingReasons.add('Theft, Review')
-        } else if (row.analysis_needs_visit || row.analysis_needs_action || row.analysis_needs_incident) {
-          existingReasons.add('Inbound email flagged for review')
-        }
-
-        if (existingReasons.size > 0) {
-          inboundEmailVisitNeedReasonsByStore.set(storeId, existingReasons)
-        }
-      }
-    }
-
-    const [storeVisitsResult, routeVisitLogsResult, caseVisitsResult] = await Promise.all([
+    const [storeVisitsResult, routeVisitLogsResult] = await Promise.all([
       supabase
         .from('tfs_store_visits')
         .select(
@@ -311,12 +273,34 @@ async function getVisitTrackerData(): Promise<{
         .eq('action', 'ROUTE_VISIT_COMPLETED')
         .in('entity_id', storeIds)
         .order('created_at', { ascending: false }),
-      supabase
-        .from('tfs_visits')
-        .select('id, case_id, store_id, visit_type, status, scheduled_for, assigned_user_id, created_at')
-        .in('store_id', storeIds)
-        .in('status', ['planned', 'in_progress']),
     ])
+
+    let caseVisitsResult = await supabase
+      .from('tfs_visits')
+      .select('id, case_id, store_id, visit_type, status, scheduled_for, assigned_user_id, created_at')
+      .in('store_id', storeIds)
+      .in('status', ['planned', 'in_progress'])
+
+    if (
+      caseVisitsResult.error &&
+      isMissingTfsVisitsColumnError(caseVisitsResult.error, ['visit_type', 'scheduled_for', 'assigned_user_id'])
+    ) {
+      const fallbackResult = await supabase
+        .from('tfs_visits')
+        .select('id, case_id, store_id, status, created_at')
+        .in('store_id', storeIds)
+        .in('status', ['planned', 'in_progress'])
+
+      caseVisitsResult = {
+        ...fallbackResult,
+        data: (fallbackResult.data || []).map((row: any) => ({
+          ...row,
+          visit_type: 'follow_up',
+          scheduled_for: null,
+          assigned_user_id: null,
+        })),
+      } as unknown as typeof caseVisitsResult
+    }
 
     if (storeVisitsResult.error) {
       if (isMissingStoreVisitsTableError(storeVisitsResult.error)) {
@@ -645,8 +629,6 @@ async function getVisitTrackerData(): Promise<{
       lastVisitAt: lastCompletedVisit?.visitedAt || null,
       nextPlannedVisitDate: nextPlannedVisitDate || legacyPlannedVisitDate,
     })
-    const inboundEmailReasons = Array.from(inboundEmailVisitNeedReasonsByStore.get(storeId) || [])
-
     return {
       storeId,
       storeCode: store.store_code || null,
@@ -673,11 +655,10 @@ async function getVisitTrackerData(): Promise<{
       visitNeedScore: assessment.score,
       visitNeedLevel: assessment.level,
       visitNeeded: assessment.needsVisit,
-      visitNeedReasons: [...inboundEmailReasons, ...assessment.reasons],
+      visitNeedReasons: assessment.reasons,
       visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate, caseVisits.length > 0),
       openStoreActionCount: (openStoreActionsByStore.get(storeId) || []).length,
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
-      pendingInboundEmailCount: pendingInboundEmailCountByStore.get(storeId) || 0,
       isActive: Boolean(store.is_active),
       recentVisits,
       activeDraftVisit,

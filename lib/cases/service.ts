@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { isMissingTfsVisitsColumnError } from '@/lib/store-visits-schema'
 import type {
   FaSeverity,
   TfsCaseEventRow,
@@ -1086,7 +1087,7 @@ export async function planVisit(input: PlanVisitInput) {
     created_by_user_id: actorUserId,
   }
 
-  const visitResult = existingVisit
+  let visitResult = existingVisit
     ? await supabase
         .from('tfs_visits')
         .update({
@@ -1098,6 +1099,30 @@ export async function planVisit(input: PlanVisitInput) {
         .select('*')
         .single()
     : await supabase.from('tfs_visits').insert(visitPayload).select('*').single()
+
+  if (
+    visitResult.error &&
+    isMissingTfsVisitsColumnError(visitResult.error, ['visit_type', 'scheduled_for', 'assigned_user_id', 'created_by_user_id'])
+  ) {
+    const legacyPayload = {
+      case_id: visitPayload.case_id,
+      store_id: visitPayload.store_id,
+      status: visitPayload.status,
+    }
+
+    const legacyVisitResult = existingVisit
+      ? { data: existingVisit, error: null, count: null, status: 200, statusText: 'OK' }
+      : await supabase.from('tfs_visits').insert(legacyPayload).select('*').single()
+
+    if (legacyVisitResult.error) {
+      throw new Error(`Failed to plan visit: ${legacyVisitResult.error.message}`)
+    }
+
+    visitResult = {
+      ...legacyVisitResult,
+      data: { ...legacyVisitResult.data, visit_type: visitPayload.visit_type },
+    } as unknown as typeof visitResult
+  }
 
   if (visitResult.error) {
     throw new Error(`Failed to plan visit: ${visitResult.error.message}`)
@@ -1348,7 +1373,7 @@ export async function completeVisitOutcome(input: CompleteVisitOutcomeInput) {
   let shouldRefreshFromBlockers = true
 
   if (input.outcome === 'follow_up_visit_required') {
-    const { data: followUpVisit, error: followUpVisitError } = await supabase
+    let followUpVisitResult = await supabase
       .from('tfs_visits')
       .insert({
         case_id: input.caseId,
@@ -1361,22 +1386,37 @@ export async function completeVisitOutcome(input: CompleteVisitOutcomeInput) {
       .select('id')
       .single()
 
-    if (followUpVisitError) {
-      throw new Error(`Failed to create follow-up visit: ${followUpVisitError.message}`)
+    if (
+      followUpVisitResult.error &&
+      isMissingTfsVisitsColumnError(followUpVisitResult.error, ['visit_type', 'assigned_user_id', 'created_by_user_id'])
+    ) {
+      followUpVisitResult = await supabase
+        .from('tfs_visits')
+        .insert({
+          case_id: input.caseId,
+          store_id: caseRow.store_id,
+          status: 'planned',
+        })
+        .select('id')
+        .single()
+    }
+
+    if (followUpVisitResult.error) {
+      throw new Error(`Failed to create follow-up visit: ${followUpVisitResult.error.message}`)
     }
 
     await insertCaseLink(supabase, {
       caseId: input.caseId,
       role: 'result',
       targetTable: 'tfs_visits',
-      targetId: followUpVisit.id,
+      targetId: followUpVisitResult.data.id,
       label: 'Follow-up case visit',
     })
     await insertCaseLink(supabase, {
       caseId: input.caseId,
       role: 'blocking',
       targetTable: 'tfs_visits',
-      targetId: followUpVisit.id,
+      targetId: followUpVisitResult.data.id,
       label: 'Follow-up case visit',
     })
 

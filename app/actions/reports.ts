@@ -31,6 +31,22 @@ function getReportedByDisplay(incident: any) {
   return pickString(persons, ['reported_by_label', 'reportedByLabel']) || incident.reporter?.full_name || ''
 }
 
+function csvCell(value: unknown) {
+  return String(value ?? '').replace(/"/g, '""')
+}
+
+async function requireReportAccess(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (error || !profile || !['admin', 'ops', 'readonly'].includes(profile.role)) {
+    throw new Error('Forbidden')
+  }
+}
+
 export async function exportIncidentsCSV() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -38,6 +54,7 @@ export async function exportIncidentsCSV() {
   if (!user) {
     throw new Error('Unauthorized')
   }
+  await requireReportAccess(supabase, user.id)
 
   const { data: incidents, error } = await supabase
     .from('tfs_incidents')
@@ -76,7 +93,7 @@ export async function exportIncidentsCSV() {
     incident.incident_category,
     incident.severity,
     incident.status,
-    incident.summary.replace(/"/g, '""'), // Escape quotes
+    csvCell(incident.summary),
     incident.occurred_at,
     incident.reported_at,
     getReportedByDisplay(incident),
@@ -105,6 +122,7 @@ export async function exportActionsCSV() {
   if (!user) {
     throw new Error('Unauthorized')
   }
+  await requireReportAccess(supabase, user.id)
 
   const { data: actions, error } = await supabase
     .from('tfs_actions')
@@ -132,7 +150,7 @@ export async function exportActionsCSV() {
   ]
 
   const rows = actions?.map((action: any) => [
-    action.title.replace(/"/g, '""'),
+    csvCell(action.title),
     action.incident?.reference_no || '',
     action.assigned_to?.full_name || '',
     action.priority,
@@ -155,4 +173,3 @@ export async function exportActionsCSV() {
     },
   })
 }
-

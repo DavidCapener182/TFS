@@ -16,12 +16,25 @@ function normalizeStatus(value: unknown): string {
   return String(value || '').trim().toLowerCase()
 }
 
+async function requireWritableProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (error || !profile || (profile.role !== 'admin' && profile.role !== 'ops')) {
+    throw new Error('Forbidden')
+  }
+}
+
 export async function getFollowUpCandidate(): Promise<FollowUpCandidate | null> {
   const supabase = createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
+  await requireWritableProfile(supabase, user.id)
 
   // "Might need follow-up" heuristic:
   // - open / under investigation incidents
@@ -94,6 +107,7 @@ export async function declineFollowUp(incidentId: string) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
+  await requireWritableProfile(supabase, user.id)
 
   const { error } = await supabase
     .from('tfs_incidents')
@@ -113,4 +127,3 @@ export async function declineFollowUp(incidentId: string) {
   revalidatePath(`/incidents/${incidentId}`)
   revalidatePath('/stores')
 }
-

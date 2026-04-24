@@ -71,6 +71,16 @@ async function getLatestLinkedIncidentSnapshot(supabase: ReturnType<typeof creat
   return null
 }
 
+async function hasReportAccess(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: profile, error } = await supabase
+    .from('fa_profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  return !error && Boolean(profile && ['admin', 'ops', 'readonly'].includes(profile.role))
+}
+
 type Params = {
   params: {
     id: string
@@ -86,6 +96,10 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!(await hasReportAccess(supabase, user.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const mode = request.nextUrl.searchParams.get('mode') || 'download'

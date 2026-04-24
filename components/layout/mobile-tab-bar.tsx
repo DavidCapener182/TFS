@@ -15,7 +15,6 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
   const tabItems = getMobileTabItems(userRole)
   const moreItems = getMobileMoreItems(userRole)
   const moreActive = !isPrimaryMobilePath(currentPath, userRole)
-  const featuredHref = tabItems[2]?.href ?? null
   const [moreOpen, setMoreOpen] = useState(false)
   const morePanelRef = useRef<HTMLDivElement | null>(null)
   const hideForFullscreenReports = currentPath === '/reports' || currentPath.startsWith('/reports/')
@@ -49,7 +48,7 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
       className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.95rem,env(safe-area-inset-bottom))] pt-3 md:hidden"
       aria-label="Primary navigation"
     >
-      <div className="relative mx-auto max-w-[392px]" ref={morePanelRef}>
+      <div className="relative mx-auto w-full max-w-[520px]" ref={morePanelRef}>
         <div
           className={cn(
             'pointer-events-auto absolute inset-x-0 bottom-full mb-2 origin-bottom rounded-[28px] border border-line bg-surface-raised/95 p-3 shadow-floating backdrop-blur-2xl transition-all duration-300',
@@ -89,7 +88,6 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
           {tabItems.map((item) => {
             const Icon = item.icon
             const isActive = matchesMobilePath(currentPath, item.href)
-            const isFeatured = item.href === featuredHref
 
             return (
               <Link
@@ -97,18 +95,16 @@ export function MobileTabBar({ userRole }: { userRole?: UserRole | null }) {
                 href={item.href}
                 className={cn(
                   'flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[20px] px-1 py-2.5 text-[10px] font-semibold tracking-[0.01em] transition-[background-color,color,box-shadow]',
-                  isFeatured
+                  isActive
                     ? 'bg-brand text-brand-contrast shadow-soft'
-                    : isActive
-                      ? 'bg-surface-subtle text-foreground shadow-[inset_0_0_0_1px_hsl(var(--line))]'
-                      : 'text-ink-muted active:bg-surface-subtle'
+                    : 'text-ink-muted active:bg-surface-subtle'
                 )}
               >
                 <Icon
                   strokeWidth={1.9}
                   className={cn(
                     'h-[18px] w-[18px]',
-                    isFeatured ? 'text-brand-contrast' : isActive ? 'text-foreground' : 'text-ink-muted'
+                    isActive ? 'text-brand-contrast' : 'text-ink-muted'
                   )}
                 />
                 <span>{item.label}</span>

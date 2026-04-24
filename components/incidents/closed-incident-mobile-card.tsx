@@ -36,7 +36,7 @@ export function ClosedIncidentMobileCard({ incident, referenceLabel }: ClosedInc
   const linkedVisitReportId = extractLinkedVisitReportId(incident)
 
   return (
-    <Card className="p-3 hover:shadow-sm transition-shadow border-slate-200 bg-slate-50/30">
+    <Card className="relative p-3 hover:shadow-sm transition-shadow border-slate-200 bg-slate-50/30">
       <div className="flex flex-col gap-2.5">
         
         {/* Top Row: Identity & Actions */}
@@ -79,48 +79,44 @@ export function ClosedIncidentMobileCard({ incident, referenceLabel }: ClosedInc
         </div>
 
         {/* Bottom Row: Footer Info */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-0.5">
-           <div className="flex flex-col gap-1 max-w-[60%]">
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100 mt-0.5">
+           <div className="flex min-w-0 flex-col gap-1">
              <span className="text-xs text-slate-600 font-medium truncate">
                {category}
              </span>
-             <div className="flex items-center gap-1.5 flex-wrap">
+             <div className="flex items-center gap-1.5">
                <Badge variant="outline" className="px-2 py-0 text-[10px]">{personType}</Badge>
-               {incident.riddor_reportable ? (
-                 <Badge variant="destructive" className="px-2 py-0 text-[10px]">RIDDOR</Badge>
-               ) : null}
-               {linkedVisitReportId ? (
-                 <Link href={buildVisitReportPdfUrl(linkedVisitReportId)} target="_blank">
-                   <Badge variant="outline" className="px-2 py-0 text-[10px] border-indigo-200 text-indigo-700">
-                     PDF
-                   </Badge>
-                 </Link>
-               ) : null}
-               {childInvolved ? (
-                 <Badge variant="outline" className="px-2 py-0 text-[10px] border-amber-300 text-amber-700">Child</Badge>
-               ) : null}
              </div>
            </div>
-           
-           <div className="flex items-center gap-1.5 max-w-[40%] justify-end">
-              {incident.investigator?.full_name ? (
-                <div className="flex items-center gap-1.5" title={`Investigator: ${incident.investigator.full_name}`}>
-                   <span className="text-[10px] text-slate-400 truncate hidden sm:inline-block max-w-[80px]">
-                     {incident.investigator.full_name.split(' ')[0]}
-                   </span>
-                   <div className="h-5 w-5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center text-[8px] font-bold flex-shrink-0">
-                     {incident.investigator.full_name
-                       .split(' ')
-                       .map((name: string) => name[0])
-                       .join('')
-                       .toUpperCase()
-                       .slice(0, 2)}
-                   </div>
-                </div>
-              ) : (
-                <span className="text-[10px] text-slate-400 italic">Unassigned</span>
-              )}
-           </div>
+
+           <details className="group shrink-0 text-right">
+             <summary className="list-none text-[11px] font-semibold text-slate-500">
+               Details
+             </summary>
+             <div className="absolute right-4 z-10 mt-2 w-[min(260px,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 text-left shadow-lg">
+               <div className="flex flex-wrap gap-1.5">
+                 {incident.riddor_reportable ? (
+                   <Badge variant="destructive" className="px-2 py-0 text-[10px]">RIDDOR</Badge>
+                 ) : null}
+                 {linkedVisitReportId ? (
+                   <Link href={buildVisitReportPdfUrl(linkedVisitReportId)} target="_blank">
+                     <Badge variant="outline" className="px-2 py-0 text-[10px] border-indigo-200 text-indigo-700">
+                       PDF
+                     </Badge>
+                   </Link>
+                 ) : null}
+                 {childInvolved ? (
+                   <Badge variant="outline" className="px-2 py-0 text-[10px] border-amber-300 text-amber-700">Child</Badge>
+                 ) : null}
+                 {!incident.riddor_reportable && !linkedVisitReportId && !childInvolved ? (
+                   <span className="text-xs text-slate-500">No additional flags</span>
+                 ) : null}
+               </div>
+               <div className="mt-2 text-xs text-slate-500">
+                 Investigator: <span className="font-medium text-slate-700">{incident.investigator?.full_name || 'Unassigned'}</span>
+               </div>
+             </div>
+           </details>
         </div>
 
       </div>

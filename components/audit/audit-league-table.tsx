@@ -9,8 +9,9 @@ import { getInternalAreaDisplayName } from '@/lib/areas'
 import { cn, getDisplayStoreCode } from '@/lib/utils'
 import { AuditRow, pctBadge, formatDate, getLatestPct } from './audit-table-helpers'
 import { StoreActionsModal } from './store-actions-modal'
-import { Eye, EyeOff, Search } from 'lucide-react'
+import { Eye, EyeOff, Search, Store } from 'lucide-react'
 import { UserRole } from '@/lib/auth'
+import { WorkspaceEmptyState } from '@/components/workspace/workspace-shell'
 
 // Helper: Get the most recent audit date
 function getLatestDate(row: AuditRow): string | null {
@@ -203,10 +204,66 @@ export function AuditLeagueTable({
         </div>
       ) : null}
 
+      <div className="space-y-3 xl:hidden">
+        {rankedStores.length === 0 ? (
+          <WorkspaceEmptyState
+            icon={Store}
+            title="No stores found"
+            description="No audit records match the current search and filters."
+          />
+        ) : (
+          rankedStores.map((row, index) => {
+            const completedCount =
+              (row.compliance_audit_1_date && row.compliance_audit_1_overall_pct !== null ? 1 : 0) +
+              (row.compliance_audit_2_date && row.compliance_audit_2_overall_pct !== null ? 1 : 0)
+
+            return (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => handleOpenStoreActionsModal(row)}
+                className="w-full rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-colors active:bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
+                        #{index + 1}
+                      </span>
+                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">
+                        {getDisplayStoreCode(row.store_code) || '—'}
+                      </span>
+                    </div>
+                    <p className="mt-2 truncate text-sm font-semibold text-slate-900">{row.store_name}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {getInternalAreaDisplayName(row.region, { fallback: 'Unassigned' })}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {pctBadge(row.latestPct)}
+                    <p className="mt-1 text-[11px] text-slate-500">{completedCount}/2 audits</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Latest audit</p>
+                    <p className="mt-1 font-medium text-slate-700">{formatDate(row.latestDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Actions</p>
+                    <p className="mt-1 font-medium text-slate-700">Tap to review</p>
+                  </div>
+                </div>
+              </button>
+            )
+          })
+        )}
+      </div>
+
       {/* Table Container */}
-      <div className="rounded-xl border bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="hidden rounded-xl border bg-white shadow-sm overflow-hidden xl:flex xl:flex-col">
         {/* Fixed Header - OUTSIDE scroll container on desktop, INSIDE on mobile */}
-        <div className="hidden md:block border-b bg-white overflow-x-auto">
+        <div className="hidden xl:block border-b bg-white overflow-x-auto">
           <Table className="w-full border-separate border-spacing-0" style={{ tableLayout: 'fixed' }}>
             {renderColGroup()}
             <TableHeader>

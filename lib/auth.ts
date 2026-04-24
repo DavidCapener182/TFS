@@ -74,11 +74,11 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 }
 
 export async function requireAuth() {
-  const session = await getSession()
-  if (!session) {
+  const user = await getUser()
+  if (!user) {
     redirect('/login')
   }
-  return session
+  return { user }
 }
 
 export async function requireRole(allowedRoles: UserRole[]) {
@@ -91,5 +91,4 @@ export async function requireRole(allowedRoles: UserRole[]) {
   
   return { session, profile }
 }
-
 

@@ -3,9 +3,23 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, ClipboardList, Menu, PackageSearch, LogOut, X, Search, ShieldAlert, Store } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardList,
+  Menu,
+  Minus,
+  PackageSearch,
+  Plus,
+  LogOut,
+  X,
+  Search,
+  ShieldAlert,
+  Store,
+} from 'lucide-react'
 
 import { createStorePortalReport, logoutStorePortal } from '@/app/actions/store-portal'
+import { TheftMobileCard, type TheftLogMobileRow } from '@/components/theft/theft-mobile-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,24 +31,28 @@ type PortalTab = 'incident' | 'theft' | 'theft-log'
 const portalNavItems: Array<{
   id: PortalTab
   label: string
+  taskLabel: string
   icon: typeof AlertTriangle
   description: string
 }> = [
   {
     id: 'incident',
     label: 'Log incident',
+    taskLabel: 'Report an incident',
     icon: AlertTriangle,
     description: 'General incidents, safety concerns, and operational issues.',
   },
   {
     id: 'theft',
     label: 'Log theft',
+    taskLabel: 'Report a theft',
     icon: ShieldAlert,
     description: 'Capture stolen items, estimated value, and incident details.',
   },
   {
     id: 'theft-log',
     label: 'Theft log',
+    taskLabel: 'View store theft log',
     icon: ClipboardList,
     description: 'Review theft reports submitted by this store only.',
   },
@@ -42,6 +60,21 @@ const portalNavItems: Array<{
 
 function formatCurrency(value: number | null) {
   return typeof value === 'number' ? `£${value.toFixed(2)}` : 'Price unavailable'
+}
+
+function formatPortalDate(value: string | null | undefined) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Europe/London',
+  }).format(parsed)
+}
+
+function getCurrentDateTimeInputValue() {
+  return new Date().toISOString().slice(0, 16)
 }
 
 function EmptySearchState({
@@ -63,6 +96,32 @@ function EmptySearchState({
     return <p className="text-sm text-amber-700">Enter at least 2 characters to search.</p>
   }
   return <p className="text-sm text-slate-500">No products found for that search.</p>
+}
+
+function PortalEmptyState({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/70 px-5 py-8 text-center">
+      <svg
+        viewBox="0 0 96 64"
+        role="img"
+        aria-hidden="true"
+        className="mx-auto h-16 w-24 text-slate-300"
+      >
+        <rect x="18" y="16" width="60" height="38" rx="10" fill="currentColor" opacity="0.28" />
+        <path d="M29 28h38M29 38h24" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        <circle cx="68" cy="20" r="10" fill="white" />
+        <path d="M64 20l3 3 6-7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <p className="mt-3 text-sm font-semibold text-slate-800">{title}</p>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{description}</p>
+    </div>
+  )
 }
 
 export function StorePortalWorkspace({
@@ -89,11 +148,12 @@ export function StorePortalWorkspace({
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<PortalTab>('incident')
+  const [hasChosenTask, setHasChosenTask] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [summary, setSummary] = useState('')
   const [description, setDescription] = useState('')
   const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('low')
-  const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16))
+  const [occurredAt, setOccurredAt] = useState('')
   const [search, setSearch] = useState('')
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
   const [items, setItems] = useState<
@@ -107,7 +167,7 @@ export function StorePortalWorkspace({
   const [searchError, setSearchError] = useState<string | null>(null)
   const [lastAddedProductTitle, setLastAddedProductTitle] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [successReport, setSuccessReport] = useState<{ referenceNo: string; kind: 'incident' | 'theft' } | null>(null)
   const [pending, startTransition] = useTransition()
 
   const activeNav = portalNavItems.find((item) => item.id === tab) || portalNavItems[0]
@@ -134,7 +194,8 @@ export function StorePortalWorkspace({
       const baseRow = {
         id: report.id,
         referenceNo: report.reference_no,
-        date: report.occurred_at ? new Date(report.occurred_at).toLocaleString() : '-',
+        storeName,
+        date: formatPortalDate(report.occurred_at),
         status: report.status || 'open',
         incidentDetails: report.description || '',
         hasTheftBeenReported: report.hasTheftBeenReported !== false,
@@ -161,14 +222,18 @@ export function StorePortalWorkspace({
         quantity: String(item.quantity),
         price: typeof item.unitPrice === 'number' ? `£${item.unitPrice.toFixed(2)}` : '-',
       }))
-    })
-  }, [theftReports])
+    }) satisfies TheftLogMobileRow[]
+  }, [storeName, theftReports])
   const openReportCount = recentReports.filter((report) => report.status !== 'closed').length
   const theftReportCount = recentReports.filter((report) => report.isTheft).length
   const normalizedSearch = search.trim().toLowerCase()
   const showSearchDropdown = tab === 'theft' && normalizedSearch.length >= 2
   const selectedProductIds = new Set(items.map((item) => item.productId))
   const formTab = tab === 'incident' || tab === 'theft' ? tab : 'theft'
+
+  useEffect(() => {
+    setOccurredAt((current) => current || getCurrentDateTimeInputValue())
+  }, [])
 
   useEffect(() => {
     const query = search.trim()
@@ -220,10 +285,11 @@ export function StorePortalWorkspace({
 
   function resetForm(nextTab: PortalTab) {
     setTab(nextTab)
+    setHasChosenTask(true)
     setSummary('')
     setDescription('')
     setSeverity('medium')
-    setOccurredAt(new Date().toISOString().slice(0, 16))
+    setOccurredAt(getCurrentDateTimeInputValue())
     setSearch('')
     setCatalog([])
     setItems([])
@@ -234,7 +300,7 @@ export function StorePortalWorkspace({
     setAdjustedThroughTill(false)
     setStockRecovered(false)
     setSubmitError(null)
-    setSuccessMessage(null)
+    setSuccessReport(null)
     setMobileNavOpen(false)
   }
 
@@ -303,7 +369,7 @@ export function StorePortalWorkspace({
           </div>
           {portalNavItems.map((item) => {
             const Icon = item.icon
-            const isActive = item.id === tab
+            const isActive = hasChosenTask && item.id === tab
 
             return (
               <button
@@ -381,14 +447,14 @@ export function StorePortalWorkspace({
               >
                 <Menu className="h-6 w-6" />
               </button>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
-                  Store portal
-                </p>
-                <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-foreground md:text-xl">
-                  {activeNav.label}
-                </h1>
-              </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                Store portal
+              </p>
+              <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-foreground md:text-xl">
+                  {hasChosenTask ? activeNav.label : 'Choose task'}
+              </h1>
+            </div>
             </div>
 
             <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-2">
@@ -420,7 +486,9 @@ export function StorePortalWorkspace({
               <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-5 md:px-6">
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand))] text-white shadow-[0_12px_24px_rgba(35,33,84,0.24)]">
-                    {tab === 'incident' ? (
+                    {!hasChosenTask ? (
+                      <Store className="h-6 w-6" />
+                    ) : tab === 'incident' ? (
                       <AlertTriangle className="h-6 w-6" />
                     ) : tab === 'theft' ? (
                       <PackageSearch className="h-6 w-6" />
@@ -429,9 +497,13 @@ export function StorePortalWorkspace({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-xl font-semibold text-slate-900 md:text-2xl">{activeNav.label}</h2>
+                    <h2 className="text-xl font-semibold text-slate-900 md:text-2xl">
+                      {hasChosenTask ? activeNav.label : 'What do you need to do?'}
+                    </h2>
                     <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                      {tab === 'incident'
+                      {!hasChosenTask
+                        ? 'Choose the store task and the portal will open the right workflow.'
+                        : tab === 'incident'
                         ? 'Report incidents directly from the store portal so the team can review them immediately.'
                         : tab === 'theft'
                           ? 'Search the website catalog, add stolen products, and submit a structured theft report.'
@@ -441,7 +513,29 @@ export function StorePortalWorkspace({
                 </div>
               </div>
 
-              {tab === 'theft-log' ? (
+              {!hasChosenTask ? (
+                <div className="grid gap-3 px-5 py-5 md:grid-cols-3 md:px-6">
+                  {portalNavItems.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => resetForm(item.id)}
+                        className="group flex min-h-[11rem] flex-col items-start justify-between rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_34px_rgba(15,23,42,0.10)]"
+                      >
+                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition group-hover:bg-slate-900 group-hover:text-white">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span>
+                          <span className="block text-base font-semibold text-slate-950">{item.taskLabel}</span>
+                          <span className="mt-2 block text-sm leading-6 text-slate-600">{item.description}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : tab === 'theft-log' ? (
                 <div className="space-y-5 px-5 py-5 md:px-6">
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
@@ -461,11 +555,23 @@ export function StorePortalWorkspace({
                   </div>
 
                   {theftReports.length === 0 ? (
-                    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/70 px-5 py-10 text-sm text-slate-500">
-                      No theft reports have been submitted for this store yet.
-                    </div>
+                    <PortalEmptyState
+                      title="No theft reports yet"
+                      description="Theft reports submitted by this store will appear here after they are saved."
+                    />
                   ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                    <>
+                    <div className="space-y-3 xl:hidden">
+                      {theftLogRows.map((row, index) => (
+                        <TheftMobileCard
+                          key={`${row.id}-${index}`}
+                          row={row}
+                          showStoreName={false}
+                          viewHref={null}
+                        />
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white xl:block">
                       <table className="min-w-[1260px] w-full text-sm">
                         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                           <tr>
@@ -499,6 +605,7 @@ export function StorePortalWorkspace({
                         </tbody>
                       </table>
                     </div>
+                    </>
                   )}
                 </div>
               ) : (
@@ -547,11 +654,17 @@ export function StorePortalWorkspace({
 
                   {formTab === 'theft' ? (
                     <div className="rounded-[24px] border border-slate-200 bg-slate-50/60 p-4">
-                    <div className="flex flex-col gap-1">
-                      <h3 className="text-sm font-semibold text-slate-900">Stolen products</h3>
-                      <p className="text-sm text-slate-600">
-                        Search the website catalog and add the affected items to the report.
-                      </p>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">Stolen products</h3>
+                        <p className="text-sm text-slate-600">
+                          Search the website catalog, add stolen products, then confirm quantity and barcode.
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Estimated value</p>
+                        <p className="mt-1 text-xl font-semibold text-slate-900">£{theftTotal.toFixed(2)}</p>
+                      </div>
                     </div>
 
                     <div className="mt-4 space-y-3">
@@ -631,72 +744,99 @@ export function StorePortalWorkspace({
                     </div>
 
                     <div className="mt-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-slate-900">Selected items</h4>
-                        <p className="text-sm font-semibold text-slate-700">Estimated value: £{theftTotal.toFixed(2)}</p>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h4 className="text-sm font-semibold text-slate-900">Selected stolen products</h4>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {items.length} product{items.length === 1 ? '' : 's'} · £{theftTotal.toFixed(2)}
+                        </p>
                       </div>
 
                       {items.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-4 py-6 text-sm text-slate-500">
-                          No items added yet.
-                        </div>
+                        <PortalEmptyState
+                          title="No stolen products added"
+                          description="Search the website catalog above and add each stolen product before submitting."
+                        />
                       ) : (
                         <div className="space-y-2">
                           {items.map((item) => (
                             <div
                               key={item.productId}
-                              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:flex-row lg:flex-wrap lg:items-center"
+                              className="grid gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)_9rem_auto] lg:items-center"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
-                                <p className="text-xs text-slate-500">{formatCurrency(item.unitPrice)} each</p>
+                                <p className="text-xs text-slate-500">
+                                  {formatCurrency(item.unitPrice)} each · Line total £
+                                  {((item.unitPrice || 0) * item.quantity).toFixed(2)}
+                                </p>
                               </div>
-                              <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                                <Input
-                                  className="min-w-0 flex-1 bg-white sm:max-w-[14rem] sm:flex-initial sm:w-40"
-                                  placeholder="Barcode"
-                                  value={item.barcode}
-                                  onChange={(e) =>
-                                    setItems((current) =>
-                                      current.map((entry) =>
-                                        entry.productId === item.productId
-                                          ? { ...entry, barcode: e.target.value }
-                                          : entry
-                                      )
+                              <Input
+                                className="min-w-0 bg-white"
+                                placeholder="Barcode"
+                                value={item.barcode}
+                                onChange={(e) =>
+                                  setItems((current) =>
+                                    current.map((entry) =>
+                                      entry.productId === item.productId
+                                        ? { ...entry, barcode: e.target.value }
+                                        : entry
                                     )
-                                  }
-                                />
-                                <Input
-                                  className="min-w-0 flex-1 bg-white sm:w-24 sm:flex-initial"
-                                  type="number"
-                                  min={1}
-                                  value={item.quantity}
-                                  onChange={(e) =>
-                                    setItems((current) =>
-                                      current.map((entry) =>
-                                        entry.productId === item.productId
-                                          ? {
-                                              ...entry,
-                                              quantity: Math.max(1, Number(e.target.value) || 1),
-                                            }
-                                          : entry
-                                      )
-                                    )
-                                  }
-                                />
+                                  )
+                                }
+                              />
+                              <div className="flex h-11 items-center justify-between rounded-xl border border-slate-200 bg-white px-1">
                                 <Button
                                   type="button"
-                                  variant="outline"
-                                  className="w-full shrink-0 sm:w-auto"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 w-9 p-0"
                                   onClick={() =>
                                     setItems((current) =>
-                                      current.filter((entry) => entry.productId !== item.productId)
+                                      current.map((entry) =>
+                                        entry.productId === item.productId
+                                          ? { ...entry, quantity: Math.max(1, entry.quantity - 1) }
+                                          : entry
+                                      )
                                     )
                                   }
+                                  aria-label={`Decrease quantity for ${item.title}`}
                                 >
-                                  Remove
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
+                                  {item.quantity}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 w-9 p-0"
+                                  onClick={() =>
+                                    setItems((current) =>
+                                      current.map((entry) =>
+                                        entry.productId === item.productId
+                                          ? { ...entry, quantity: entry.quantity + 1 }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  aria-label={`Increase quantity for ${item.title}`}
+                                >
+                                  <Plus className="h-4 w-4" />
                                 </Button>
                               </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full shrink-0 lg:w-auto"
+                                onClick={() =>
+                                  setItems((current) =>
+                                    current.filter((entry) => entry.productId !== item.productId)
+                                  )
+                                }
+                              >
+                                Remove
+                              </Button>
                             </div>
                           ))}
                         </div>
@@ -706,31 +846,37 @@ export function StorePortalWorkspace({
                   ) : null}
 
                   {formTab === 'theft' ? (
-                    <div className="grid gap-3 rounded-[24px] border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-3">
-                      <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                        <span>Theft reported</span>
+                    <div className="rounded-[24px] border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="mb-3">
+                        <h3 className="text-sm font-semibold text-slate-900">Final confirmation</h3>
+                        <p className="text-sm text-slate-600">Confirm the store-side handling before submitting.</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                      <label className="flex min-h-[52px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <span className="font-medium">Theft reported</span>
                         <input
                           type="checkbox"
                           checked={hasTheftBeenReported}
                           onChange={(e) => setHasTheftBeenReported(e.target.checked)}
                         />
                       </label>
-                      <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                        <span>Adjusted through till</span>
+                      <label className="flex min-h-[52px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <span className="font-medium">Adjusted through till</span>
                         <input
                           type="checkbox"
                           checked={adjustedThroughTill}
                           onChange={(e) => setAdjustedThroughTill(e.target.checked)}
                         />
                       </label>
-                      <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                        <span>Stock recovered</span>
+                      <label className="flex min-h-[52px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <span className="font-medium">Stock recovered</span>
                         <input
                           type="checkbox"
                           checked={stockRecovered}
                           onChange={(e) => setStockRecovered(e.target.checked)}
                         />
                       </label>
+                      </div>
                     </div>
                   ) : null}
 
@@ -739,9 +885,47 @@ export function StorePortalWorkspace({
                       {submitError}
                     </div>
                   ) : null}
-                  {successMessage ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {successMessage}
+                  {successReport ? (
+                    <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-semibold">Saved report {successReport.referenceNo}</p>
+                          <p className="mt-1 text-emerald-700">
+                            {successReport.kind === 'theft'
+                              ? 'The report is now in the store theft log and has been sent for team review.'
+                              : 'The incident has been sent for team review.'}
+                          </p>
+                          <div className="mt-3 grid gap-2 text-xs text-emerald-800 sm:grid-cols-3">
+                            <div className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-2">
+                              <p className="font-semibold">1. Logged</p>
+                              <p className="mt-0.5 text-emerald-700">Reference saved for this store.</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-2">
+                              <p className="font-semibold">2. Sent for review</p>
+                              <p className="mt-0.5 text-emerald-700">The operations team can triage it.</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-2">
+                              <p className="font-semibold">3. Searchable</p>
+                              <p className="mt-0.5 text-emerald-700">It stays linked to this store record.</p>
+                            </div>
+                          </div>
+                          {successReport.kind === 'theft' ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-3 border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100"
+                              onClick={() => {
+                                setTab('theft-log')
+                                setHasChosenTask(true)
+                              }}
+                            >
+                              View theft log
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
                   ) : null}
 
@@ -752,7 +936,7 @@ export function StorePortalWorkspace({
                       onClick={() =>
                         startTransition(async () => {
                           setSubmitError(null)
-                          setSuccessMessage(null)
+                          setSuccessReport(null)
 
                           if (formTab === 'incident' && !summary.trim()) {
                             setSubmitError('Enter an incident summary before submitting.')
@@ -761,6 +945,11 @@ export function StorePortalWorkspace({
 
                           if (formTab === 'theft' && items.length === 0) {
                             setSubmitError('Add at least one stolen product before submitting.')
+                            return
+                          }
+
+                          if (!occurredAt) {
+                            setSubmitError('Add when the incident happened before submitting.')
                             return
                           }
 
@@ -777,13 +966,17 @@ export function StorePortalWorkspace({
                               stockRecovered: formTab === 'theft' ? stockRecovered : undefined,
                             })
 
-                            setSuccessMessage(`Saved report ${result.reference_no}.`)
+                            setSuccessReport({ referenceNo: result.reference_no, kind: formTab })
                             setSummary('')
                             setDescription('')
                             setItems([])
                             setCatalog([])
                             setSearch('')
                             setHasSearched(false)
+                            setHasTheftBeenReported(true)
+                            setAdjustedThroughTill(false)
+                            setStockRecovered(false)
+                            setOccurredAt(getCurrentDateTimeInputValue())
                             router.refresh()
                           } catch (error) {
                             console.error('Store portal submission failed:', error)
@@ -843,15 +1036,16 @@ export function StorePortalWorkspace({
                         {report.reference_no} · {report.summary}
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {new Date(report.occurred_at).toLocaleString()} · {report.isTheft ? 'Theft' : 'Incident'} ·{' '}
+                        {formatPortalDate(report.occurred_at)} · {report.isTheft ? 'Theft' : 'Incident'} ·{' '}
                         {report.status}
                       </div>
                     </div>
                   ))}
                   {recentReports.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500">
-                      No reports logged yet.
-                    </p>
+                    <PortalEmptyState
+                      title="No reports logged yet"
+                      description="Recent incident and theft submissions for this store will appear here."
+                    />
                   ) : null}
                 </div>
               </section>

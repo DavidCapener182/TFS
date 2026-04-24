@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 export interface ReleaseNote {
   id: string
@@ -24,35 +23,14 @@ export function useReleaseNotes() {
 
   async function checkForNewRelease() {
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const response = await fetch('/api/releases/latest', { method: 'GET' })
+      if (!response.ok) {
         setLoading(false)
         return
       }
-
-      const { data: release } = await supabase
-        .from('tfs_release_notes')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (!release) {
-        setLoading(false)
-        return
-      }
-
-      const { data: viewed } = await supabase
-        .from('tfs_user_release_views')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('release_id', release.id)
-        .maybeSingle()
-
-      setLatestRelease(release)
-      setShouldShow(!viewed)
+      const payload = await response.json()
+      setLatestRelease(payload.release || null)
+      setShouldShow(Boolean(payload.release && payload.shouldShow))
       setLoading(false)
     } catch {
       setLoading(false)
@@ -62,13 +40,11 @@ export function useReleaseNotes() {
   const dismissRelease = useCallback(async () => {
     if (!latestRelease) return
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      await supabase
-        .from('tfs_user_release_views')
-        .insert({ user_id: user.id, release_id: latestRelease.id })
+      await fetch('/api/releases/latest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ releaseId: latestRelease.id }),
+      })
 
       setShouldShow(false)
     } catch {

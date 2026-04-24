@@ -242,9 +242,9 @@ export function WorkspaceSplit({
   className?: string
 }) {
   return (
-    <div className={cn('grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]', className)}>
+    <div className={cn('grid gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]', className)}>
       <div className="min-w-0">{main}</div>
-      <div className="hidden lg:block">{preview}</div>
+      <div className="hidden 2xl:block">{preview}</div>
     </div>
   )
 }
@@ -292,11 +292,13 @@ export function WorkspaceEmptyState({
   icon: Icon,
   title,
   description,
+  action,
   className,
 }: {
   icon?: LucideIcon
   title: string
   description: string
+  action?: React.ReactNode
   className?: string
 }) {
   return (
@@ -313,6 +315,79 @@ export function WorkspaceEmptyState({
       ) : null}
       <p className="text-sm font-semibold text-foreground">{title}</p>
       <p className="mt-1 text-sm text-ink-soft">{description}</p>
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  )
+}
+
+export function WorkspaceLoadingState({
+  title = 'Loading records',
+  description = 'Preparing the latest operational view.',
+  className,
+}: {
+  title?: string
+  description?: string
+  className?: string
+}) {
+  return (
+    <div className={cn('rounded-[1.35rem] border border-line bg-surface-raised px-4 py-8', className)}>
+      <div className="mx-auto mb-4 h-9 w-9 animate-spin rounded-full border-2 border-line border-t-brand" />
+      <p className="text-center text-sm font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-center text-sm text-ink-soft">{description}</p>
+      <div className="mt-5 space-y-2">
+        <div className="h-3 rounded-full bg-surface-subtle" />
+        <div className="h-3 w-4/5 rounded-full bg-surface-subtle" />
+        <div className="h-3 w-2/3 rounded-full bg-surface-subtle" />
+      </div>
+    </div>
+  )
+}
+
+export function WorkspaceErrorState({
+  title = 'Unable to load this view',
+  description,
+  action,
+  className,
+}: {
+  title?: string
+  description: string
+  action?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('rounded-[1.35rem] border border-critical/25 bg-critical-soft px-4 py-8 text-center', className)}>
+      <p className="text-sm font-semibold text-critical">{title}</p>
+      <p className="mt-1 text-sm text-ink-soft">{description}</p>
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  )
+}
+
+export function ResponsiveDataView({
+  mobile,
+  desktop,
+  empty,
+  isEmpty = false,
+  loading = false,
+  error,
+  className,
+}: {
+  mobile: React.ReactNode
+  desktop: React.ReactNode
+  empty: React.ReactNode
+  isEmpty?: boolean
+  loading?: boolean
+  error?: React.ReactNode
+  className?: string
+}) {
+  if (error) return <div className={className}>{error}</div>
+  if (loading) return <WorkspaceLoadingState className={className} />
+  if (isEmpty) return <div className={className}>{empty}</div>
+
+  return (
+    <div className={className}>
+      <div className="md:hidden">{mobile}</div>
+      <div className="hidden md:block">{desktop}</div>
     </div>
   )
 }
