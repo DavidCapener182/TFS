@@ -12,8 +12,20 @@ import { navItems, type NavItem } from './nav-items'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { AutoParseInboundEmails } from '@/components/inbound-emails/auto-parse-inbound-emails'
 
-const activityItem: NavItem = { href: '/activity', label: 'Recent Activity', icon: Activity, clientHidden: true }
+const activityItem: NavItem = {
+  href: '/activity',
+  label: 'Recent Activity',
+  icon: Activity,
+  section: 'system',
+  clientHidden: true,
+}
 const allNavItems = [...navItems, activityItem]
+const navSections: Array<{ id: NonNullable<NavItem['section']>; label: string }> = [
+  { id: 'operations', label: 'Operations' },
+  { id: 'loss-prevention', label: 'Loss Prevention' },
+  { id: 'reporting', label: 'Reporting' },
+  { id: 'system', label: 'System' },
+]
 
 interface SidebarClientProps {
   userRole?: UserRole | null
@@ -50,6 +62,12 @@ export function SidebarClient({ userRole, userProfile, pendingInboundEmailCount 
     acc[item.parentHref] = [...(acc[item.parentHref] || []), item]
     return acc
   }, {})
+  const groupedRootItems = navSections
+    .map((section) => ({
+      ...section,
+      items: rootItems.filter((item) => item.section === section.id),
+    }))
+    .filter((section) => section.items.length > 0)
 
   const isPathActive = (href: string) => currentPath === href || (href !== '/' && currentPath.startsWith(href))
 
@@ -102,7 +120,13 @@ export function SidebarClient({ userRole, userProfile, pendingInboundEmailCount 
       </div>
       <nav className="flex-1 overflow-y-auto px-4 pb-4">
         <ul className="overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_16px_30px_rgba(15,23,42,0.08)] md:space-y-1.5 md:rounded-none md:border-0 md:bg-transparent md:shadow-none">
-          {rootItems.map((item) => {
+          {groupedRootItems.map((section) => (
+            <li key={section.id} className="border-t border-slate-100 first:border-t-0 md:border-t-0">
+              <div className="px-4 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 md:px-3 md:pt-2 md:text-[10px] md:text-white/60">
+                {section.label}
+              </div>
+              <ul>
+                {section.items.map((item) => {
             const Icon = item.icon
             const childItems = childItemsByParent[item.href] || []
             const childActive = childItems.some((child) => isPathActive(child.href))
@@ -186,6 +210,9 @@ export function SidebarClient({ userRole, userProfile, pendingInboundEmailCount 
               </li>
             )
           })}
+              </ul>
+            </li>
+          ))}
         </ul>
       </nav>
       <div className="p-4 pt-2">
