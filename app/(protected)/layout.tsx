@@ -29,15 +29,15 @@ export default async function ProtectedLayout({
     profile = data
   }
 
-  // Block access for pending users only. Readonly users can access protected read views.
-  if (profile && profile.role === 'pending') {
+  // Block access for pending users and readonly users (treat readonly as pending)
+  if (profile && (profile.role === 'pending' || profile.role === 'readonly')) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Account Pending Approval</h1>
           <p className="text-gray-600 mb-6">
             Your account has been created but is pending admin approval. 
-            You will be able to access the system once an administrator approves your account and changes your role.
+            You will be able to access the system once an administrator approves your account and changes your role to Ops, Client, or Admin.
           </p>
           <p className="text-sm text-gray-500">
             If you have any questions, please contact your administrator.
@@ -83,12 +83,12 @@ export default async function ProtectedLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-[100dvh] bg-[#1c0259] md:h-screen-zoom md:min-h-0 md:overflow-hidden">
+      <div className="flex min-h-[100dvh] bg-shell md:h-screen-zoom md:min-h-0 md:overflow-hidden">
         <Sidebar />
-        <div className="flex min-h-[100dvh] flex-1 flex-col bg-[#232154] md:ml-64 md:min-h-0 md:overflow-hidden">
+        <div className="flex min-h-[100dvh] flex-1 flex-col bg-canvas md:ml-[18rem] md:min-h-0 md:overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-x-hidden bg-[#f7f4fb] px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:bg-[#232154] md:p-0 md:[-webkit-overflow-scrolling:touch]">
-            <div className="max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:min-h-full md:rounded-tl-[8px] md:rounded-tr-[0px] md:rounded-bl-[0px] md:rounded-br-[0px] md:bg-white md:p-6 md:shadow-soft lg:p-8 main-content-wrapper">
+          <main className="flex-1 overflow-x-hidden bg-canvas px-3.5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(var(--mobile-header-height,0px)+1rem)] sm:px-4 sm:pt-[calc(var(--mobile-header-height,0px)+1rem)] md:min-h-0 md:overflow-y-auto md:px-6 md:pb-6 md:pt-6 lg:px-8 md:[-webkit-overflow-scrolling:touch]">
+            <div className="max-w-full overflow-x-hidden bg-transparent p-0 shadow-none md:min-h-full">
               {children}
             </div>
           </main>
