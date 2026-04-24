@@ -36,6 +36,103 @@ export type FaStoreInteractionType =
   | 'fra_update'
   | 'other'
 
+export type TfsCaseStage =
+  | 'new_submission'
+  | 'under_review'
+  | 'action_agreed'
+  | 'visit_required'
+  | 'awaiting_follow_up'
+  | 'ready_to_close'
+  | 'closed'
+
+export type TfsIntakeSource =
+  | 'store_portal'
+  | 'legacy_incident'
+  | 'legacy_store_action'
+  | 'manual_internal'
+  | 'visit_follow_up'
+  | 'report_workflow'
+
+export type TfsReviewOutcome =
+  | 'acknowledged_only'
+  | 'store_action_created'
+  | 'visit_required'
+  | 'incident_escalated'
+  | 'closed_no_further_action'
+
+export type TfsVisitOutcome =
+  | 'no_further_action'
+  | 'follow_up_visit_required'
+  | 'store_action_created'
+  | 'incident_task_created'
+  | 'escalated_to_manager'
+  | 'report_required'
+
+export type TfsCaseLinkRole = 'origin' | 'result' | 'blocking' | 'evidence'
+
+export interface TfsCaseRow {
+  id: string
+  store_id: string
+  case_type: string
+  intake_source: TfsIntakeSource
+  origin_reference: string | null
+  severity: FaSeverity
+  owner_user_id: string | null
+  due_at: string | null
+  stage: TfsCaseStage
+  next_action_code: string | null
+  next_action_label: string | null
+  last_update_summary: string | null
+  review_outcome: TfsReviewOutcome | null
+  closure_outcome: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TfsCaseEventRow {
+  id: string
+  case_id: string
+  store_id: string
+  event_type: string
+  stage: TfsCaseStage | null
+  summary: string
+  detail: string | null
+  actor_user_id: string | null
+  event_at: string
+  metadata: Json | null
+  created_at: string
+}
+
+export interface TfsCaseLinkRow {
+  id: string
+  case_id: string
+  link_role: TfsCaseLinkRole
+  target_table: string
+  target_id: string
+  label: string | null
+  metadata: Json | null
+  created_at: string
+}
+
+export interface TfsVisitRow {
+  id: string
+  case_id: string
+  store_id: string
+  visit_type: string
+  status: 'planned' | 'in_progress' | 'completed' | 'cancelled'
+  scheduled_for: string | null
+  assigned_user_id: string | null
+  started_at: string | null
+  completed_at: string | null
+  visit_outcome: TfsVisitOutcome | null
+  outcome_summary: string | null
+  linked_store_visit_id: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {

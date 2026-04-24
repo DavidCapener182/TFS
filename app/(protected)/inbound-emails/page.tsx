@@ -22,6 +22,13 @@ import { InboundEmailReviewActions } from '@/components/inbound-emails/inbound-e
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  WorkspaceHeader,
+  WorkspaceSectionCard,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+} from '@/components/workspace/workspace-shell'
 
 async function getInboundEmails() {
   const supabase = createClient()
@@ -68,14 +75,14 @@ export default async function InboundEmailsPage({
       : `Failed to load inbound emails: ${error.message}`
 
     return (
-      <div className="flex flex-col gap-4 md:gap-6 p-4 md:p-6 min-h-screen bg-slate-50/60">
+      <WorkspaceShell className="p-4 md:p-6">
         <Card className="border border-amber-100 bg-amber-50">
           <CardHeader>
             <CardTitle>Inbound Emails Unavailable</CardTitle>
             <CardDescription className="text-amber-900/80">{unavailableMessage}</CardDescription>
           </CardHeader>
         </Card>
-      </div>
+      </WorkspaceShell>
     )
   }
 
@@ -110,47 +117,22 @@ export default async function InboundEmailsPage({
   const selectedConfidence = Number(selectedEmail?.analysis_confidence ?? Number.NaN)
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6 p-4 md:p-6 min-h-screen bg-slate-50/60">
-      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 sm:p-4 md:rounded-3xl md:p-7">
-        <div className="tfs-page-hero-orb-top" />
-        <div className="tfs-page-hero-orb-bottom" />
+    <WorkspaceShell className="p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Email Review"
+        icon={Mail}
+        title="Inbound email queue"
+        description="Review new and failed inbound emails, inspect parser output, and action the next operational step without leaving the queue."
+      />
 
-        <div className="tfs-page-hero-body flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest md:px-3 md:text-[11px] tfs-page-hero-pill">
-              <Mail className="h-3.5 w-3.5" />
-              Inbound Emails
-            </div>
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-              Email Review Queue
-            </h1>
-            <p className="mt-1.5 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm md:text-base">
-              Shows only emails that still need attention (pending or error). Reviewed emails stay visible from each store page.
-            </p>
-          </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat label="Emails" value={emails.length} note="Rows currently in the review queue" icon={Mail} tone="info" />
+        <WorkspaceStat label="New" value={totalPending} note="Emails still awaiting first parser run" icon={CalendarClock} tone="warning" />
+        <WorkspaceStat label="Matched" value={totalMatched} note="Emails already linked to a store" icon={Store} tone="success" />
+        <WorkspaceStat label="Follow-up" value={totalFollowUp} note="Emails flagged for action, visit, or incident work" icon={AlertCircle} tone="critical" />
+      </WorkspaceStatGrid>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 md:w-auto">
-            <div className="rounded-2xl bg-white/12 px-3 py-2 text-white">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/65">Emails</p>
-              <p className="mt-1 text-lg font-semibold">{emails.length}</p>
-            </div>
-            <div className="rounded-2xl bg-white/12 px-3 py-2 text-white">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/65">New</p>
-              <p className="mt-1 text-lg font-semibold">{totalPending}</p>
-            </div>
-            <div className="rounded-2xl bg-white/12 px-3 py-2 text-white">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/65">Matched</p>
-              <p className="mt-1 text-lg font-semibold">{totalMatched}</p>
-            </div>
-            <div className="rounded-2xl bg-white/12 px-3 py-2 text-white">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-white/65">Follow-up</p>
-              <p className="mt-1 text-lg font-semibold">{totalFollowUp}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Card>
+      <WorkspaceSectionCard>
         <CardHeader className="pb-4">
           <CardTitle>Parser Workflow</CardTitle>
           <CardDescription>
@@ -168,20 +150,20 @@ export default async function InboundEmailsPage({
             pendingUnanalysedCount={pendingUnanalysedCount}
           />
         </CardContent>
-      </Card>
+      </WorkspaceSectionCard>
 
       {emails.length === 0 ? (
-        <Card>
+        <WorkspaceSectionCard>
           <CardHeader>
             <CardTitle>No Emails Yet</CardTitle>
             <CardDescription>
               No rows were found in <code>tfs_inbound_emails</code>. Run the seed SQL or connect Make.com first.
             </CardDescription>
           </CardHeader>
-        </Card>
+        </WorkspaceSectionCard>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
-          <Card className="overflow-hidden">
+          <WorkspaceSectionCard className="overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle>Latest Emails</CardTitle>
               <CardDescription>Showing the most recent 100 emails still in the review queue.</CardDescription>
@@ -280,9 +262,9 @@ export default async function InboundEmailsPage({
                 </TableBody>
               </Table>
             </CardContent>
-          </Card>
+          </WorkspaceSectionCard>
 
-          <Card className="overflow-hidden">
+          <WorkspaceSectionCard className="overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle>Email Detail</CardTitle>
               <CardDescription>
@@ -463,9 +445,9 @@ export default async function InboundEmailsPage({
                 </>
               ) : null}
             </CardContent>
-          </Card>
+          </WorkspaceSectionCard>
         </div>
       )}
-    </div>
+    </WorkspaceShell>
   )
 }

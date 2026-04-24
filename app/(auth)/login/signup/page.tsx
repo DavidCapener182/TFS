@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { AUTH_CARD_CLASS, AUTH_LINK_CLASS } from '@/components/auth/auth-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +17,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [fullName, setFullName] = useState('')
-  const [isFootAsylumClient, setIsFootAsylumClient] = useState(false)
+  const [isHeadOfficeUser, setIsHeadOfficeUser] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -46,7 +47,7 @@ export default function SignUpPage() {
     const supabase = createClient()
     
     // Determine role
-    const role = isFootAsylumClient ? 'client' : 'readonly'
+    const role = isHeadOfficeUser ? 'client' : 'readonly'
     
     // Sign up the user with role in metadata
     const { data, error: signUpError } = await supabase.auth.signUp({
@@ -85,7 +86,7 @@ export default function SignUpPage() {
         // User is immediately signed in (email confirmation disabled)
         // Create profile now with intended role
         // Head office users get client access, others need admin approval ('pending')
-        const finalRole = isFootAsylumClient ? 'client' : 'pending'
+        const finalRole = isHeadOfficeUser ? 'client' : 'pending'
         
         const { error: profileError } = await supabase
           .from('fa_profiles')
@@ -126,7 +127,7 @@ export default function SignUpPage() {
   if (success) {
     return (
       <AuthShell logoSize="compact" desktopLogoPosition="corner">
-          <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+          <Card className={AUTH_CARD_CLASS}>
             <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
               <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 Check your email
@@ -136,7 +137,7 @@ export default function SignUpPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6">
-              <Button asChild className="w-full bg-[#232154] text-white hover:bg-[#1c0259]">
+              <Button asChild className="w-full">
                 <Link href="/login">
                   Back to login
                 </Link>
@@ -149,7 +150,7 @@ export default function SignUpPage() {
 
   return (
     <AuthShell>
-        <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+        <Card className={AUTH_CARD_CLASS}>
           <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
             <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
               Create an account
@@ -217,12 +218,12 @@ export default function SignUpPage() {
               <div className="flex min-h-[48px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 sm:min-h-0 sm:space-x-2 sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0">
                 <input
                   type="checkbox"
-                  id="isFootAsylumClient"
-                  checked={isFootAsylumClient}
-                  onChange={(e) => setIsFootAsylumClient(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-[#232154] focus:ring-[#232154]"
+                  id="isHeadOfficeUser"
+                  checked={isHeadOfficeUser}
+                  onChange={(e) => setIsHeadOfficeUser(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <Label htmlFor="isFootAsylumClient" className="cursor-pointer text-sm font-medium text-slate-700">
+                <Label htmlFor="isHeadOfficeUser" className="cursor-pointer text-sm font-medium text-slate-700">
                   The Fragrance Shop Head Office
                 </Label>
               </div>
@@ -231,7 +232,7 @@ export default function SignUpPage() {
                   {error}
                 </div>
               )}
-              <Button type="submit" className="w-full bg-[#232154] hover:bg-[#1c0259] text-white" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Creating account...' : 'Create account'}
               </Button>
               <Link
@@ -242,10 +243,7 @@ export default function SignUpPage() {
               </Link>
               <div className="hidden text-center text-sm text-slate-600 sm:block">
                 Already have an account?{' '}
-                <Link
-                  href="/login"
-                  className="font-medium text-[#232154] hover:text-[#1c0259] hover:underline"
-                >
+                <Link href="/login" className={AUTH_LINK_CLASS}>
                   Sign in
                 </Link>
               </div>

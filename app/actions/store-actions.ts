@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { refreshLinkedCasesForRecord } from '@/lib/cases/service'
 import { FaActionPriority } from '@/types/db'
 import {
   matchCanonicalStoreActionQuestion,
@@ -209,6 +210,7 @@ export async function createStoreActions(
   revalidatePath('/visit-tracker')
   revalidatePath('/stores')
   revalidatePath('/actions')
+  revalidatePath('/queue')
 
   return {
     count: data?.length ?? dedupedRowsToInsert.length,
@@ -277,6 +279,12 @@ export async function updateStoreAction(actionId: string, updates: UpdateStoreAc
   revalidatePath('/visit-tracker')
   revalidatePath('/stores')
   revalidatePath('/actions')
+  revalidatePath('/queue')
+  await refreshLinkedCasesForRecord(
+    'tfs_store_actions',
+    actionId,
+    updateData.status === 'complete' ? 'Linked store action completed.' : 'Linked store action updated.'
+  )
 
   return data
 }

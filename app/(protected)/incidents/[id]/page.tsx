@@ -35,6 +35,14 @@ import {
   getIncidentPersonLabel,
 } from '@/lib/incidents/incident-utils'
 import { formatStoreName } from '@/lib/store-display'
+import { getIncidentDisplayReference } from '@/lib/incidents/incident-reference-display'
+import {
+  effectiveSeverityForDisplay,
+  isStorePortalTheftFollowUpComplete,
+  isStorePortalTheftIncident,
+} from '@/lib/incidents/store-portal-theft'
+import { TheftFollowUpCompleteButton } from '@/components/incidents/theft-follow-up-complete-button'
+import { WorkspaceHeader, WorkspaceShell } from '@/components/workspace/workspace-shell'
 
 async function getIncident(id: string) {
   const supabase = createClient()
@@ -336,10 +344,17 @@ export default async function IncidentDetailPage({
   const isArchivedClosedIncident = incident._source_table === 'tfs_closed_incidents'
 
   const supabase = createClient()
-  const { data: profiles } = await supabase
-    .from('fa_profiles')
-    .select('id, full_name')
-    .order('full_name', { ascending: true })
+  const [{ data: profiles }, displayReference] = await Promise.all([
+    supabase.from('fa_profiles').select('id, full_name').order('full_name', { ascending: true }),
+    getIncidentDisplayReference(supabase, {
+      incidentId: String(incident.id),
+      referenceNo: incident.reference_no,
+      storeCode: incident.tfs_stores?.store_code,
+      storeName: incident.tfs_stores?.store_name,
+      occurredAt: incident.occurred_at,
+      storeId: incident.store_id,
+    }),
+  ])
 
   const [investigation, actions, attachments, activityLogRaw] = await Promise.all([
     isArchivedClosedIncident ? Promise.resolve(null) : getInvestigation(params.id),
@@ -439,13 +454,13 @@ export default async function IncidentDetailPage({
   const foreseeable = pickBoolean(injuryObject, ['foreseeable', 'is_foreseeable'])
   const reportedToInsurers = pickBoolean(injuryObject, ['reported_to_insurers', 'reportedToInsurers'])
 
-  const overviewSubtitle = [
-    titleFromSnake(incident.incident_category),
-    injuryIncidentType,
-    personType,
-  ]
-    .filter(Boolean)
-    .join(' - ')
+  const isPortalTheft = isStorePortalTheftIncident(incident)
+  const theftFollowUpDone = isStorePortalTheftFollowUpComplete(incident)
+  const displaySeverity = effectiveSeverityForDisplay(incident)
+
+  const overviewSubtitle = isPortalTheft
+    ? ['Store theft report (store portal)', injuryIncidentType].filter(Boolean).join(' · ')
+    : [titleFromSnake(incident.incident_category), injuryIncidentType, personType].filter(Boolean).join(' - ')
 
   const closureDate = incident.closed_at || incident.reported_at || incident.occurred_at
   const recentActivity = activityLog.slice(0, 4)
@@ -457,76 +472,87 @@ export default async function IncidentDetailPage({
     : 'overview'
 
   return (
-    <div className="space-y-6 p-0">
-      <IncidentBreadcrumb referenceNo={incident.reference_no} />
+    <WorkspaceShell className="space-y-6 p-4 md:p-6">
+      <IncidentBreadcrumb referenceNo={displayReference} />
 
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div>
-          <h1 className="mb-2 break-words font-mono text-3xl font-bold tracking-tight text-slate-800">
-            {incident.reference_no}
-          </h1>
-          <p className="text-lg font-medium text-slate-600">
-            {overviewSubtitle || incident.summary}
+      {isPortalTheft && !isArchivedClosedIncident ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm">
+          <p className="font-semibold text-amber-950">Store theft report</p>
+          <p className="mt-1 text-amber-900/90">
+            Submitted from the store portal. Use <strong>Complete</strong> when no further LP follow-up is needed — the
+            incident will be <strong>closed</strong> (it disappears from Open Incidents) but stays on the theft log and
+            store history.
           </p>
-          {isArchivedClosedIncident ? (
-            <Badge variant="outline" className="mt-2 text-xs">
-              Archived closed incident (read-only)
-            </Badge>
+          {theftFollowUpDone ? (
+            <p className="mt-2 text-xs font-semibold text-emerald-800">LP follow-up marked complete.</p>
           ) : null}
         </div>
+      ) : null}
 
-        <div className="flex items-center gap-3">
-          {linkedVisitReportPdfUrl ? (
-            <>
+      <WorkspaceHeader
+        eyebrow="Incidents"
+        icon={AlertTriangle}
+        title={displayReference}
+        description={overviewSubtitle || incident.summary}
+        className="overflow-hidden"
+        actions={
+          <div className="flex flex-wrap justify-end gap-2">
+            {isArchivedClosedIncident ? (
+              <Badge variant="outline" className="text-xs">
+                Archived closed incident
+              </Badge>
+            ) : null}
+            {linkedVisitReportPdfUrl ? (
               <Button
                 variant="outline"
                 size="sm"
                 asChild
-                className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
+                className="h-9 rounded-full border-slate-200 px-4 text-sm font-semibold text-slate-700"
               >
                 <Link href={linkedVisitReportPdfUrl} target="_blank">
                   <FileText size={16} className="mr-2" />
                   Open Report PDF
                 </Link>
               </Button>
-              {linkedVisitReportDownloadUrl ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
-                >
-                  <Link href={linkedVisitReportDownloadUrl} target="_blank">
-                    <Download size={16} className="mr-2" />
-                    Download PDF
-                  </Link>
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-          {!isArchivedClosedIncident ? (
-            <>
-              <EditIncidentDialog incident={incident} />
+            ) : null}
+            {linkedVisitReportDownloadUrl ? (
               <Button
                 variant="outline"
                 size="sm"
                 asChild
-                className="h-9 rounded-lg border-slate-200 px-4 text-sm font-semibold text-slate-700"
+                className="h-9 rounded-full border-slate-200 px-4 text-sm font-semibold text-slate-700"
               >
-                <Link href={`/incidents/${incident.id}/print`} target="_blank">
-                  <Printer size={16} className="mr-2" />
-                  Print
+                <Link href={linkedVisitReportDownloadUrl} target="_blank">
+                  <Download size={16} className="mr-2" />
+                  Download PDF
                 </Link>
               </Button>
-              <CloseIncidentButton
-                incidentId={incident.id}
-                incidentReference={incident.reference_no}
-                currentStatus={incident.status}
-              />
-            </>
-          ) : null}
-        </div>
-      </div>
+            ) : null}
+            {!isArchivedClosedIncident ? (
+              <>
+                <EditIncidentDialog incident={incident} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-9 rounded-full border-slate-200 px-4 text-sm font-semibold text-slate-700"
+                >
+                  <Link href={`/incidents/${incident.id}/print`} target="_blank">
+                    <Printer size={16} className="mr-2" />
+                    Print
+                  </Link>
+                </Button>
+                {isPortalTheft && !isClosed ? <TheftFollowUpCompleteButton incidentId={String(incident.id)} /> : null}
+                <CloseIncidentButton
+                  incidentId={incident.id}
+                  incidentReference={displayReference}
+                  currentStatus={incident.status}
+                />
+              </>
+            ) : null}
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -544,8 +570,8 @@ export default async function IncidentDetailPage({
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Severity Level</p>
-            <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 ${severityPillClass(incident.severity)}`}>
-              <span className="text-sm font-bold">{titleFromSnake(incident.severity)}</span>
+            <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 ${severityPillClass(displaySeverity)}`}>
+              <span className="text-sm font-bold">{titleFromSnake(displaySeverity)}</span>
             </div>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-500">
@@ -615,7 +641,7 @@ export default async function IncidentDetailPage({
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-800">
                   <FileText size={18} className="text-blue-500" />
-                  Incident Description
+                  {isPortalTheft ? 'Theft details' : 'Incident Description'}
                 </h3>
                 {linkedVisitReportPdfUrl ? (
                   <div className="mb-6 overflow-hidden rounded-xl border border-slate-100 bg-white">
@@ -667,7 +693,9 @@ export default async function IncidentDetailPage({
                     </div>
                     <div>
                       <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Category</p>
-                      <p className="font-medium text-slate-900">{titleFromSnake(incident.incident_category)}</p>
+                      <p className="font-medium text-slate-900">
+                        {isPortalTheft ? 'Theft (store portal)' : titleFromSnake(incident.incident_category)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-4">
@@ -762,7 +790,8 @@ export default async function IncidentDetailPage({
                     <div>
                       <p className="mb-1 text-xs text-slate-500">Incident Type</p>
                       <p className="text-sm font-medium text-slate-700">
-                        {injuryIncidentType || titleFromSnake(incident.incident_category)}
+                        {injuryIncidentType ||
+                          (isPortalTheft ? 'Theft (store portal)' : titleFromSnake(incident.incident_category))}
                       </p>
                     </div>
                     <div>
@@ -904,6 +933,6 @@ export default async function IncidentDetailPage({
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </WorkspaceShell>
   )
 }

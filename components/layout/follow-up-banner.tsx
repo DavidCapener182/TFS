@@ -77,7 +77,7 @@ export function FollowUpBanner({ className }: { className?: string }) {
         className
       )}
     >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
             <AlertTriangle className="h-4 w-4 text-amber-700" />

@@ -262,7 +262,7 @@ export function StoreSearch() {
           <div
             ref={setDropdownRef}
             data-dropdown="true"
-            className="fixed z-[100] rounded-xl border border-white/10 bg-[#101c28] shadow-2xl overflow-hidden md:rounded-xl"
+            className="fixed z-[100] overflow-hidden rounded-xl border border-white/10 bg-shell shadow-2xl md:rounded-xl"
             style={{
               top: `${dropdownPosition.top}px`,
               left: window.innerWidth < 768 ? '8px' : `${dropdownPosition.left}px`,
@@ -306,7 +306,7 @@ export function StoreSearch() {
               )}
             </div>
             {topMatch && results.length > 0 && (
-              <div className="border-t border-white/10 px-4 py-2 text-[11px] text-white/50 bg-[#0a141f] hidden md:block">
+              <div className="hidden border-t border-white/10 bg-shell-elevated px-4 py-2 text-[11px] text-white/50 md:block">
                 Tip: press Enter to open the top match.
               </div>
             )}
@@ -335,7 +335,7 @@ export function StoreSearch() {
         {/* Desktop search */}
         <div className="hidden md:block w-full max-w-[420px]">
           <div ref={anchorRef} className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60 pointer-events-none z-10" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <Input
               ref={inputRef}
               value={query}
@@ -360,8 +360,8 @@ export function StoreSearch() {
                   setIsDropdownOpen(false)
                 }
               }}
-              placeholder="Search stores…"
-              className="h-10 md:h-9 bg-white/10 border-white/10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30 pl-12 sm:pl-12"
+              placeholder="Search stores or managers…"
+              className="h-10 min-h-0 border-line bg-surface-raised pl-11 text-foreground shadow-sm placeholder:text-ink-muted focus-visible:ring-ring md:h-9 md:pl-11"
             />
           </div>
         </div>
@@ -370,7 +370,7 @@ export function StoreSearch() {
         <div className="w-full md:hidden">
           {mobileSearchOpen ? (
             <div ref={anchorRef} className="relative w-full">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               <Input
                 autoFocus
                 value={query}
@@ -387,12 +387,12 @@ export function StoreSearch() {
                     setIsDropdownOpen(false)
                   }
                 }}
-                placeholder="Search…"
-                className="h-11 rounded-[18px] border-white/10 bg-white/10 pl-12 pr-10 text-sm text-white placeholder:text-white/45 focus-visible:ring-2 focus-visible:ring-white/25 sm:pl-12 sm:pr-10"
+                placeholder="Search stores or managers…"
+                className="h-11 rounded-xl border-line bg-surface-raised pl-11 pr-10 text-sm text-foreground shadow-sm placeholder:text-ink-muted focus-visible:ring-ring sm:pl-11 sm:pr-10"
               />
               <button
                 type="button"
-                className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center text-white/60 hover:text-white"
+                className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-foreground"
                 onClick={() => {
                   setMobileSearchOpen(false)
                   setIsDropdownOpen(false)
@@ -405,15 +405,15 @@ export function StoreSearch() {
           ) : (
             <Button
               type="button"
-              variant="ghost"
-              className="h-11 w-full justify-start gap-2 rounded-[18px] border border-white/10 bg-white/8 px-3 text-sm font-medium !text-white/70 shadow-[0_10px_24px_rgba(2,12,24,0.14)] hover:bg-white/12 hover:!text-white"
+              variant="outline"
+              className="h-11 w-full justify-start gap-2 rounded-xl border-line bg-surface-raised px-3 text-sm font-medium text-foreground shadow-sm hover:bg-surface-subtle"
               onClick={() => {
                 setMobileSearchOpen(true)
                 // open dropdown once user types
               }}
               aria-label="Search stores"
             >
-              <Search className="h-4 w-4 text-white/55" />
+              <Search className="h-4 w-4 text-ink-muted" />
               <span>Search stores or managers</span>
             </Button>
           )}
@@ -753,7 +753,7 @@ function StoreSummary({ store }: { store: StoreSearchResult }) {
             {latestAudit.date ? (
               <div className="flex items-center justify-between gap-3">
                 <span>{format(latestAudit.date, 'dd MMM yyyy')}</span>
-                <span className="font-semibold text-[#4b3a78]">Completed</span>
+                <span className="font-semibold text-brand">Completed</span>
               </div>
             ) : (
               <span className="text-slate-400 italic">No visits recorded</span>

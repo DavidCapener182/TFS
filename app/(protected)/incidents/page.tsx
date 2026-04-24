@@ -9,6 +9,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DeleteIncidentButton } from '@/components/shared/delete-incident-button'
 import { NewIncidentButton } from '@/components/incidents/new-incident-button'
+import {
+  WorkspaceHeader,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+  WorkspaceToolbar,
+  workspaceDesktopDateInputClass,
+  workspaceDesktopFilterActionsClass,
+  workspaceDesktopFilterFormClass,
+  workspaceDesktopFilterSearchClass,
+  workspaceDesktopSelectClass,
+} from '@/components/workspace/workspace-shell'
 import { IncidentMobileCard } from '@/components/incidents/incident-mobile-card'
 import { ClosedIncidentMobileCard } from '@/components/incidents/closed-incident-mobile-card'
 import { LazyIncidentsAnalyticsCharts } from '@/components/incidents/lazy-incidents-analytics-charts'
@@ -22,6 +34,13 @@ import {
   getIncidentRoleBreakdown,
 } from '@/lib/incidents/incident-utils'
 import { formatStoreName } from '@/lib/store-display'
+import { buildIncidentDisplayReferenceMap } from '@/lib/incidents/incident-reference-display'
+import {
+  effectiveSeverityForDisplay,
+  isStorePortalTheftIncident,
+  shouldShowStorePortalTheftInLiveCases,
+} from '@/lib/incidents/store-portal-theft'
+import { TheftFollowUpCompleteButton } from '@/components/incidents/theft-follow-up-complete-button'
 
 type IncidentFilters = {
   store_id?: string
@@ -552,13 +571,31 @@ export default async function IncidentsPage({
     .filter((incident: any) => incident.riddor_reportable)
     .sort((a: any, b: any) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
 
+  const supabaseForRefs = createClient()
+  const incidentDisplayRefMap = await buildIncidentDisplayReferenceMap(supabaseForRefs, [
+    ...openIncidentsRaw,
+    ...closedIncidentsRaw,
+  ])
+  const incidentRefLabel = (incident: { id: string; reference_no?: string | null }) =>
+    incidentDisplayRefMap.get(String(incident.id)) || String(incident.reference_no || '').trim() || '—'
+
+  const claimIncidentRefLabel = (claim: { incident_id?: string | null; incident_reference?: string | null }) => {
+    if (!claim.incident_id) return claim.incident_reference || null
+    return incidentDisplayRefMap.get(String(claim.incident_id)) || claim.incident_reference || null
+  }
+
   // Calculate stats
   const totalIncidents = allIncidents.length
-  const openIncidents = allIncidents.filter(
-    (i: any) => !['closed', 'cancelled'].includes(String(i.status || '').toLowerCase())
-  ).length
-  const criticalIncidents = allIncidents.filter((i: any) => i.severity === 'critical' || i.severity === 'high').length
-  const highlightedOpenIncidents = incidents.slice(0, 3)
+  /** Still in the LP triage queue (matches Live cases — excludes store thefts with follow-up marked complete). */
+  const openIncidents = incidents.filter((i: any) => shouldShowStorePortalTheftInLiveCases(i)).length
+  /** High/critical among non-closed cases, using effective severity (store thefts treated as low). */
+  const criticalIncidents = allIncidents.filter((i: any) => {
+    const st = String(i.status || '').toLowerCase()
+    if (st === 'closed' || st === 'cancelled') return false
+    const sev = effectiveSeverityForDisplay(i).toLowerCase()
+    return sev === 'critical' || sev === 'high'
+  }).length
+  const highlightedOpenIncidents = incidents.filter((i: any) => shouldShowStorePortalTheftInLiveCases(i)).slice(0, 3)
   const hasActiveFilters = Boolean(filters.q || filters.status || filters.severity || filters.year || filters.date_from || filters.date_to)
   const activeFilterCount = [
     filters.q,
@@ -749,28 +786,17 @@ export default async function IncidentsPage({
   const formatDelta = (value: number) => (value > 0 ? `+${value}%` : `${value}%`)
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6 lg:gap-8 bg-slate-50/50 min-h-screen">
-      
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1 flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-slate-900">
-            <div className="p-2 bg-indigo-600 rounded-lg shadow-sm flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Incidents</h1>
-          </div>
-          <p className="max-w-2xl text-sm text-slate-500 sm:text-base md:ml-11">
-            Track LP incidents, manage investigations, and monitor resolution progress.
-          </p>
-        </div>
-        <div className="flex-shrink-0">
-          <NewIncidentButton />
-        </div>
-      </div>
+    <WorkspaceShell className="p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Incidents"
+        icon={AlertTriangle}
+        title="Incident operations"
+        description="Track LP incidents, investigations, claims, and resolution progress from one operational workspace."
+        actions={<NewIncidentButton />}
+      />
 
-      <Card className="shadow-sm border-slate-200 bg-white">
-        <CardContent className="p-3 md:p-5">
+      <WorkspaceToolbar>
+        <div className="space-y-3">
           <form method="get" className="space-y-3 md:hidden">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -857,21 +883,21 @@ export default async function IncidentsPage({
             </details>
           </form>
 
-          <form method="get" className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-8">
-            <div className="relative md:col-span-2">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <form method="get" className={workspaceDesktopFilterFormClass}>
+            <div className={workspaceDesktopFilterSearchClass}>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 name="q"
                 defaultValue={searchParams.q || ''}
                 placeholder="Search reference, root cause, store..."
-                className="bg-white pl-12 sm:pl-12"
+                className="w-full bg-white pl-10"
               />
             </div>
 
             <select
               name="status"
               defaultValue={searchParams.status || 'all'}
-              className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className={`${workspaceDesktopSelectClass} lg:col-span-2`}
             >
               <option value="all">All statuses</option>
               <option value="open">Open</option>
@@ -882,7 +908,7 @@ export default async function IncidentsPage({
             <select
               name="severity"
               defaultValue={searchParams.severity || 'all'}
-              className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className={`${workspaceDesktopSelectClass} lg:col-span-2`}
             >
               <option value="all">All severities</option>
               <option value="critical">Critical</option>
@@ -894,7 +920,7 @@ export default async function IncidentsPage({
             <select
               name="year"
               defaultValue={searchParams.year || 'all'}
-              className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className={`${workspaceDesktopSelectClass} md:col-span-2 lg:col-span-2`}
             >
               <option value="all">All years</option>
               {availableYears.map((year) => (
@@ -908,71 +934,71 @@ export default async function IncidentsPage({
               type="date"
               name="date_from"
               defaultValue={searchParams.date_from || ''}
-              className="bg-white"
+              className={workspaceDesktopDateInputClass}
             />
             <Input
               type="date"
               name="date_to"
               defaultValue={searchParams.date_to || ''}
-              className="bg-white"
+              className={workspaceDesktopDateInputClass}
             />
 
-            <div className="flex flex-wrap gap-2 md:justify-end">
-              <Button type="submit" size="sm" className="h-9 min-h-[44px] md:min-h-0">
+            <div className={workspaceDesktopFilterActionsClass}>
+              <Button type="submit" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                 Apply
               </Button>
-              <Button asChild variant="outline" size="sm" className="h-9 min-h-[44px] md:min-h-0">
+              <Button asChild variant="outline" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                 <Link href="/incidents">Reset</Link>
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </WorkspaceToolbar>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
-        <Card className="border-slate-200 border-l-4 border-l-emerald-500">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Incidents (Month)</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{accidentsMonth}</p>
-            <p className="text-xs text-slate-500 mt-1">{formatDelta(accidentsMonthDelta)} vs previous month</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 border-l-4 border-l-amber-500">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Incidents (YTD)</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{accidentsYtd}</p>
-            <p className="text-xs text-slate-500 mt-1">{formatDelta(accidentsYtdDelta)} vs prior YTD</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 border-l-4 border-l-red-500">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Escalated (Month)</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{riddorMonth}</p>
-            <p className="text-xs text-slate-500 mt-1">Serious incidents flagged this month</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 border-l-4 border-l-teal-600">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Escalated (YTD)</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{riddorYtd}</p>
-            <p className="text-xs text-slate-500 mt-1">Total serious incidents flagged</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 border-l-4 border-l-emerald-600">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">Open Incidents</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{openIncidents}</p>
-            <p className="text-xs text-slate-500 mt-1">Currently active LP cases</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 border-l-4 border-l-indigo-500">
-          <CardContent className="p-3 md:p-4">
-            <p className="text-xs text-slate-500">High / Critical</p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{criticalIncidents}</p>
-            <p className="text-xs text-slate-500 mt-1">Priority risk cases in current results</p>
-          </CardContent>
-        </Card>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat
+          label="Incidents (month)"
+          value={accidentsMonth}
+          note={`${formatDelta(accidentsMonthDelta)} vs previous month`}
+          icon={FileText}
+          tone="success"
+        />
+        <WorkspaceStat
+          label="Incidents (YTD)"
+          value={accidentsYtd}
+          note={`${formatDelta(accidentsYtdDelta)} vs prior YTD`}
+          icon={FileText}
+          tone="warning"
+        />
+        <WorkspaceStat
+          label="Escalated (month)"
+          value={riddorMonth}
+          note="Serious incidents flagged this month"
+          icon={AlertTriangle}
+          tone="critical"
+        />
+        <WorkspaceStat
+          label="Escalated (YTD)"
+          value={riddorYtd}
+          note="Total serious incidents flagged"
+          icon={AlertTriangle}
+          tone="info"
+        />
+        <WorkspaceStat
+          label="Open incidents"
+          value={openIncidents}
+          note="Currently active LP cases"
+          icon={Eye}
+          tone="success"
+        />
+        <WorkspaceStat
+          label="High / critical"
+          value={criticalIncidents}
+          note="Priority risk cases in current results"
+          icon={AlertTriangle}
+          tone="critical"
+        />
+      </WorkspaceStatGrid>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card className="border-slate-200 xl:col-span-2">
@@ -1028,7 +1054,7 @@ export default async function IncidentsPage({
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <Link href={`/incidents/${incident.id}`} className="font-mono text-xs font-semibold text-indigo-700 hover:underline">
-                              {incident.reference_no}
+                              {incidentRefLabel(incident)}
                             </Link>
                             <Badge variant="outline" className="text-[10px]">
                               {getIncidentPersonType(incident)}
@@ -1057,6 +1083,10 @@ export default async function IncidentsPage({
                               View
                             </Link>
                           </Button>
+                          {isStorePortalTheftIncident(incident) &&
+                          !['closed', 'cancelled'].includes(String(incident.status || '').toLowerCase()) ? (
+                            <TheftFollowUpCompleteButton incidentId={String(incident.id)} compact />
+                          ) : null}
                         </div>
                       </div>
                     )
@@ -1154,7 +1184,11 @@ export default async function IncidentsPage({
               </div>
             ) : (
               incidents.map((incident: any) => (
-                <IncidentMobileCard key={incident.id} incident={incident} />
+                <IncidentMobileCard
+                  key={incident.id}
+                  incident={incident}
+                  referenceLabel={incidentRefLabel(incident)}
+                />
               ))
             )}
           </div>
@@ -1196,7 +1230,7 @@ export default async function IncidentsPage({
                       <TableCell>
                         <Link href={`/incidents/${incident.id}`} className="hover:text-indigo-600 transition-colors">
                           <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                            {incident.reference_no}
+                            {incidentRefLabel(incident)}
                           </span>
                         </Link>
                       </TableCell>
@@ -1301,7 +1335,7 @@ export default async function IncidentsPage({
                               <span className="sr-only">View</span>
                             </Button>
                           </Link>
-                          <DeleteIncidentButton incidentId={incident.id} referenceNo={incident.reference_no} />
+                          <DeleteIncidentButton incidentId={incident.id} referenceNo={incidentRefLabel(incident)} />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1347,7 +1381,11 @@ export default async function IncidentsPage({
 
                   <div className="md:hidden p-4 space-y-5">
                     {group.incidents.map((incident: any) => (
-                      <ClosedIncidentMobileCard key={incident.id} incident={incident} />
+                      <ClosedIncidentMobileCard
+                        key={incident.id}
+                        incident={incident}
+                        referenceLabel={incidentRefLabel(incident)}
+                      />
                     ))}
                   </div>
 
@@ -1374,7 +1412,7 @@ export default async function IncidentsPage({
                             <TableCell>
                               <Link href={`/incidents/${incident.id}`} className="hover:text-indigo-600 transition-colors">
                                 <span className="font-mono text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                                  {incident.reference_no}
+                                  {incidentRefLabel(incident)}
                                 </span>
                               </Link>
                             </TableCell>
@@ -1479,7 +1517,7 @@ export default async function IncidentsPage({
                                     <span className="sr-only">View</span>
                                   </Button>
                                 </Link>
-                                <DeleteIncidentButton incidentId={incident.id} referenceNo={incident.reference_no} />
+                                <DeleteIncidentButton incidentId={incident.id} referenceNo={incidentRefLabel(incident)} />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1583,7 +1621,7 @@ export default async function IncidentsPage({
                   <CardContent className="p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <Link href={`/incidents/${incident.id}`} className="font-mono text-xs text-indigo-700">
-                        {incident.reference_no}
+                        {incidentRefLabel(incident)}
                       </Link>
                       <span className="text-xs text-slate-500">{safeFormat(incident.occurred_at, 'dd MMM yyyy')}</span>
                     </div>
@@ -1652,8 +1690,8 @@ export default async function IncidentsPage({
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-mono text-xs text-slate-700">{claim.reference_no || '—'}</span>
-                            {claim.incident_reference ? (
-                              <span className="text-[11px] text-slate-500">Incident: {claim.incident_reference}</span>
+                            {claimIncidentRefLabel(claim) ? (
+                              <span className="text-[11px] text-slate-500">Incident: {claimIncidentRefLabel(claim)}</span>
                             ) : null}
                           </div>
                         </TableCell>
@@ -1719,8 +1757,8 @@ export default async function IncidentsPage({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-mono text-xs text-slate-700">{claim.reference_no || '—'}</p>
-                          {claim.incident_reference ? (
-                            <p className="text-[11px] text-slate-500">Incident: {claim.incident_reference}</p>
+                          {claimIncidentRefLabel(claim) ? (
+                            <p className="text-[11px] text-slate-500">Incident: {claimIncidentRefLabel(claim)}</p>
                           ) : null}
                         </div>
                         <Badge variant={String(claim.status || '').toLowerCase() === 'open' ? 'default' : 'secondary'}>
@@ -1746,6 +1784,6 @@ export default async function IncidentsPage({
       </Card>
       </TabsContent>
       </Tabs>
-    </div>
+    </WorkspaceShell>
   )
 }

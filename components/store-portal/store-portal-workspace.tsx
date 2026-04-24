@@ -92,7 +92,7 @@ export function StorePortalWorkspace({
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [summary, setSummary] = useState('')
   const [description, setDescription] = useState('')
-  const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
+  const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('low')
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16))
   const [search, setSearch] = useState('')
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
@@ -311,13 +311,13 @@ export function StorePortalWorkspace({
                   'flex w-full items-start gap-3 border-t border-slate-100 px-4 py-4 text-left first:border-t-0 md:rounded-2xl md:border-t-0',
                   isActive
                     ? 'bg-white text-slate-950 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)] md:bg-white'
-                    : 'text-slate-700 hover:bg-slate-50 md:text-white/80 md:hover:bg-white/10 md:hover:text-white'
+                    : 'text-slate-700 hover:bg-slate-50 md:text-white/92 md:hover:bg-slate-950/35 md:hover:text-white'
                 )}
               >
-                <Icon className={cn('mt-0.5 h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900' : 'text-slate-400 md:text-white/70')} />
+                <Icon className={cn('mt-0.5 h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900' : 'text-slate-400 md:text-white/80')} />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold">{item.label}</span>
-                  <span className={cn('mt-1 block text-xs leading-5', isActive ? 'text-slate-500' : 'text-slate-500 md:text-white/55')}>
+                  <span className={cn('mt-1 block text-xs leading-5', isActive ? 'text-slate-500' : 'text-slate-500 md:text-white/70')}>
                     {item.description}
                   </span>
                 </span>
@@ -330,7 +330,7 @@ export function StorePortalWorkspace({
       <div className="p-4 pt-2">
         <div className="rounded-[24px] border border-slate-200 bg-white/85 px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm md:rounded-[24px] md:border-white/10 md:bg-white/10 md:shadow-none">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#232154] md:bg-white/16">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--brand))] md:bg-white/16">
               <Store className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
@@ -344,7 +344,7 @@ export function StorePortalWorkspace({
   )
 
   return (
-    <div className="min-h-screen bg-[#1c0259] md:h-screen-zoom md:min-h-0">
+    <div className="min-h-[100svh] bg-[#1c0259]">
       <aside className="no-print hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-64 md:flex-col md:bg-[linear-gradient(180deg,#1c0259_0%,#232154_60%,#2a265f_100%)]">
         {sidebarContent}
       </aside>
@@ -366,9 +366,9 @@ export function StorePortalWorkspace({
         {sidebarContent}
       </aside>
 
-      <div className="flex min-h-screen flex-col bg-[#232154] md:ml-64 md:min-h-screen md:overflow-hidden">
-        <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:fixed md:left-64 md:right-0 md:top-0 md:z-50 md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:pt-0 lg:px-8">
-          <div className="flex w-full items-center justify-between gap-3 pb-4 pt-3 md:pb-0 md:pt-0">
+      <div className="flex min-h-[100svh] flex-col bg-[#232154] md:ml-64">
+        <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:fixed md:left-64 md:right-0 md:top-0 md:z-50 md:flex md:min-h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:py-2.5 lg:px-8">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3 pb-4 pt-3 md:pb-0 md:pt-0">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
@@ -388,8 +388,8 @@ export function StorePortalWorkspace({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="hidden rounded-full border border-white/10 bg-white/8 px-3 py-2 text-xs font-medium text-white/80 md:block">
+            <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-2">
+              <div className="hidden max-w-[min(100%,16rem)] truncate rounded-full border border-white/10 bg-white/8 px-3 py-2 text-xs font-medium text-white/90 md:block">
                 {storeName} · {storeCode}
               </div>
               <Button
@@ -411,12 +411,12 @@ export function StorePortalWorkspace({
           </div>
         </header>
 
-        <main className="flex-1 bg-[#f7f4fb] px-3.5 pb-8 pt-4 sm:px-4 md:min-h-0 md:overflow-y-auto md:p-6 md:pt-24 lg:p-8 lg:pt-24">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_360px]">
-            <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+        <main className="flex-1 overflow-x-hidden bg-[#f7f4fb] px-3.5 pb-10 pt-4 sm:px-4 md:px-6 md:pb-12 md:pt-24 lg:px-8 lg:pt-24">
+          <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,22rem)]">
+            <section className="min-w-0 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
               <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-5 md:px-6">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#232154] text-white shadow-[0_12px_24px_rgba(35,33,84,0.24)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand))] text-white shadow-[0_12px_24px_rgba(35,33,84,0.24)]">
                     {tab === 'incident' ? (
                       <AlertTriangle className="h-6 w-6" />
                     ) : tab === 'theft' ? (
@@ -642,15 +642,15 @@ export function StorePortalWorkspace({
                           {items.map((item) => (
                             <div
                               key={item.productId}
-                              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center"
+                              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:flex-row lg:flex-wrap lg:items-center"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
                                 <p className="text-xs text-slate-500">{formatCurrency(item.unitPrice)} each</p>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                                 <Input
-                                  className="w-40 bg-white"
+                                  className="min-w-0 flex-1 bg-white sm:max-w-[14rem] sm:flex-initial sm:w-40"
                                   placeholder="Barcode"
                                   value={item.barcode}
                                   onChange={(e) =>
@@ -664,7 +664,7 @@ export function StorePortalWorkspace({
                                   }
                                 />
                                 <Input
-                                  className="w-24 bg-white"
+                                  className="min-w-0 flex-1 bg-white sm:w-24 sm:flex-initial"
                                   type="number"
                                   min={1}
                                   value={item.quantity}
@@ -684,6 +684,7 @@ export function StorePortalWorkspace({
                                 <Button
                                   type="button"
                                   variant="outline"
+                                  className="w-full shrink-0 sm:w-auto"
                                   onClick={() =>
                                     setItems((current) =>
                                       current.filter((entry) => entry.productId !== item.productId)
@@ -741,9 +742,9 @@ export function StorePortalWorkspace({
                     </div>
                   ) : null}
 
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                     <Button
-                      className="bg-[#232154] text-white hover:bg-[#1c0259]"
+                      className="min-h-[44px] w-full shrink-0 sm:w-auto"
                       disabled={pending}
                       onClick={() =>
                         startTransition(async () => {
@@ -800,7 +801,7 @@ export function StorePortalWorkspace({
               )}
             </section>
 
-            <aside className="space-y-6">
+            <aside className="min-w-0 space-y-6">
               <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
                 <div className="border-b border-slate-100 px-5 py-4">
                   <h3 className="text-lg font-semibold text-slate-900">Store overview</h3>

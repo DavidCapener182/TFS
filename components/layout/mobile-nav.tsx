@@ -4,31 +4,30 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, User } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/ui/dialog'
-import { navItems } from '@/components/layout/nav-items'
+import { cn } from '@/lib/utils'
+
+import { getVisibleNavSections } from '@/components/layout/nav-items'
 
 export function MobileNav({ userName }: { userName: string }) {
   const pathname = usePathname()
   const currentPath = pathname ?? '/'
-  const rootItems = navItems.filter((item) => !item.parentHref)
-  const childItemsByParent = navItems.reduce<Record<string, typeof navItems>>((acc, item) => {
-    if (!item.parentHref) return acc
-    acc[item.parentHref] = [...(acc[item.parentHref] || []), item]
-    return acc
-  }, {})
+  const sections = getVisibleNavSections()
 
-  const isPathActive = (href: string) => currentPath === href || (href !== '/' && currentPath.startsWith(href))
+  const isPathActive = (href: string) =>
+    href === '/'
+      ? currentPath === '/' || currentPath === '/dashboard'
+      : currentPath === href || currentPath.startsWith(`${href}/`)
 
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="md:hidden rounded-full"
+          className="rounded-xl md:hidden"
           aria-label="Open navigation menu"
         >
           <Menu className="h-5 w-5" />
@@ -38,79 +37,62 @@ export function MobileNav({ userName }: { userName: string }) {
       <DialogContent
         className={cn(
           'left-0 top-0 translate-x-0 translate-y-0',
-          'h-[100dvh] w-[85vw] max-w-xs',
-          'rounded-none border-r bg-white p-0',
+          'h-[100dvh] w-[88vw] max-w-sm',
+          'rounded-none border-r border-line bg-surface-raised p-0',
           'data-[state=closed]:slide-out-to-left-1/2 data-[state=open]:slide-in-from-left-1/2'
         )}
       >
-        <div className="flex h-16 items-center px-5 border-b border-gray-200/50">
-          <h1 className="text-base font-semibold text-gray-900">KSS Assurance</h1>
+        <div className="border-b border-line px-5 py-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">The Fragrance Shop</p>
+          <h1 className="mt-2 text-base font-semibold text-foreground">Navigation</h1>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4">
-          <ul className="space-y-2">
-            {rootItems.map((item) => {
-              const Icon = item.icon
-              const childItems = childItemsByParent[item.href] || []
-              const isActive = isPathActive(item.href) || childItems.some((child) => isPathActive(child.href))
+          <div className="space-y-5">
+            {sections.map((section) => (
+              <section key={section.id} className="space-y-2">
+                <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
+                  {section.label}
+                </p>
+                <ul className="space-y-1.5">
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    const isActive = isPathActive(item.href)
 
-              return (
-                <li key={item.href}>
-                  <DialogClose asChild>
-                    <Link
-                      href={item.href}
-                      prefetch={false}
-                      className={cn(
-                        'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all',
-                        isActive
-                          ? 'bg-gray-50 text-gray-900 rounded-full shadow-sm font-semibold'
-                          : 'text-gray-700 hover:text-gray-900 rounded-full'
-                      )}
-                    >
-                      <Icon className={cn('h-5 w-5', isActive ? 'text-gray-900' : 'text-gray-500')} />
-                      {item.label}
-                    </Link>
-                  </DialogClose>
-                  {childItems.length > 0 ? (
-                    <ul className="ml-6 mt-1 space-y-1">
-                      {childItems.map((child) => {
-                        const isChildActive = isPathActive(child.href)
-
-                        return (
-                          <li key={child.href}>
-                            <DialogClose asChild>
-                              <Link
-                                href={child.href}
-                                prefetch={false}
-                                className={cn(
-                                  'flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-all',
-                                  isChildActive
-                                    ? 'bg-gray-50 text-gray-900 font-semibold shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
-                                )}
-                              >
-                                <span className={cn('h-1.5 w-1.5 rounded-full', isChildActive ? 'bg-gray-900' : 'bg-gray-400')} />
-                                {child.label}
-                              </Link>
-                            </DialogClose>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ul>
+                    return (
+                      <li key={item.href}>
+                        <DialogClose asChild>
+                          <Link
+                            href={item.href}
+                            prefetch={false}
+                            className={cn(
+                              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                              isActive
+                                ? 'bg-surface-subtle text-foreground shadow-soft'
+                                : 'text-ink-soft hover:bg-surface-subtle hover:text-foreground'
+                            )}
+                          >
+                            <span className={cn('h-8 w-1 rounded-full', isActive ? 'bg-brand' : 'bg-transparent')} />
+                            <Icon className="h-4.5 w-4.5" />
+                            {item.label}
+                          </Link>
+                        </DialogClose>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-200/50">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-50">
-            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-              <User className="h-5 w-5 text-purple-600" />
+        <div className="border-t border-line p-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface-subtle px-4 py-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-brand-contrast">
+              <User className="h-5 w-5" />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
             </div>
           </div>
         </div>

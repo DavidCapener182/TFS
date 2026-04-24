@@ -1,3 +1,5 @@
+@import url('/print.css') print;
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,51 +8,99 @@
   :root {
     --app-zoom: 1;
     --mobile-header-height: 0px;
-    --background: 280 33% 98%;
-    --foreground: 240 18% 18%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 18% 18%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 18% 18%;
-    --primary: 243 43% 23%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 280 30% 95%;
-    --secondary-foreground: 240 18% 18%;
-    --muted: 280 30% 95%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 130 53% 92%;
-    --accent-foreground: 240 18% 18%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 276 20% 89%;
-    --input: 276 20% 89%;
-    --ring: 243 43% 23%;
-    --radius: 1rem;
+    --brand: 252 59% 23%;
+    --brand-contrast: 0 0% 100%;
+    --brand-accent: 134 53% 35%;
+    --shell: 225 47% 12%;
+    --shell-elevated: 238 39% 18%;
+    --shell-contrast: 0 0% 100%;
+    --canvas: 280 33% 97%;
+    --surface: 0 0% 100%;
+    --surface-subtle: 276 30% 95%;
+    --surface-raised: 0 0% 100%;
+    --surface-contrast: 235 34% 16%;
+    --line: 272 20% 88%;
+    --line-strong: 266 17% 74%;
+    --ink: 237 30% 15%;
+    --ink-soft: 224 18% 33%;
+    --ink-muted: 223 13% 46%;
+    --focus: 252 59% 23%;
+    --success: 142 63% 35%;
+    --success-soft: 138 69% 96%;
+    --warning: 35 92% 48%;
+    --warning-soft: 36 100% 96%;
+    --info: 208 86% 44%;
+    --info-soft: 208 100% 97%;
+    --critical: 356 74% 55%;
+    --critical-soft: 356 100% 97%;
+    --neutral: 222 16% 46%;
+    --neutral-soft: 220 33% 96%;
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface-raised);
+    --card-foreground: var(--ink);
+    --popover: var(--surface-raised);
+    --popover-foreground: var(--ink);
+    --primary: var(--brand);
+    --primary-foreground: var(--brand-contrast);
+    --secondary: var(--surface-subtle);
+    --secondary-foreground: var(--ink);
+    --muted: var(--neutral-soft);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--surface-subtle);
+    --accent-foreground: var(--ink);
+    --destructive: var(--critical);
+    --destructive-foreground: var(--brand-contrast);
+    --border: var(--line);
+    --input: var(--line);
+    --ring: var(--focus);
+    --radius-sm: 0.75rem;
+    --radius-md: 0.95rem;
+    --radius-lg: 1.2rem;
+    --radius-xl: 1.5rem;
+    --radius: var(--radius-md);
+    --shadow-soft:
+      0 1px 2px hsl(var(--ink) / 0.05),
+      0 10px 22px hsl(var(--shell) / 0.07);
+    --shadow-panel:
+      0 12px 28px hsl(var(--shell) / 0.08),
+      0 2px 8px hsl(var(--shell) / 0.03);
+    --shadow-floating:
+      0 18px 40px hsl(var(--shell) / 0.16),
+      0 2px 10px hsl(var(--shell) / 0.06);
+    --shadow-shell:
+      0 22px 50px hsl(var(--shell) / 0.28),
+      inset 0 1px 0 hsl(var(--shell-contrast) / 0.08);
     --touch-target-min: 44px;
     --app-font-size: 14px;
     --app-line-height: 1.45;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --canvas: 228 25% 11%;
+    --surface: 228 22% 14%;
+    --surface-subtle: 228 20% 18%;
+    --surface-raised: 228 21% 16%;
+    --line: 225 17% 25%;
+    --line-strong: 225 16% 34%;
+    --ink: 220 33% 96%;
+    --ink-soft: 220 16% 80%;
+    --ink-muted: 218 12% 67%;
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface-raised);
+    --card-foreground: var(--ink);
+    --popover: var(--surface-raised);
+    --popover-foreground: var(--ink);
+    --secondary: var(--surface-subtle);
+    --secondary-foreground: var(--ink);
+    --muted: 225 16% 18%;
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--surface-subtle);
+    --accent-foreground: var(--ink);
+    --border: var(--line);
+    --input: var(--line);
+    --ring: var(--focus);
   }
 }
 
@@ -76,7 +126,7 @@
     -webkit-overflow-scrolling: touch;
   }
   body {
-    @apply bg-[#f7f4fb] text-foreground;
+    @apply bg-background text-foreground;
     overflow-x: hidden;
     max-width: 100vw;
     position: relative;
@@ -140,9 +190,22 @@
 }
 
 @layer components {
+  .tfs-auth-gradient {
+    background:
+      radial-gradient(circle at top, hsl(var(--shell-contrast) / 0.12), transparent 42%),
+      radial-gradient(circle at bottom left, hsl(var(--success) / 0.24), transparent 45%),
+      linear-gradient(145deg, hsl(var(--brand)) 0%, hsl(var(--shell-elevated)) 55%, hsl(var(--shell)) 100%);
+  }
+
+  .tfs-shell-gradient {
+    background:
+      radial-gradient(circle at top, hsl(var(--shell-contrast) / 0.08), transparent 35%),
+      linear-gradient(180deg, hsl(var(--shell)) 0%, hsl(var(--shell-elevated)) 62%, hsl(var(--brand)) 100%);
+  }
+
   .tfs-page-hero {
-    background: linear-gradient(145deg, #1c0259 0%, #232154 52%, #2f2b72 100%);
-    box-shadow: 0 20px 44px rgba(28, 2, 89, 0.18);
+    background: linear-gradient(145deg, hsl(var(--brand)) 0%, hsl(var(--shell-elevated)) 52%, hsl(var(--shell)) 100%);
+    box-shadow: var(--shadow-shell);
   }
 
   .tfs-page-hero-orb-top {
@@ -154,7 +217,7 @@
     width: 20rem;
     transform: translate(33%, -50%);
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.1);
+    background: hsl(var(--shell-contrast) / 0.12);
     filter: blur(64px);
   }
 
@@ -167,7 +230,7 @@
     width: 14rem;
     transform: translate(-33%, 33%);
     border-radius: 9999px;
-    background: rgba(42, 135, 66, 0.2);
+    background: hsl(var(--success) / 0.2);
     filter: blur(64px);
   }
 
@@ -177,16 +240,64 @@
   }
 
   .tfs-page-hero-glass {
-    border-color: rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.1);
+    border-color: hsl(var(--shell-contrast) / 0.1);
+    background: hsl(var(--shell-contrast) / 0.08);
     backdrop-filter: saturate(1.1) blur(10px);
   }
 
   .tfs-page-hero-pill {
-    border-color: rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(240, 235, 255, 0.92);
+    border-color: hsl(var(--shell-contrast) / 0.18);
+    background: hsl(var(--shell-contrast) / 0.08);
+    color: hsl(var(--surface-subtle));
     backdrop-filter: saturate(1.1) blur(10px);
+  }
+
+  .app-panel {
+    border: 1px solid hsl(var(--line));
+    background: linear-gradient(180deg, hsl(var(--surface-raised)) 0%, hsl(var(--surface-subtle) / 0.56) 100%);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .app-panel-muted {
+    border: 1px solid hsl(var(--line));
+    background: hsl(var(--surface-subtle) / 0.76);
+  }
+
+  .app-shell-glass {
+    border: 1px solid hsl(var(--shell-contrast) / 0.12);
+    background: hsl(var(--shell-contrast) / 0.07);
+    box-shadow: inset 0 1px 0 hsl(var(--shell-contrast) / 0.06);
+    backdrop-filter: saturate(1.08) blur(14px);
+  }
+
+  .tone-critical {
+    border-color: hsl(var(--critical) / 0.15);
+    background: hsl(var(--critical-soft));
+    color: hsl(var(--critical));
+  }
+
+  .tone-warning {
+    border-color: hsl(var(--warning) / 0.18);
+    background: hsl(var(--warning-soft));
+    color: hsl(var(--warning));
+  }
+
+  .tone-info {
+    border-color: hsl(var(--info) / 0.16);
+    background: hsl(var(--info-soft));
+    color: hsl(var(--info));
+  }
+
+  .tone-success {
+    border-color: hsl(var(--success) / 0.15);
+    background: hsl(var(--success-soft));
+    color: hsl(var(--success));
+  }
+
+  .tone-neutral {
+    border-color: hsl(var(--line));
+    background: hsl(var(--neutral-soft));
+    color: hsl(var(--ink-soft));
   }
 }
 
@@ -204,42 +315,42 @@
 
 @layer utilities {
   .shadow-soft {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-soft);
   }
 
   .mobile-sticky-shell {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 244, 251, 0.96) 100%);
-    border-color: rgba(76, 58, 120, 0.16);
+      linear-gradient(180deg, hsl(var(--surface) / 0.98) 0%, hsl(var(--surface-subtle) / 0.96) 100%);
+    border-color: hsl(var(--line));
     backdrop-filter: saturate(1.1) blur(6px);
   }
 
   .mobile-group-bar {
     background:
-      linear-gradient(135deg, rgba(247, 244, 251, 1) 0%, rgba(241, 235, 248, 0.94) 100%);
-    border-color: rgba(76, 58, 120, 0.14);
+      linear-gradient(135deg, hsl(var(--surface-subtle)) 0%, hsl(var(--surface-subtle) / 0.82) 100%);
+    border-color: hsl(var(--line));
   }
 
   .mobile-card-surface {
     background:
-      linear-gradient(160deg, rgba(255, 255, 255, 1) 0%, rgba(249, 245, 252, 0.96) 100%);
-    border-color: rgba(76, 58, 120, 0.14);
+      linear-gradient(160deg, hsl(var(--surface-raised)) 0%, hsl(var(--surface-subtle) / 0.6) 100%);
+    border-color: hsl(var(--line));
   }
 
   .desktop-table-shell {
     background:
-      linear-gradient(165deg, rgba(255, 255, 255, 1) 0%, rgba(249, 245, 252, 0.92) 100%);
-    border-color: rgba(76, 58, 120, 0.16);
+      linear-gradient(165deg, hsl(var(--surface-raised)) 0%, hsl(var(--surface-subtle) / 0.52) 100%);
+    border-color: hsl(var(--line));
   }
 
   .desktop-table-head {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(249, 245, 252, 0.96) 100%);
+      linear-gradient(180deg, hsl(var(--surface-raised)) 0%, hsl(var(--surface-subtle) / 0.74) 100%);
   }
 
   .desktop-group-bar {
     background:
-      linear-gradient(135deg, rgba(247, 244, 251, 1) 0%, rgba(241, 235, 248, 0.94) 100%);
+      linear-gradient(135deg, hsl(var(--surface-subtle)) 0%, hsl(var(--surface-subtle) / 0.82) 100%);
   }
 
   @media (min-width: 768px) {
@@ -373,276 +484,6 @@
   }
   .fra-report-print-content {
     width: 100%;
-  }
-}
-
-@media print {
-  html, body {
-    width: 100% !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Hide anything that isn't the document (sidebar, app header, nav, etc.) */
-  .no-print,
-  button:not(.print-keep),
-  nav,
-  header:not(.fra-report-print-header),
-  header.site-header,
-  .toolbar,
-  .controls,
-  .sidebar,
-  .fra-preview-hide-toolbar,
-  .fra-report-print-header,
-  .fra-report-print-footer,
-  aside,
-  [role="complementary"],
-  [class*="sidebar"],
-  [class*="Sidebar"],
-  [class*="Header"] {
-    display: none !important;
-  }
-
-  /* When printing from a page with layout: main content full width (no space for sidebar) */
-  [class*="ml-64"] {
-    margin-left: 0 !important;
-  }
-  
-  /* Layout containers must not constrain print */
-  main,
-  [role="main"],
-  .flex,
-  [class*="overflow-hidden"],
-  [class*="overflow-auto"] {
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-  }
-
-  /* Standalone print page – no flex/overflow so content flows across pages */
-  .fra-print-page-root,
-  .fra-print-page-content {
-    display: block !important;
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    max-height: none !important;
-  }
-
-  /* Ensure print root isn't constrained (width 100%, no fixed mm so it fits inside @page margin) */
-  #print-root,
-  .print-root,
-  .fra-report-print-wrapper {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: 0 !important;
-    position: static !important;
-    transform: none !important;
-  }
-
-  /* Force content wrapper to allow pagination (no min-height, no overflow) */
-  .fra-report-print-content {
-    display: block !important;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-  }
-
-  /* Override min-h-screen in print so FRA root doesn't force one tall box (breaks pagination) */
-  #print-root.min-h-screen,
-  .fra-report-print-wrapper.min-h-screen {
-    min-height: 0 !important;
-  }
-
-  /* Critical: these often cause "prints only what's visible" / broken pagination */
-  * {
-    box-shadow: none !important;
-  }
-
-  /* FRA view scroll container: expand for print so all pages print (no clipping) */
-  .fra-view-scroll-container {
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-  
-  .scroll,
-  .scroll-y,
-  .overflow-auto,
-  .overflow-scroll,
-  [class*="overflow"],
-  .h-screen,
-  .h-\[calc\(100vh
-  {
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-  }
-  
-  [style*="transform"]:not(.leaflet-pane):not(.leaflet-map-pane):not(.leaflet-tile-pane):not(.leaflet-overlay-pane):not(.leaflet-marker-pane):not(.leaflet-shadow-pane):not(.leaflet-zoom-animated):not(.leaflet-tile):not(.leaflet-marker-icon):not(.leaflet-marker-shadow),
-  [class*="transform"] {
-    transform: none !important;
-  }
-
-  /* Each section = one printed sheet; no min-height so short sections don’t create blank space */
-  .fra-a4-page,
-  .fra-print-page {
-    width: 100% !important;
-    min-height: auto !important;
-    margin: 0 !important;
-    margin-bottom: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
-    break-after: page !important;
-    page-break-after: always !important;
-  }
-  .fra-print-page:last-child,
-  .fra-a4-page:last-child {
-    break-after: auto !important;
-    page-break-after: auto !important;
-  }
-  .fra-print-page.p-12,
-  .fra-a4-page.p-12 {
-    padding: 0 !important;
-  }
-
-  .fra-travel-distances-tables {
-    margin-top: 8px !important;
-  }
-  .fra-travel-distances-tables table {
-    font-size: 9pt !important;
-    margin-bottom: 6px !important;
-  }
-  .fra-travel-distances-tables th,
-  .fra-travel-distances-tables td {
-    padding: 2px 6px !important;
-    border-width: 1px !important;
-  }
-  .fra-travel-distances-tables > * + * {
-    margin-top: 4px !important;
-  }
-  .fra-map-print {
-    max-height: 180mm !important;
-    overflow: hidden !important;
-  }
-  .fra-map-print .leaflet-container,
-  .fra-map-print .fra-map-container {
-    height: 180mm !important;
-    max-height: 180mm !important;
-    min-height: 0 !important;
-    width: 100% !important;
-  }
-  .fra-hazards-table {
-    font-size: 9pt !important;
-  }
-  .fra-hazards-table th,
-  .fra-hazards-table td {
-    padding: 4px 6px !important;
-  }
-  .fra-print-page:has(.fra-travel-distances-tables) h2 {
-    margin-bottom: 6px !important;
-    font-size: 1rem !important;
-  }
-  .fra-print-page:has(.fra-travel-distances-tables) .space-y-4 {
-    margin-bottom: 4px !important;
-  }
-  .fra-print-page:has(.fra-travel-distances-tables) .space-y-4 > * + * {
-    margin-top: 2px !important;
-  }
-  .fra-report-print-content { padding-bottom: 0 !important; }
-
-  /* Only avoid break for small items (signatures, small blocks). Broad wrappers like .bg-slate-50 cause clipping. */
-  .avoid-break {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  /* Tables print reliably */
-  .fra-print-table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    display: table !important;
-  }
-  
-  .fra-print-table thead {
-    display: table-header-group !important;
-  }
-  
-  .fra-print-table tbody {
-    display: table-row-group !important;
-  }
-  
-  .fra-print-table tfoot {
-    display: table-footer-group !important;
-  }
-  
-  .fra-print-table tr {
-    display: table-row !important;
-  }
-  
-  .fra-print-table td {
-    display: table-cell !important;
-    padding: 4px 6px !important;
-    /* Allow content to break across pages; do not force width so columns stay aligned */
-    break-inside: auto !important;
-    page-break-inside: auto !important;
-  }
-  .fra-print-table th {
-    padding: 4px 6px !important;
-  }
-  
-  .fra-print-header-cell,
-  .fra-print-footer-cell {
-    width: 100% !important;
-  }
-
-  /* Print content styling */
-  .fra-report-print-content {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  
-  /* Remove max-width constraints on page sections */
-  .max-w-4xl,
-  .max-w-5xl,
-  .max-w-6xl,
-  .max-w-7xl {
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-  
-  /* Ensure page sections are full width */
-  .page-break-after-always {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* Links not ugly */
-  a:link,
-  a:visited {
-    text-decoration: none !important;
-    color: inherit !important;
-  }
-
-  /* Ensure images print */
-  img {
-    max-width: 100% !important;
-    height: auto !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 }
 

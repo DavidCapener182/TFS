@@ -8,12 +8,13 @@ import {
   normalizeStoreVisitActivityPayloads,
   isStoreVisitActivityKey,
   type StoreVisitNeedLevel,
+  type StoreVisitType,
 } from '@/lib/visit-needs'
 import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
 import { createClient } from '@/lib/supabase/server'
 import type { VisitReportType } from '@/lib/reports/visit-report-types'
 import { VisitTrackerClient } from '@/components/visit-tracker/visit-tracker-client'
-import type { VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
+import type { CaseVisitSummary, VisitHistoryEntry, VisitState, VisitTrackerRow } from '@/components/visit-tracker/types'
 
 type StoreActionRow = {
   store_id: string
@@ -97,8 +98,33 @@ type VisitReportRow = {
   created_by_user_id: string | null
 }
 
-function buildVisitState(lastVisit: VisitHistoryEntry | undefined, nextPlannedVisitDate: string | null): VisitState {
-  if (nextPlannedVisitDate) return 'planned'
+type CaseVisitRow = {
+  id: string
+  case_id: string
+  store_id: string
+  visit_type: string
+  status: 'planned' | 'in_progress' | 'completed' | 'cancelled'
+  scheduled_for: string | null
+  assigned_user_id: string | null
+  created_at: string
+}
+
+type CaseRow = {
+  id: string
+  case_type: string
+  severity: string | null
+  stage: CaseVisitSummary['caseStage']
+  origin_reference: string | null
+  next_action_label: string | null
+  last_update_summary: string | null
+}
+
+function buildVisitState(
+  lastVisit: VisitHistoryEntry | undefined,
+  nextPlannedVisitDate: string | null,
+  hasOpenCaseVisit = false
+): VisitState {
+  if (nextPlannedVisitDate || hasOpenCaseVisit) return 'planned'
   if (!lastVisit) return 'none'
 
   const now = Date.now()
@@ -120,6 +146,30 @@ function getActivePlannedVisitDate(plannedDate: string | null, lastVisitDate: st
   if (Number.isNaN(plannedTime) || Number.isNaN(visitTime)) return plannedDate
 
   return visitTime >= plannedTime ? null : plannedDate
+}
+
+function getDisplayPlannedVisitDate(legacyPlannedDate: string | null, caseVisit: CaseVisitSummary | null): string | null {
+  if (!caseVisit?.scheduledFor) return legacyPlannedDate
+  if (!legacyPlannedDate) return caseVisit.scheduledFor
+
+  const legacyTime = new Date(legacyPlannedDate).getTime()
+  const caseTime = new Date(caseVisit.scheduledFor).getTime()
+  if (Number.isNaN(legacyTime)) return caseVisit.scheduledFor
+  if (Number.isNaN(caseTime)) return legacyPlannedDate
+
+  return caseTime < legacyTime ? caseVisit.scheduledFor : legacyPlannedDate
+}
+
+function sortCaseVisits(visits: CaseVisitSummary[]): CaseVisitSummary[] {
+  return [...visits].sort((left, right) => {
+    const leftScheduled = left.scheduledFor ? new Date(left.scheduledFor).getTime() : Number.MAX_SAFE_INTEGER
+    const rightScheduled = right.scheduledFor ? new Date(right.scheduledFor).getTime() : Number.MAX_SAFE_INTEGER
+    if (leftScheduled !== rightScheduled) return leftScheduled - rightScheduled
+
+    const leftCreated = new Date(left.createdAt).getTime()
+    const rightCreated = new Date(right.createdAt).getTime()
+    return rightCreated - leftCreated
+  })
 }
 
 function getLastVisitType(lastVisit: VisitHistoryEntry | undefined): string | null {
@@ -170,6 +220,7 @@ async function getVisitTrackerData(): Promise<{
   const pendingInboundEmailCountByStore = new Map<string, number>()
   const inboundEmailVisitNeedReasonsByStore = new Map<string, Set<string>>()
   const visitHistoryByStore = new Map<string, VisitHistoryEntry[]>()
+  const caseVisitsByStore = new Map<string, CaseVisitSummary[]>()
   const evidenceByVisitId = new Map<string, VisitHistoryEntry['evidenceFiles']>()
   const linkedReportsByVisitId = new Map<string, VisitHistoryEntry['linkedReports']>()
   const profileMap = new Map<string, string | null>()
@@ -245,7 +296,7 @@ async function getVisitTrackerData(): Promise<{
       }
     }
 
-    const [storeVisitsResult, routeVisitLogsResult] = await Promise.all([
+    const [storeVisitsResult, routeVisitLogsResult, caseVisitsResult] = await Promise.all([
       supabase
         .from('tfs_store_visits')
         .select(
@@ -260,6 +311,11 @@ async function getVisitTrackerData(): Promise<{
         .eq('action', 'ROUTE_VISIT_COMPLETED')
         .in('entity_id', storeIds)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('tfs_visits')
+        .select('id, case_id, store_id, visit_type, status, scheduled_for, assigned_user_id, created_at')
+        .in('store_id', storeIds)
+        .in('status', ['planned', 'in_progress']),
     ])
 
     if (storeVisitsResult.error) {
@@ -275,6 +331,10 @@ async function getVisitTrackerData(): Promise<{
       console.error('Error fetching route visit history:', routeVisitLogsResult.error)
     }
 
+    if (caseVisitsResult.error) {
+      console.error('Error fetching case-driven visits for visit tracker:', caseVisitsResult.error)
+    }
+
     const userIds = new Set<string>()
     const visitIds: string[] = []
 
@@ -286,6 +346,29 @@ async function getVisitTrackerData(): Promise<{
     for (const row of ((routeVisitLogsResult.data || []) as RouteVisitLogRow[])) {
       if (row.performed_by_user_id) userIds.add(row.performed_by_user_id)
     }
+
+    const openCaseVisits = (caseVisitsResult.data || []) as CaseVisitRow[]
+    const caseIds = Array.from(new Set(openCaseVisits.map((row) => row.case_id).filter(Boolean)))
+
+    for (const row of openCaseVisits) {
+      if (row.assigned_user_id) userIds.add(row.assigned_user_id)
+    }
+
+    const { data: caseRows, error: caseRowsError } =
+      caseIds.length > 0
+        ? await supabase
+            .from('tfs_cases')
+            .select('id, case_type, severity, stage, origin_reference, next_action_label, last_update_summary')
+            .in('id', caseIds)
+        : { data: [], error: null as { message?: string } | null }
+
+    if (caseRowsError) {
+      console.error('Error fetching case metadata for visit tracker:', caseRowsError)
+    }
+
+    const casesById = new Map(
+      ((caseRows || []) as CaseRow[]).map((row) => [row.id, row])
+    )
 
     const { data: unlinkedDraftReports, error: unlinkedDraftReportsError } = await supabase
       .from('tfs_visit_reports')
@@ -316,6 +399,40 @@ async function getVisitTrackerData(): Promise<{
           profileMap.set(profile.id, profile.full_name || null)
         }
       }
+    }
+
+    for (const row of openCaseVisits) {
+      const storeId = String(row.store_id || '')
+      const caseRow = casesById.get(row.case_id)
+      if (!storeId || !caseRow) continue
+
+      const existing = caseVisitsByStore.get(storeId) || []
+      const visitType = String(row.visit_type || 'follow_up').trim() || 'follow_up'
+
+      existing.push({
+        caseId: row.case_id,
+        visitId: row.id,
+        visitType: visitType as StoreVisitType,
+        visitStatus: row.status === 'in_progress' ? 'in_progress' : 'planned',
+        scheduledFor: row.scheduled_for,
+        assignedUserId: row.assigned_user_id || null,
+        assignedUserName: row.assigned_user_id ? profileMap.get(row.assigned_user_id) || null : null,
+        caseType: caseRow.case_type,
+        caseStage: caseRow.stage,
+        severity:
+          caseRow.severity === 'critical' || caseRow.severity === 'high' || caseRow.severity === 'medium'
+            ? caseRow.severity
+            : 'low',
+        originReference: caseRow.origin_reference,
+        nextActionLabel: caseRow.next_action_label,
+        lastUpdateSummary: caseRow.last_update_summary,
+        createdAt: row.created_at,
+      })
+      caseVisitsByStore.set(storeId, existing)
+    }
+
+    for (const [storeId, visits] of caseVisitsByStore.entries()) {
+      caseVisitsByStore.set(storeId, sortCaseVisits(visits))
     }
 
     if (visitIds.length > 0) {
@@ -499,10 +616,13 @@ async function getVisitTrackerData(): Promise<{
     const lastCompletedVisit = allVisits.find((visit) => visit.status !== 'draft')
     const displayLastVisit = lastCompletedVisit || activeDraftVisit || null
     const lastVisitDate = displayLastVisit?.visitedAt || null
-    const nextPlannedVisitDate = getActivePlannedVisitDate(
+    const legacyPlannedVisitDate = getActivePlannedVisitDate(
       store.compliance_audit_2_planned_date || null,
       lastCompletedVisit?.visitedAt || null
     )
+    const caseVisits = caseVisitsByStore.get(storeId) || []
+    const primaryCaseVisit = caseVisits[0] || null
+    const nextPlannedVisitDate = getDisplayPlannedVisitDate(legacyPlannedVisitDate, primaryCaseVisit)
 
     const assessment = computeStoreVisitNeed({
       actions: (openStoreActionsByStore.get(storeId) || []).map((action) => ({
@@ -523,7 +643,7 @@ async function getVisitTrackerData(): Promise<{
         occurredAt: incident.occurred_at,
       })),
       lastVisitAt: lastCompletedVisit?.visitedAt || null,
-      nextPlannedVisitDate,
+      nextPlannedVisitDate: nextPlannedVisitDate || legacyPlannedVisitDate,
     })
     const inboundEmailReasons = Array.from(inboundEmailVisitNeedReasonsByStore.get(storeId) || [])
 
@@ -541,19 +661,27 @@ async function getVisitTrackerData(): Promise<{
           ? `${getLastVisitType(displayLastVisit || undefined) || 'Visit logged'} (Draft in progress)`
           : getLastVisitType(displayLastVisit || undefined),
       nextPlannedVisitDate,
-      plannedVisitPurpose: String(store.compliance_audit_2_planned_purpose || '').trim() || null,
-      plannedVisitPurposeNote: String(store.compliance_audit_2_planned_note || '').trim() || null,
+      plannedVisitPurpose:
+        primaryCaseVisit?.visitType ||
+        String(store.compliance_audit_2_planned_purpose || '').trim() ||
+        null,
+      plannedVisitPurposeNote:
+        primaryCaseVisit?.lastUpdateSummary ||
+        primaryCaseVisit?.nextActionLabel ||
+        String(store.compliance_audit_2_planned_note || '').trim() ||
+        null,
       visitNeedScore: assessment.score,
       visitNeedLevel: assessment.level,
       visitNeeded: assessment.needsVisit,
       visitNeedReasons: [...inboundEmailReasons, ...assessment.reasons],
-      visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate),
+      visitState: buildVisitState(lastCompletedVisit || undefined, nextPlannedVisitDate, caseVisits.length > 0),
       openStoreActionCount: (openStoreActionsByStore.get(storeId) || []).length,
       openIncidentCount: (openIncidentsByStore.get(storeId) || []).length,
       pendingInboundEmailCount: pendingInboundEmailCountByStore.get(storeId) || 0,
       isActive: Boolean(store.is_active),
       recentVisits,
       activeDraftVisit,
+      caseVisits,
     } satisfies VisitTrackerRow
   })
 

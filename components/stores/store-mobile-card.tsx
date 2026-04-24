@@ -1,99 +1,125 @@
 'use client'
 
+import Link from 'next/link'
+import { AlertTriangle, ArrowUpRight, CheckCircle2, ClipboardList, MapPin, Navigation, XCircle } from 'lucide-react'
+
+import type { WorkspaceDensity } from '@/components/workspace/workspace-shell'
+import type { StoreDirectoryStore } from '@/components/stores/types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { MapPin, CheckCircle2, XCircle, AlertTriangle, ClipboardList, ArrowUpRight, Navigation } from 'lucide-react'
 import { formatStoreName } from '@/lib/store-display'
 import { getDisplayStoreCode } from '@/lib/utils'
-import Link from 'next/link'
+import { cn } from '@/lib/utils'
 
 interface StoreMobileCardProps {
-  store: any
+  store: StoreDirectoryStore
+  density?: WorkspaceDensity
+  selected?: boolean
 }
 
-export function StoreMobileCard({ store }: StoreMobileCardProps) {
+function getOpenIncidentCount(store: StoreDirectoryStore) {
+  return store.incidents.filter((incident) => !['closed', 'cancelled'].includes(String(incident.status || '').toLowerCase())).length
+}
+
+function getOpenActionCount(store: StoreDirectoryStore) {
+  return store.actions.filter((action) => !['complete', 'cancelled'].includes(String(action.status || '').toLowerCase())).length
+}
+
+export function StoreMobileCard({
+  store,
+  density = 'comfortable',
+  selected = false,
+}: StoreMobileCardProps) {
   const addressParts = [store.address_line_1, store.city, store.postcode].filter(Boolean)
   const fullAddress = addressParts.join(', ')
   const appleMapsUrl = fullAddress
     ? `https://maps.apple.com/?q=${encodeURIComponent(store.store_name)}&address=${encodeURIComponent(fullAddress)}`
     : null
+  const openIncidents = getOpenIncidentCount(store)
+  const openActions = getOpenActionCount(store)
 
   return (
-    <Card className="overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_14px_28px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_16px_32px_rgba(15,23,42,0.1)]">
-      <div className="border-b border-slate-200/80 bg-[linear-gradient(135deg,#fbfdff_0%,#f4f8ff_62%,#eef5f0_100%)] px-4 py-4">
-        <div className="flex items-start justify-between gap-2">
+    <Card
+      className={cn(
+        'overflow-hidden rounded-[1.5rem] transition-colors',
+        selected ? 'border-line-strong bg-surface-subtle/72' : 'bg-surface-raised',
+        density === 'compact' ? 'shadow-soft' : 'shadow-panel'
+      )}
+    >
+      <div className="border-b border-line bg-surface-subtle/72 px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Store Record</p>
-            <p className="mt-1 truncate text-[1.02rem] font-semibold tracking-[-0.01em] text-slate-900">{formatStoreName(store.store_name)}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">Store CRM</p>
+            <p className="mt-1 truncate text-[1.02rem] font-semibold tracking-[-0.01em] text-foreground">
+              {formatStoreName(store.store_name)}
+            </p>
           </div>
           {getDisplayStoreCode(store.store_code) ? (
-            <span className="inline-flex rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600 shadow-sm">
+            <span className="inline-flex rounded-full border border-line bg-surface-raised px-2.5 py-1 font-mono text-[11px] font-semibold text-ink-soft shadow-soft">
               {getDisplayStoreCode(store.store_code)}
             </span>
           ) : null}
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
-        <div className="flex items-start justify-between gap-2">
+      <div className={cn('space-y-4 p-4', density === 'compact' && 'space-y-3')}>
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-500">Compliance summary</p>
+            <p className="text-xs font-medium text-ink-muted">
+              {store.region || 'No region'}
+              {store.city ? ` • ${store.city}` : ''}
+            </p>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
-            {store.is_active ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                <CheckCircle2 className="h-3 w-3" />
-                Active
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                <XCircle className="h-3 w-3" />
-                Inactive
-              </span>
-            )}
-          </div>
+          {store.is_active ? (
+            <Badge variant="success" className="gap-1 px-2 py-0.5 text-[10px]">
+              <CheckCircle2 className="h-3 w-3" />
+              Active
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="gap-1 px-2 py-0.5 text-[10px]">
+              <XCircle className="h-3 w-3" />
+              Inactive
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+          <Badge variant={openIncidents > 0 ? 'critical' : 'secondary'} className="gap-1">
             <AlertTriangle className="h-3 w-3" />
-            {store.incidents?.length || 0} incidents
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+            {openIncidents} open incidents
+          </Badge>
+          <Badge variant={openActions > 0 ? 'warning' : 'secondary'} className="gap-1">
             <ClipboardList className="h-3 w-3" />
-            {store.actions?.length || 0} actions
-          </span>
+            {openActions} open actions
+          </Badge>
         </div>
 
-        {fullAddress && (
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-3.5">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Location</p>
+        {fullAddress ? (
+          <div className="rounded-[1.1rem] border border-line bg-surface-subtle/72 p-3.5">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Location</p>
             <div className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-              <span className="flex-1 text-sm text-slate-700">{fullAddress}</span>
+              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-muted" />
+              <span className="flex-1 text-sm text-ink-soft">{fullAddress}</span>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="flex gap-2 pt-1">
           {appleMapsUrl ? (
-            <a
-              href={appleMapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-            >
-              <Navigation className="h-4 w-4 text-slate-500" />
-              Open in Maps
-            </a>
+            <Button asChild variant="outline" className="flex-1 rounded-[1rem]">
+              <a href={appleMapsUrl} target="_blank" rel="noreferrer">
+                <Navigation className="h-4 w-4" />
+                Open in Maps
+              </a>
+            </Button>
           ) : null}
-          <Link
-            href={`/stores/${store.id}`}
-            prefetch={false}
-            className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-[18px] bg-[#143457] px-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(20,52,87,0.18)] transition-colors hover:bg-[#183c65]"
-          >
-            Open Record
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
+          <Button asChild className="flex-1 rounded-[1rem]">
+            <Link href={`/stores/${store.id}`} prefetch={false}>
+              Open Record
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
       </div>
     </Card>

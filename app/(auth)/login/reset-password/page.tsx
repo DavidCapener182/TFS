@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { AUTH_CARD_CLASS } from '@/components/auth/auth-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -120,7 +121,7 @@ function ResetPasswordContent() {
   if (success) {
     return (
       <AuthShell logoSize="compact" desktopLogoPosition="corner">
-          <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+          <Card className={AUTH_CARD_CLASS}>
             <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
               <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 Password set successfully
@@ -136,7 +137,7 @@ function ResetPasswordContent() {
 
   return (
     <AuthShell logoSize="compact" desktopLogoPosition="corner">
-        <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+        <Card className={AUTH_CARD_CLASS}>
           <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
             <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
               {(() => {
@@ -203,7 +204,7 @@ function ResetPasswordContent() {
                       {linkType === 'invite' ? (
                         <>
                           <Link href="/login/forgot-password">
-                            <Button variant="outline" className="w-full border-[#0e1925] text-[#0e1925] hover:bg-[#0e1925] hover:text-white">
+                            <Button variant="outline" className="w-full">
                               Reset Password
                             </Button>
                           </Link>
@@ -213,13 +214,13 @@ function ResetPasswordContent() {
                         </>
                       ) : (
                         <Link href="/login/forgot-password">
-                          <Button variant="outline" className="w-full border-[#0e1925] text-[#0e1925] hover:bg-[#0e1925] hover:text-white">
+                          <Button variant="outline" className="w-full">
                             Request New Reset Link
                           </Button>
                         </Link>
                       )}
                       <Link href="/login">
-                        <Button variant="ghost" className="w-full text-[#0e1925] hover:bg-[#0e1925]/10">
+                        <Button variant="ghost" className="w-full">
                           Back to Login
                         </Button>
                       </Link>
@@ -229,7 +230,7 @@ function ResetPasswordContent() {
               </div>
             )}
               {!isExpired && (
-                <Button type="submit" className="w-full bg-[#0e1925] hover:bg-[#1a2f3f] text-white" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Updating password...' : 'Update password'}
                 </Button>
               )}
@@ -244,7 +245,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <AuthShell logoSize="compact" desktopLogoPosition="corner">
-        <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+        <Card className={AUTH_CARD_CLASS}>
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">
               <p className="text-slate-600">Loading...</p>

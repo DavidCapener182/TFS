@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { Check, Clock, ExternalLink, Plus, Upload, X } from 'lucide-react'
 
+import { completeVisitOutcomeAction } from '@/app/actions/cases'
 import {
   completeStoreVisitSession,
   deleteDraftStoreVisitSession,
@@ -18,7 +19,8 @@ import {
   ActivityFieldGuidance,
   ActivityGuideCard,
 } from '@/components/visit-tracker/activity-guidance'
-import type { VisitTrackerRow } from '@/components/visit-tracker/types'
+import type { CaseVisitSummary, VisitTrackerRow } from '@/components/visit-tracker/types'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -32,6 +34,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
+import { getCaseStageTone, getCaseTypeLabel, getQueueSectionLabel } from '@/lib/cases/workflow'
 import type { StoreVisitProductCatalogItem } from '@/lib/store-visit-product-catalog'
 import {
   getEmptyActivityVisitReportPayload,
@@ -63,11 +66,13 @@ import {
 } from '@/lib/visit-needs'
 import { formatStoreName } from '@/lib/store-display'
 import { cn } from '@/lib/utils'
+import type { TfsVisitOutcome } from '@/types/db'
 
 interface StoreVisitModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   row: VisitTrackerRow | null
+  caseVisit?: CaseVisitSummary | null
   productCatalog: StoreVisitProductCatalogItem[]
   canEdit: boolean
   currentUserName: string | null
@@ -83,7 +88,45 @@ function getLocalDateTimeInputValue() {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16)
 }
 
-function getDefaultVisitType(row: VisitTrackerRow): StoreVisitType {
+const CASE_VISIT_OUTCOME_OPTIONS: Array<{
+  value: TfsVisitOutcome
+  label: string
+  description: string
+}> = [
+  {
+    value: 'no_further_action',
+    label: 'No further action',
+    description: 'The visit resolved the case and it can move toward closure.',
+  },
+  {
+    value: 'follow_up_visit_required',
+    label: 'Follow-up visit required',
+    description: 'A further return visit is needed and should stay open.',
+  },
+  {
+    value: 'store_action_created',
+    label: 'Create store action',
+    description: 'Create a store action from this visit outcome.',
+  },
+  {
+    value: 'incident_task_created',
+    label: 'Create incident task',
+    description: 'Create an incident-linked follow-up from this visit.',
+  },
+  {
+    value: 'escalated_to_manager',
+    label: 'Escalate to manager',
+    description: 'Keep the case open for manager review after the visit.',
+  },
+  {
+    value: 'report_required',
+    label: 'Report required',
+    description: 'Keep the case open until the formal report outcome is completed.',
+  },
+]
+
+function getDefaultVisitType(row: VisitTrackerRow, caseVisit?: CaseVisitSummary | null): StoreVisitType {
+  if (caseVisit?.visitType) return caseVisit.visitType
   if (row.nextPlannedVisitDate) return 'planned'
   if (row.visitNeeded) return 'action_led'
   return 'random_area'
@@ -689,7 +732,7 @@ function ActivityFormSection({
 
   return (
     <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <p className="mt-1 text-sm text-slate-500">{description}</p>
@@ -1087,7 +1130,7 @@ function VisitHistoryList({ row }: { row: VisitTrackerRow }) {
                 {visit.linkedReports.map((report) => (
                   <div
                     key={report.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div>
                       <div className="font-semibold text-slate-900">{report.title}</div>
@@ -1147,6 +1190,7 @@ export function StoreVisitModal({
   open,
   onOpenChange,
   row,
+  caseVisit = null,
   productCatalog,
   canEdit,
   currentUserName,
@@ -1162,6 +1206,10 @@ export function StoreVisitModal({
   const [activityFiles, setActivityFiles] = useState<ActivityFilesState>({})
   const [notes, setNotes] = useState('')
   const [followUpRequired, setFollowUpRequired] = useState(false)
+  const [linkCaseVisit, setLinkCaseVisit] = useState(false)
+  const [caseVisitOutcome, setCaseVisitOutcome] = useState<TfsVisitOutcome>('no_further_action')
+  const [caseTaskTitle, setCaseTaskTitle] = useState('')
+  const [caseTaskDueDate, setCaseTaskDueDate] = useState('')
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [mobileStep, setMobileStep] = useState<'details' | 'templates'>('details')
   const [error, setError] = useState<string | null>(null)
@@ -1176,7 +1224,7 @@ export function StoreVisitModal({
     setVisitType(
       row.activeDraftVisit?.visitType && row.activeDraftVisit.visitType !== 'route_completion'
         ? row.activeDraftVisit.visitType
-        : getDefaultVisitType(row)
+        : getDefaultVisitType(row, caseVisit)
     )
     setVisitedAt(
       row.activeDraftVisit?.visitedAt
@@ -1188,10 +1236,14 @@ export function StoreVisitModal({
     setActivityFiles({})
     setNotes(row.activeDraftVisit?.notes || '')
     setFollowUpRequired(Boolean(row.activeDraftVisit?.followUpRequired))
+    setLinkCaseVisit(Boolean(caseVisit))
+    setCaseVisitOutcome('no_further_action')
+    setCaseTaskTitle('')
+    setCaseTaskDueDate('')
     setIsHistoryOpen(false)
     setMobileStep('details')
     setError(null)
-  }, [open, row])
+  }, [caseVisit, open, row])
 
   if (!row) return null
 
@@ -1204,6 +1256,22 @@ export function StoreVisitModal({
     selectedActivityKeys.includes(option.key)
   )
   const plannedTemplateType = getPlannedTemplateType(row)
+  const requiresCaseTaskDetails =
+    caseVisitOutcome === 'store_action_created' || caseVisitOutcome === 'incident_task_created'
+
+  const finalizeLinkedCaseVisit = async (linkedStoreVisitId: string, fallbackSummary: string) => {
+    if (!caseVisit || !linkCaseVisit) return
+
+    await completeVisitOutcomeAction({
+      caseId: caseVisit.caseId,
+      visitId: caseVisit.visitId,
+      linkedStoreVisitId,
+      outcome: caseVisitOutcome,
+      summary: notes.trim() || fallbackSummary,
+      taskTitle: requiresCaseTaskDetails ? caseTaskTitle.trim() || undefined : undefined,
+      taskDueDate: requiresCaseTaskDetails ? caseTaskDueDate || undefined : undefined,
+    })
+  }
 
   const updateActivityPayload = (
     key: StoreVisitActivityKey,
@@ -1487,7 +1555,7 @@ export function StoreVisitModal({
     setError(null)
     startCompleteVisit(async () => {
       try {
-        await completeStoreVisitSession({
+        const visit = await completeStoreVisitSession({
           visitId: visitSessionId,
           storeId: row.storeId,
           visitType,
@@ -1499,11 +1567,30 @@ export function StoreVisitModal({
           needReasonsSnapshot: row.visitNeedReasons,
         })
 
+        let caseSyncError: string | null = null
+        if (caseVisit && linkCaseVisit) {
+          try {
+            await finalizeLinkedCaseVisit(visit.id, 'Case visit completed from the visit tracker.')
+          } catch (syncError) {
+            caseSyncError = toErrorMessage(syncError)
+          }
+        }
+
         toast({
           title: 'Visit completed',
-          description: `${formatStoreName(row.storeName)} has been logged in Stores.`,
+          description: caseSyncError
+            ? `${formatStoreName(row.storeName)} was logged, but the linked case still needs updating.`
+            : `${formatStoreName(row.storeName)} has been logged in Stores.`,
           variant: 'success',
         })
+
+        if (caseSyncError) {
+          toast({
+            title: 'Case follow-up still open',
+            description: caseSyncError,
+            variant: 'destructive',
+          })
+        }
 
         setVisitSessionId(null)
         onOpenChange(false)
@@ -1539,11 +1626,30 @@ export function StoreVisitModal({
           needReasonsSnapshot: row.visitNeedReasons,
         })
 
+        let caseSyncError: string | null = null
+        if (caseVisit && linkCaseVisit) {
+          try {
+            await finalizeLinkedCaseVisit(visit.id, 'Case visit logged from the visit tracker.')
+          } catch (syncError) {
+            caseSyncError = toErrorMessage(syncError)
+          }
+        }
+
         toast({
           title: 'Visit logged',
-          description: `${formatStoreName(row.storeName)} has been updated in Stores.`,
+          description: caseSyncError
+            ? `${formatStoreName(row.storeName)} was logged, but the linked case still needs updating.`
+            : `${formatStoreName(row.storeName)} has been updated in Stores.`,
           variant: 'success',
         })
+
+        if (caseSyncError) {
+          toast({
+            title: 'Case follow-up still open',
+            description: caseSyncError,
+            variant: 'destructive',
+          })
+        }
 
         onOpenChange(false)
         router.refresh()
@@ -1588,7 +1694,7 @@ export function StoreVisitModal({
       <DialogContent className="max-h-[92vh] gap-0 overflow-y-auto p-0 md:top-4 md:h-[calc(100vh-2rem)] md:max-h-[calc(100vh-2rem)] md:w-[calc(100vw-2rem)] md:max-w-none md:overflow-hidden md:rounded-[2rem] md:p-0">
         <div className="flex h-full min-h-0 flex-col bg-white">
           <DialogHeader className="border-b border-slate-200 bg-[linear-gradient(145deg,#f8fafc_0%,#ffffff_55%,#f6f2fe_100%)] px-6 py-5 md:px-8 md:py-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <DialogTitle className="text-2xl font-bold text-slate-900">
                   {formatStoreName(row.storeName)}
@@ -1709,6 +1815,104 @@ export function StoreVisitModal({
                     </div>
                   </div>
 
+                  {caseVisit ? (
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Linked case follow-up
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {caseVisit.originReference || getCaseTypeLabel(caseVisit.caseType)}
+                            </span>
+                            <Badge variant={getCaseStageTone(caseVisit.caseStage)}>
+                              {getQueueSectionLabel(caseVisit.caseStage)}
+                            </Badge>
+                            <Badge variant="outline">{getCaseTypeLabel(caseVisit.caseType)}</Badge>
+                          </div>
+                          <div className="mt-2 text-xs leading-relaxed text-slate-500">
+                            {caseVisit.nextActionLabel || caseVisit.lastUpdateSummary || 'This visit is linked to an open case follow-up.'}
+                          </div>
+                          <div className="mt-2 text-xs text-slate-500">
+                            {caseVisit.scheduledFor
+                              ? `Scheduled ${format(new Date(caseVisit.scheduledFor), 'dd MMM yyyy HH:mm')}`
+                              : 'No scheduled time is set yet'}
+                            {caseVisit.assignedUserName ? ` • ${caseVisit.assignedUserName}` : ''}
+                          </div>
+                        </div>
+                        <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={linkCaseVisit}
+                            onChange={(event) => setLinkCaseVisit(event.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-slate-300"
+                          />
+                          <span>
+                            Link this visit to the open case.
+                            <span className="mt-1 block text-xs text-slate-500">
+                              Turn this off if you are logging a separate random in-area call instead.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+
+                      {linkCaseVisit ? (
+                        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="case-visit-outcome">Case visit outcome</Label>
+                            <Select
+                              value={caseVisitOutcome}
+                              onValueChange={(value) => setCaseVisitOutcome(value as TfsVisitOutcome)}
+                            >
+                              <SelectTrigger id="case-visit-outcome" className="min-h-[46px]">
+                                <SelectValue placeholder="Select case outcome" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CASE_VISIT_OUTCOME_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-slate-500">
+                              {CASE_VISIT_OUTCOME_OPTIONS.find((option) => option.value === caseVisitOutcome)?.description}
+                            </p>
+                          </div>
+
+                          {requiresCaseTaskDetails ? (
+                            <div className="space-y-2">
+                              <Label htmlFor="case-task-title">
+                                {caseVisitOutcome === 'incident_task_created' ? 'Incident task title' : 'Store action title'}
+                              </Label>
+                              <Input
+                                id="case-task-title"
+                                value={caseTaskTitle}
+                                onChange={(event) => setCaseTaskTitle(event.target.value)}
+                                placeholder="Capture the follow-up created from this visit"
+                                className="min-h-[46px]"
+                              />
+                            </div>
+                          ) : null}
+
+                          {requiresCaseTaskDetails ? (
+                            <div className="space-y-2">
+                              <Label htmlFor="case-task-due-date">Follow-up due date</Label>
+                              <Input
+                                id="case-task-due-date"
+                                type="date"
+                                value={caseTaskDueDate}
+                                onChange={(event) => setCaseTaskDueDate(event.target.value)}
+                                className="min-h-[46px]"
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {!canSave && visitsUnavailableMessage ? (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                       {visitsUnavailableMessage}
@@ -1739,6 +1943,11 @@ export function StoreVisitModal({
                       <p className="text-xs text-slate-500">
                         {STORE_VISIT_TYPE_OPTIONS.find((option) => option.value === visitType)?.description}
                       </p>
+                      {caseVisit ? (
+                        <p className="text-xs text-slate-500">
+                          Random in-area visits remain available here if the officer ends up making an ad-hoc call instead of the planned follow-up.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="space-y-2">
@@ -1755,7 +1964,7 @@ export function StoreVisitModal({
 
                   {visitSessionId ? (
                     <div className="rounded-3xl border border-[#dcd6ef] bg-[#f6f2fe] p-5 shadow-sm">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-wide text-[#4b3a78]">
                             Draft visit session in progress
@@ -1895,7 +2104,7 @@ export function StoreVisitModal({
                       <div className="space-y-3">
                         {row.activeDraftVisit.linkedReports.map((report) => (
                           <div key={report.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                               <div>
                                 <div className="font-semibold text-slate-900">{report.title}</div>
                                 <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">

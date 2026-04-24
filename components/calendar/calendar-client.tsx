@@ -24,6 +24,7 @@ import {
 import { CalendarDayEvent } from './calendar-day-event'
 import { CalendarEventModal } from './calendar-event-modal'
 import type { CalendarAction, CalendarData, CalendarIncident, CalendarVisit, CompletedStore, PlannedRoute } from '@/app/actions/calendar'
+import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 
 interface CalendarClientProps {
   initialData: CalendarData
@@ -271,42 +272,29 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 text-white sm:p-4 md:rounded-3xl md:p-8">
-        <div className="tfs-page-hero-orb-top" />
-        <div className="tfs-page-hero-orb-bottom" />
+    <WorkspaceShell>
+      <WorkspaceHeader
+        eyebrow="Calendar"
+        icon={CalendarIcon}
+        title={format(currentDate, 'MMMM yyyy')}
+        description="Monthly schedule for planned visits and completed compliance activity across your managed regions."
+      />
 
-        <div className="tfs-page-hero-body flex flex-col gap-3 md:gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
-              <CalendarIcon size={14} />
-              Calendar Overview
-            </div>
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">{format(currentDate, 'MMMM yyyy')}</h1>
-            <p className="mt-1 max-w-xl text-xs leading-snug text-white/75 sm:text-sm">
-              Monthly schedule for planned visits and completed compliance activity across your managed regions.
-            </p>
-          </div>
-
-          <div className="grid w-full grid-cols-3 gap-1.5 md:gap-3 lg:w-auto">
-            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Routes</p>
-              <p className="text-lg font-bold leading-none text-white md:text-2xl">{totalPlannedRoutes}</p>
-            </div>
-            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Completed</p>
-              <p className="text-lg font-bold leading-none text-white md:text-2xl">{totalCompletedStores}</p>
-            </div>
-            <div className="rounded-lg border p-2.5 text-center tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/65">Active Days</p>
-              <p className="text-lg font-bold leading-none text-white md:text-2xl">{activeDays}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat label="Routes" value={totalPlannedRoutes} note="Planned routes scheduled this month" icon={Navigation} tone="info" />
+        <WorkspaceStat label="Completed" value={totalCompletedStores} note="Stores completed in the selected month" icon={CheckCircle2} tone="success" />
+        <WorkspaceStat label="Active days" value={activeDays} note="Days with planned or completed activity" icon={Clock} tone="warning" />
+        <WorkspaceStat
+          label="Top manager"
+          value={topManager ? topManager.managerName : '—'}
+          note={topManager ? `${topManager.utilizationPct}% utilisation` : 'No planned route capacity yet'}
+          icon={Users}
+          tone="neutral"
+        />
+      </WorkspaceStatGrid>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <Users size={18} className="text-blue-500" />
             Manager Capacity
@@ -691,6 +679,6 @@ export function CalendarClient({ initialData }: CalendarClientProps) {
       </div>
 
       {selectedEvent ? <CalendarEventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} /> : null}
-    </div>
+    </WorkspaceShell>
   )
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { createCaseFromStorePortalIncident } from '@/lib/cases/service'
 import { clearStorePortalCode, getStorePortalCode, setStorePortalCode } from '@/lib/store-portal-auth'
 import { searchStoreVisitProducts } from '@/lib/store-visit-product-catalog'
 
@@ -245,6 +246,16 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
 
   if (error) throw new Error(`Could not submit report: ${error.message}`)
 
+  await createCaseFromStorePortalIncident({
+    incidentId: data.id,
+    referenceNo: data.reference_no,
+    storeId: String(store.id),
+    summary: resolvedSummary,
+    severity: resolvedSeverity,
+    personsInvolved: personsInvolvedPayload,
+  })
+
+  revalidatePath('/queue')
   revalidatePath('/dashboard')
   revalidatePath('/incidents')
   revalidatePath('/stores')

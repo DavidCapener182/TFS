@@ -13,6 +13,8 @@ import { formatStoreName } from '@/lib/store-display'
 
 interface IncidentMobileCardProps {
   incident: any
+  /** Shown in UI / delete confirm; defaults to `incident.reference_no` */
+  referenceLabel?: string
 }
 
 function formatCompactDate(value: string | null | undefined) {
@@ -22,7 +24,8 @@ function formatCompactDate(value: string | null | undefined) {
   return format(parsed, 'dd MMM')
 }
 
-export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
+export function IncidentMobileCard({ incident, referenceLabel }: IncidentMobileCardProps) {
+  const refText = referenceLabel ?? incident.reference_no
   const category = incident.incident_category?.split('_').map((w: string) => 
     w.charAt(0).toUpperCase() + w.slice(1)
   ).join(' ') || 'Uncategorized'
@@ -42,7 +45,7 @@ export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
           <div className="flex flex-col gap-0.5 min-w-0 pr-2">
             <Link href={`/incidents/${incident.id}`} className="block">
               <span className="font-mono text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-                {incident.reference_no}
+                {refText}
               </span>
             </Link>
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -61,7 +64,7 @@ export function IncidentMobileCard({ incident }: IncidentMobileCardProps) {
               </Button>
             </Link>
             <div className="scale-90">
-                <DeleteIncidentButton incidentId={incident.id} referenceNo={incident.reference_no} />
+                <DeleteIncidentButton incidentId={incident.id} referenceNo={refText} />
             </div>
           </div>
         </div>

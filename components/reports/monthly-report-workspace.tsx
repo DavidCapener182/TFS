@@ -2,16 +2,29 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BarChart3, CalendarDays, Download, RefreshCw, RotateCcw } from 'lucide-react'
+import { AlertTriangle, BarChart3, CalendarDays, Download, FileText, RefreshCw, RotateCcw, Store } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  WorkspaceHeader,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+  WorkspaceToolbar,
+  WorkspaceToolbarGroup,
+} from '@/components/workspace/workspace-shell'
 import { toast } from '@/hooks/use-toast'
-import type { MonthlyReportData } from '@/lib/reports/monthly-report'
+import {
+  getMonthlyTheftRowKindLabel,
+  MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY,
+  type MonthlyReportData,
+} from '@/lib/reports/monthly-report'
 import { formatStoreName } from '@/lib/store-display'
 import { formatAppDate, getDisplayStoreCode, parseContentDispositionFilename } from '@/lib/utils'
 
@@ -20,9 +33,13 @@ interface MonthlyReportWorkspaceProps {
   canEdit: boolean
 }
 
-function getRowSourceLabel(source: MonthlyReportData['rows'][number]['source']) {
-  if (source === 'report') return 'Final template'
-  if (source === 'incident') return 'Incident email'
+function getRowSourceLabel(row: MonthlyReportData['rows'][number]) {
+  if (row.source === 'report') return 'Final template'
+  if (row.source === 'incident') {
+    return row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
+      ? 'Store portal theft'
+      : 'Incident email'
+  }
   return 'Completed visit'
 }
 
@@ -278,46 +295,75 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
   }
 
   return (
-    <div className="min-w-0 space-y-6 overflow-x-hidden pb-24 md:pb-0">
-      <div className="relative min-w-0 overflow-hidden rounded-3xl bg-[linear-gradient(145deg,#10223d_0%,#17304f_52%,#23567a_100%)] p-4 text-white shadow-[0_20px_44px_rgba(16,34,61,0.18)] sm:p-5 md:p-8">
-        <div className="absolute right-0 top-0 h-72 w-72 translate-x-1/3 -translate-y-1/2 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-56 w-56 -translate-x-1/3 translate-y-1/3 rounded-full bg-[#5fc2ff]/20 blur-3xl" />
-
-        <div className="relative z-10 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0 max-w-3xl">
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-sky-100/80">
-              <BarChart3 className="h-4 w-4" />
-              Monthly Reports
-            </div>
-            <h1 className="text-[2rem] font-bold tracking-tight sm:text-2xl md:text-3xl">LP Monthly Report</h1>
-            <p className="mt-2 whitespace-normal break-words text-[13px] leading-snug text-white/75 sm:text-sm">
-              <span className="sm:hidden">
-                Monthly view of LP activity, store visits, theft emails, and completed templates.
-              </span>
-              <span className="hidden sm:inline">
-                Monthly view of completed LP activity, store visits, reported theft emails, and completed report templates.
-              </span>
-            </p>
-            <p className="mt-2 hidden whitespace-normal break-words text-xs leading-snug text-white/60 sm:block">
-              The detail text is auto-filled from completed visit templates and theft emails. Add or amend wording before printing if needed.
-            </p>
+    <WorkspaceShell className="min-w-0 overflow-x-hidden pb-24 md:pb-0">
+      <WorkspaceHeader
+        eyebrow="Monthly Reports"
+        icon={BarChart3}
+        title={`${data.period.label} monthly report`}
+        description="Monthly view of completed LP activity, store visits, reported thefts (emails and store portal), and completed report templates."
+        actions={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Badge variant={canEdit ? 'success' : 'outline'}>
+              {canEdit ? 'Editable' : 'Read only'}
+            </Badge>
+            {isPending ? (
+              <Badge variant="info">
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Updating month
+              </Badge>
+            ) : null}
           </div>
+        }
+      />
 
-          <div className="w-full min-w-0 max-w-full space-y-2 lg:w-auto lg:max-w-[360px] lg:space-y-2">
-            <div className="flex w-full min-w-0 items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
-              <CalendarDays className="h-4 w-4 text-white/75" />
+      <WorkspaceStatGrid>
+        <WorkspaceStat
+          label="Stores Visited"
+          value={data.summary.storesVisited}
+          note={data.period.label}
+          icon={Store}
+          tone="success"
+        />
+        <WorkspaceStat
+          label="Incidents Reported"
+          value={data.summary.incidentsReported}
+          note="Monthly incident coverage"
+          icon={AlertTriangle}
+          tone="warning"
+        />
+        <WorkspaceStat
+          label="Rows Ready"
+          value={activityRows.length + theftRows.length}
+          note={`${theftRows.length} theft entries included`}
+          icon={FileText}
+          tone="info"
+        />
+        <WorkspaceStat
+          label="Theft Value"
+          value={formatCurrency(theftTotalValueGbp)}
+          note={`${editableCount} edited row${editableCount === 1 ? '' : 's'}`}
+          icon={BarChart3}
+          tone="critical"
+        />
+      </WorkspaceStatGrid>
+
+      <WorkspaceToolbar sticky={false}>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <WorkspaceToolbarGroup className="flex-wrap">
+            <div className="flex min-w-[220px] items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1.5">
+              <CalendarDays className="h-4 w-4 text-ink-soft" />
               <Input
                 type="month"
                 value={selectedMonth}
                 onChange={(event) => handleMonthChange(event.target.value)}
-                className="h-10 min-h-0 min-w-0 border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/50 focus-visible:ring-white/40"
+                className="h-10 min-h-0 min-w-0 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
             <Button
               type="button"
               variant="outline"
               onClick={() => handleMonthChange(shiftMonth(selectedMonth, -1))}
-              className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+              className="rounded-full"
             >
               Previous
             </Button>
@@ -325,22 +371,25 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
               type="button"
               variant="outline"
               onClick={() => handleMonthChange(shiftMonth(selectedMonth, 1))}
-              className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+              className="rounded-full"
             >
               Next
             </Button>
+          </WorkspaceToolbarGroup>
+
+          <WorkspaceToolbarGroup className="justify-end">
             <Button
               type="button"
-              variant="outline"
               onClick={handleDownloadPdf}
-              className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+              disabled={isDownloadingPdf}
+              className="rounded-full"
             >
               <Download className="mr-2 h-4 w-4" />
-              {isDownloadingPdf ? 'Building PDF...' : 'PDF'}
+              {isDownloadingPdf ? 'Building PDF...' : 'Download PDF'}
             </Button>
-          </div>
+          </WorkspaceToolbarGroup>
         </div>
-      </div>
+      </WorkspaceToolbar>
 
       {data.warnings.length > 0 ? (
         <Card className="border border-amber-200 bg-amber-50">
@@ -528,7 +577,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
                           {formatAppDate(row.visitedAt, { day: '2-digit', month: 'short', year: 'numeric' })}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">
-                          {getRowSourceLabel(row.source)}
+                          {getRowSourceLabel(row)}
                         </div>
                       </TableCell>
                       <TableCell className="align-top">
@@ -607,13 +656,14 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
         <CardHeader className="pb-4">
           <CardTitle>Thefts Reported</CardTitle>
           <CardDescription>
-            Theft emails reported that month, including stolen lines and any value captured in the email.
+            Store thefts reported that month via LP email analysis or the store portal, including stolen lines and
+            captured values.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
           {theftRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-              No theft emails were reported for {data.period.label}.
+              No store thefts were reported for {data.period.label}.
             </div>
           ) : (
             <div className="space-y-4">
@@ -637,7 +687,7 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
                           <div className="font-medium text-slate-900">
                             {formatAppDate(row.visitedAt, { day: '2-digit', month: 'short', year: 'numeric' })}
                           </div>
-                          <div className="mt-1 text-xs text-slate-500">Theft email</div>
+                          <div className="mt-1 text-xs text-slate-500">{getMonthlyTheftRowKindLabel(row)}</div>
                         </TableCell>
                         <TableCell className="align-top">
                           {row.storeId ? (
@@ -657,7 +707,9 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
                         <TableCell className="align-top">
                           <div className="space-y-3">
                             <div className="text-xs text-slate-500">
-                              Auto-filled from theft email analysis. Edit the wording or value details below if needed.
+                              {row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
+                                ? 'Submitted from the store portal. Edit the wording or value details below if needed.'
+                                : 'Auto-filled from theft email analysis. Edit the wording or value details below if needed.'}
                             </div>
                             {canEdit ? (
                               <Textarea
@@ -713,6 +765,6 @@ export function MonthlyReportWorkspace({ data, canEdit }: MonthlyReportWorkspace
           Loading monthly report...
         </div>
       ) : null}
-    </div>
+    </WorkspaceShell>
   )
 }

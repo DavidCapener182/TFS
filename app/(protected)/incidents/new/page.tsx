@@ -15,6 +15,8 @@ import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatStoreName } from '@/lib/store-display'
 import { shouldHideStore } from '@/lib/store-normalization'
+import { WorkspaceHeader, WorkspaceShell } from '@/components/workspace/workspace-shell'
+import { AlertTriangle } from 'lucide-react'
 
 const incidentSchema = z.object({
   store_id: z.string().min(1, 'Store is required'),
@@ -93,11 +95,13 @@ function NewIncidentPageContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">New Incident</h1>
-        <p className="text-muted-foreground mt-1">Report a new incident</p>
-      </div>
+    <WorkspaceShell className="space-y-6 p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Incidents"
+        icon={AlertTriangle}
+        title="Log new incident"
+        description="Create a new incident record and route it into the operational workflow."
+      />
 
       <Card>
         <CardHeader>
@@ -234,7 +238,7 @@ function NewIncidentPageContent() {
           </Form>
         </CardContent>
       </Card>
-    </div>
+    </WorkspaceShell>
   )
 }
 
@@ -242,11 +246,13 @@ export default function NewIncidentPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">New Incident</h1>
-            <p className="text-muted-foreground mt-1">Report a new incident</p>
-          </div>
+        <WorkspaceShell className="space-y-6 p-4 md:p-6">
+          <WorkspaceHeader
+            eyebrow="Incidents"
+            icon={AlertTriangle}
+            title="Log new incident"
+            description="Create a new incident record and route it into the operational workflow."
+          />
 
           <Card>
             <CardHeader>
@@ -256,7 +262,7 @@ export default function NewIncidentPage() {
               <p className="text-sm text-muted-foreground">Loading incident form...</p>
             </CardContent>
           </Card>
-        </div>
+        </WorkspaceShell>
       }
     >
       <NewIncidentPageContent />

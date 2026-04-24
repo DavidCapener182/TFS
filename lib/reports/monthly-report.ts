@@ -1,5 +1,6 @@
-import { buildDeterministicMonthlyVisitSummary } from '@/lib/ai/monthly-report-summarize'
+import { buildDeterministicMonthlyVisitSummary } from '@/lib/ai/monthly-report-deterministic-summary'
 import { type createClient } from '@/lib/supabase/server'
+import { buildIncidentDisplayReferenceMap } from '@/lib/incidents/incident-reference-display'
 import { extractLinkedVisitReportId } from '@/lib/incidents/incident-utils'
 import { buildVisitReportSourceMarker } from '@/lib/reports/visit-report-follow-ups'
 import { formatStoreName } from '@/lib/store-display'
@@ -116,6 +117,21 @@ type MonthlyLinkedActionRow = {
   updated_at: string | null
 }
 
+type MonthlyStorePortalTheftIncidentRow = {
+  id: string
+  store_id: string
+  summary: string | null
+  description: string | null
+  reference_no: string | null
+  occurred_at: string | null
+  reported_at: string | null
+  created_at: string
+  persons_involved: unknown
+  tfs_stores: RelatedStoreRow | RelatedStoreRow[] | null
+}
+
+export const MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY = 'store_portal_theft' as const
+
 export interface MonthlyReportRow {
   id: string
   storeId: string | null
@@ -131,6 +147,13 @@ export interface MonthlyReportRow {
   incidentTemplateKey: string | null
   incidentCategory: 'theft' | 'other' | null
   theftValueGbp: number | null
+}
+
+export function getMonthlyTheftRowKindLabel(row: MonthlyReportRow) {
+  if (row.source !== 'incident' || row.incidentCategory !== 'theft') return 'Incident'
+  return row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
+    ? 'Store portal theft'
+    : 'Theft email'
 }
 
 export interface MonthlyReportData {
@@ -877,6 +900,140 @@ function getSortTime(value: string) {
   return Number.isNaN(time) ? 0 : time
 }
 
+function getStorePortalTheftMeta(personsInvolved: unknown): Record<string, unknown> | null {
+  if (!personsInvolved || typeof personsInvolved !== 'object' || Array.isArray(personsInvolved)) return null
+  const meta = personsInvolved as Record<string, unknown>
+  if (meta.reportType !== 'theft' || meta.source !== 'store_portal') return null
+  return meta
+}
+
+function formatStorePortalTheftLineItem(item: unknown) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+  const rec = item as Record<string, unknown>
+  const title = toText(String(rec.title || ''))
+  if (!title) return null
+  const quantity = Math.max(1, Number(rec.quantity) || 1)
+  const unitPrice = Number(rec.unitPrice)
+  const lineTotal =
+    Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice * quantity : null
+  const valueSuffix =
+    typeof lineTotal === 'number' && Number.isFinite(lineTotal) && lineTotal > 0
+      ? ` - Line value ${formatCurrency(Math.round(lineTotal * 100) / 100)}`
+      : ''
+  return `${quantity} x ${title}${valueSuffix}`
+}
+
+function getStorePortalTheftValueGbp(meta: Record<string, unknown>): number | null {
+  const raw = Number(meta.theftValueGbp)
+  if (!Number.isFinite(raw) || raw <= 0) return null
+  return Math.round(raw * 100) / 100
+}
+
+function buildStorePortalTheftIncidentDetails(
+  incident: MonthlyStorePortalTheftIncidentRow,
+  meta: Record<string, unknown>,
+  incidentReferenceDisplay?: string | null
+) {
+  const items = Array.isArray(meta.theftItems) ? meta.theftItems : []
+  const lineStrings = items.map(formatStorePortalTheftLineItem).filter((line): line is string => Boolean(line))
+  const valueGbp = getStorePortalTheftValueGbp(meta)
+  const reference =
+    toText(incidentReferenceDisplay) || toText(incident.reference_no)
+  const summary = toText(incident.summary)
+  const description = toText(incident.description)
+
+  return uniqueLines([
+    'Theft reported via store portal.',
+    reference ? `Reference: ${reference}` : null,
+    summary ? `Summary: ${summary}` : null,
+    description ? `Notes: ${truncateMonthlyText(description, 280)}` : null,
+    ...(lineStrings.length > 0 ? (['Lines stolen:'] as string[]).concat(lineStrings) : ['Lines stolen: Not stated']),
+    valueGbp !== null
+      ? `Reported total value: ${formatCurrency(valueGbp)}`
+      : 'Reported total value: Not stated',
+    meta.hasTheftBeenReported === true ? 'Police / LP crime report: Confirmed submitted.' : null,
+    meta.adjustedThroughTill === true ? 'Stock adjusted through till: Yes.' : null,
+    meta.stockRecovered === true ? 'Stock recovered: Yes.' : null,
+  ]).join('\n')
+}
+
+function monthlyStorePortalTheftSortIso(incident: MonthlyStorePortalTheftIncidentRow) {
+  const primary = toText(incident.occurred_at)
+  if (primary) return primary
+  return toText(incident.reported_at) || toText(incident.created_at)
+}
+
+async function getStorePortalTheftIncidentsForMonthlyReport(
+  supabase: SupabaseClient,
+  period: ReturnType<typeof getMonthlyPeriod>,
+  warnings: string[]
+): Promise<MonthlyStorePortalTheftIncidentRow[]> {
+  async function loadFromTable(table: 'tfs_incidents' | 'tfs_closed_incidents') {
+    const select = `
+      id,
+      store_id,
+      summary,
+      description,
+      reference_no,
+      occurred_at,
+      reported_at,
+      created_at,
+      persons_involved,
+      tfs_stores:store_id(store_name, store_code)
+    `
+
+    const runQuery = async (column: 'occurred_at' | 'reported_at') => {
+      const result = await supabase
+        .from(table)
+        .select(select)
+        .eq('persons_involved->>reportType', 'theft')
+        .eq('persons_involved->>source', 'store_portal')
+        .gte(column, period.start)
+        .lt(column, period.endExclusive)
+
+      if (result.error) {
+        console.error(`Error fetching ${table} store portal thefts (${column}):`, result.error)
+        return { rows: [] as MonthlyStorePortalTheftIncidentRow[], error: true as const }
+      }
+
+      return { rows: (result.data || []) as MonthlyStorePortalTheftIncidentRow[], error: false as const }
+    }
+
+    const results = await Promise.all([runQuery('occurred_at'), runQuery('reported_at')])
+    const storePortalWarning =
+      'Some store portal theft rows could not be fully loaded for this month.'
+    if (results.some((entry) => entry.error) && !warnings.includes(storePortalWarning)) {
+      warnings.push(storePortalWarning)
+    }
+
+    const merged = new Map<string, MonthlyStorePortalTheftIncidentRow>()
+    for (const { rows } of results) {
+      for (const row of rows) {
+        if (!row?.id) continue
+        if (!getStorePortalTheftMeta(row.persons_involved)) continue
+        merged.set(row.id, row)
+      }
+    }
+
+    return Array.from(merged.values())
+  }
+
+  const [openRows, closedRows] = await Promise.all([
+    loadFromTable('tfs_incidents'),
+    loadFromTable('tfs_closed_incidents'),
+  ])
+
+  const byId = new Map<string, MonthlyStorePortalTheftIncidentRow>()
+  for (const row of openRows) {
+    if (row?.id) byId.set(row.id, row)
+  }
+  for (const row of closedRows) {
+    if (row?.id && !byId.has(row.id)) byId.set(row.id, row)
+  }
+
+  return Array.from(byId.values())
+}
+
 function formatMonthlyDate(value: string | null | undefined) {
   const candidate = String(value || '').trim()
   if (!candidate) return null
@@ -1215,16 +1372,28 @@ export async function buildMonthlyReportData(
   const period = getMonthlyPeriod(month)
   const warnings: string[] = []
 
-  const [visits, reports, incidentsReported, incidentEmails] = await Promise.all([
+  const [visits, reports, incidentsReported, incidentEmails, storePortalTheftIncidents] = await Promise.all([
     getCompletedStoreVisits(supabase, period, warnings),
     getCompletedVisitReports(supabase, period, warnings),
     getIncidentEmailCount(supabase, period, warnings),
     getIncidentEmailRows(supabase, period, warnings),
+    getStorePortalTheftIncidentsForMonthlyReport(supabase, period, warnings),
   ])
   const { incidentsByReportId, actionsByIncidentId } = await getLinkedVisitReportFollowUpData(
     supabase,
     reports,
     warnings
+  )
+
+  const storePortalIncidentDisplayRefs = await buildIncidentDisplayReferenceMap(
+    supabase,
+    storePortalTheftIncidents.map((incident) => ({
+      id: incident.id,
+      reference_no: incident.reference_no,
+      occurred_at: incident.occurred_at,
+      store_id: incident.store_id,
+      tfs_stores: incident.tfs_stores,
+    }))
   )
 
   const reportsByVisitId = new Map<string, MonthlyVisitReportRow[]>()
@@ -1352,6 +1521,36 @@ export async function buildMonthlyReportData(
       incidentTemplateKey: email.analysis_template_key,
       incidentCategory,
       theftValueGbp: incidentCategory === 'theft' ? getDisplayedTheftValueGbp(email, theftLineItems) : null,
+    })
+  }
+
+  for (const incident of storePortalTheftIncidents) {
+    const meta = getStorePortalTheftMeta(incident.persons_involved)
+    if (!meta) continue
+
+    const store = getRelatedRow(incident.tfs_stores)
+    const { storeName, storeCode } = getStoreLabelParts(store)
+    const displayReference =
+      String(storePortalIncidentDisplayRefs.get(incident.id) || '').trim() ||
+      toText(incident.reference_no)
+    const details = buildStorePortalTheftIncidentDetails(incident, meta, displayReference)
+    const theftValueGbp = getStorePortalTheftValueGbp(meta)
+
+    rows.push({
+      id: `store-portal-theft-${incident.id}`,
+      storeId: incident.store_id || null,
+      storeName,
+      storeCode,
+      visitedAt: monthlyStorePortalTheftSortIso(incident),
+      createdByName: null,
+      generatedDetails: details,
+      summarySourceDetails: details,
+      reportCount: 0,
+      reportLabels: [],
+      source: 'incident',
+      incidentTemplateKey: MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY,
+      incidentCategory: 'theft',
+      theftValueGbp,
     })
   }
 

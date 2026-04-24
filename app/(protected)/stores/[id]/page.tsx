@@ -12,6 +12,7 @@ import {
   normalizeStoreVisitActivityPayloads,
 } from '@/lib/visit-needs'
 import { getStoreVisitProductCatalog } from '@/lib/store-visit-product-catalog'
+import { listStoreCaseFileData } from '@/lib/cases/service'
 import {
   buildStoreMergeContext,
   getStoreIdsIncludingAliases,
@@ -146,6 +147,7 @@ function buildStoreVisitTrackerRow(params: {
     isActive: Boolean(store.is_active),
     recentVisits,
     activeDraftVisit,
+    caseVisits: [],
   }
 }
 
@@ -651,13 +653,14 @@ export default async function StoreCrmPage({
 
   const mergedStoreIds = getStoreIdsIncludingAliases(params.id, mergeContext)
 
-  const [incidents, actions, crmData, visitData, profiles, inboundEmails] = await Promise.all([
+  const [incidents, actions, crmData, visitData, profiles, inboundEmails, caseFileData] = await Promise.all([
     getStoreIncidents(mergedStoreIds),
     getStoreActions(mergedStoreIds),
     getStoreCrmData(params.id),
     getStoreVisits(mergedStoreIds),
     getIncidentProfiles(),
     getStoreInboundEmails(mergedStoreIds),
+    listStoreCaseFileData(mergedStoreIds),
   ])
 
   const productCatalog = await getStoreVisitProductCatalog()
@@ -686,6 +689,7 @@ export default async function StoreCrmPage({
       visitTrackerRow={visitTrackerRow}
       productCatalog={productCatalog}
       currentUserName={profile.full_name}
+      caseFileData={caseFileData}
     />
   )
 }

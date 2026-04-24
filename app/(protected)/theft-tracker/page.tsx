@@ -1,3 +1,9 @@
+import { AlertTriangle, ClipboardList, FileText } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
@@ -51,6 +57,19 @@ function buildDisplayIncidentReference(
   return `${codeToken}-${storeToken}-${dateToken}-${String(sequence).padStart(3, '0')}`
 }
 
+function getStatusVariant(status: string) {
+  const normalizedStatus = String(status || '').trim().toLowerCase()
+  if (normalizedStatus === 'closed' || normalizedStatus === 'resolved') return 'success' as const
+  if (normalizedStatus === 'pending' || normalizedStatus === 'review') return 'warning' as const
+  return 'critical' as const
+}
+
+function formatStatusLabel(status: string) {
+  const normalizedStatus = String(status || 'open').trim().toLowerCase()
+  if (!normalizedStatus) return 'Open'
+  return normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)
+}
+
 export default async function TheftTrackerPage() {
   await requireAuth()
   const supabase = createClient()
@@ -66,6 +85,7 @@ export default async function TheftTrackerPage() {
     .filter((entry) => Boolean(entry.meta))
 
   const totalValue = thefts.reduce((acc, entry) => acc + (Number(entry.meta?.theftValueGbp) || 0), 0)
+  const openTheftCount = thefts.filter((entry) => entry.incident.status !== 'closed').length
   const sequenceByPrefix = new Map<string, number>()
   const rows = thefts.flatMap(({ incident, meta }) => {
     const storeRelation = Array.isArray((incident as any).tfs_stores)
@@ -136,68 +156,106 @@ export default async function TheftTrackerPage() {
   })
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <h1 className="text-2xl font-bold">Theft log</h1>
-      <p className="text-sm text-slate-600">All theft reports submitted by stores and team users.</p>
+    <WorkspaceShell className="p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Operations"
+        icon={AlertTriangle}
+        title="Theft log"
+        description="All theft reports from stores and team users, including closed cases (closed stays on this log; it only leaves open triage lists)."
+        actions={<Badge variant="outline">Last 200 incidents</Badge>}
+      />
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-lg border bg-white p-3">
-          <p className="text-xs text-slate-500">Total theft reports</p>
-          <p className="text-2xl font-semibold">{thefts.length}</p>
-        </div>
-        <div className="rounded-lg border bg-white p-3">
-          <p className="text-xs text-slate-500">Estimated value</p>
-          <p className="text-2xl font-semibold">£{totalValue.toFixed(2)}</p>
-        </div>
-        <div className="rounded-lg border bg-white p-3">
-          <p className="text-xs text-slate-500">Open theft reports</p>
-          <p className="text-2xl font-semibold">
-            {thefts.filter((entry) => entry.incident.status !== 'closed').length}
-          </p>
-        </div>
-      </div>
+      <WorkspaceStatGrid className="xl:grid-cols-3">
+        <WorkspaceStat
+          label="Total Theft Reports"
+          value={thefts.length}
+          note="Captured across the current log view"
+          icon={ClipboardList}
+          tone="warning"
+        />
+        <WorkspaceStat
+          label="Estimated Value"
+          value={`£${totalValue.toFixed(2)}`}
+          note="Combined reported loss value"
+          icon={FileText}
+          tone="critical"
+        />
+        <WorkspaceStat
+          label="Open Theft Reports"
+          value={openTheftCount}
+          note="Incidents still under review"
+          icon={AlertTriangle}
+          tone="info"
+        />
+      </WorkspaceStatGrid>
 
-      <div className="overflow-x-auto rounded-lg border bg-white">
-        <table className="min-w-[1300px] w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-3 py-2">Reference</th>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Description (Perfumes stolen)</th>
-              <th className="px-3 py-2">Barcode</th>
-              <th className="px-3 py-2">Quantity</th>
-              <th className="px-3 py-2">Price</th>
-              <th className="px-3 py-2">Reported</th>
-              <th className="px-3 py-2">Adjusted Through Till</th>
-              <th className="px-3 py-2">Stock Recovered</th>
-              <th className="px-3 py-2">Incident details</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => (
-              <tr key={`${row.id}-${index}`} className="align-top">
-                <td className="px-3 py-2 font-mono text-xs text-slate-700">{row.referenceNo}</td>
-                <td className="px-3 py-2 text-slate-700">{row.date}</td>
-                <td className="px-3 py-2 text-slate-900">{row.perfumeDescription}</td>
-                <td className="px-3 py-2 text-slate-700">{row.barcode}</td>
-                <td className="px-3 py-2 text-slate-700">{row.quantity}</td>
-                <td className="px-3 py-2 text-slate-700">{row.price}</td>
-                <td className="px-3 py-2 text-slate-700">{row.hasTheftBeenReported ? 'Y' : 'N'}</td>
-                <td className="px-3 py-2 text-slate-700">{row.adjustedThroughTill ? 'Y' : 'N'}</td>
-                <td className="px-3 py-2 text-slate-700">{row.stockRecovered ? 'Y' : 'N'}</td>
-                <td className="px-3 py-2 text-slate-700">{row.incidentDetails || row.description || '-'}</td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="px-3 py-6 text-center text-slate-500">
-                  No theft logs yet.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <Card className="overflow-hidden rounded-[1.5rem]">
+        <CardHeader className="border-b border-line bg-surface-subtle/72">
+          <CardTitle>Theft incidents</CardTitle>
+          <CardDescription>
+            Detailed theft lines and context. Status can be closed — records are kept here for the estate log.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0 pb-0 pt-0">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[1420px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Description (Perfumes stolen)</TableHead>
+                  <TableHead>Barcode</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Reported</TableHead>
+                  <TableHead>Adjusted Through Till</TableHead>
+                  <TableHead>Stock Recovered</TableHead>
+                  <TableHead>Incident details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, index) => (
+                  <TableRow key={`${row.id}-${index}`} className="align-top">
+                    <TableCell className="font-mono text-xs text-slate-700">{row.referenceNo}</TableCell>
+                    <TableCell className="text-slate-700">{row.date}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(row.status)}>{formatStatusLabel(row.status)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-slate-900">{row.perfumeDescription}</TableCell>
+                    <TableCell className="text-slate-700">{row.barcode}</TableCell>
+                    <TableCell className="text-slate-700">{row.quantity}</TableCell>
+                    <TableCell className="text-slate-700">{row.price}</TableCell>
+                    <TableCell>
+                      <Badge variant={row.hasTheftBeenReported ? 'success' : 'outline'}>
+                        {row.hasTheftBeenReported ? 'Yes' : 'No'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={row.adjustedThroughTill ? 'success' : 'outline'}>
+                        {row.adjustedThroughTill ? 'Yes' : 'No'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={row.stockRecovered ? 'success' : 'outline'}>
+                        {row.stockRecovered ? 'Yes' : 'No'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-slate-700">{row.incidentDetails || row.description || '-'}</TableCell>
+                  </TableRow>
+                ))}
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="py-8 text-center text-slate-500">
+                      No theft logs yet.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </WorkspaceShell>
   )
 }
