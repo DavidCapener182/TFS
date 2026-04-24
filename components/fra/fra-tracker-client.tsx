@@ -24,7 +24,7 @@ export function FRATrackerClient({ stores, userRole }: FRATrackerClientProps) {
         <div className="tfs-page-hero-orb-bottom" />
 
         <div className="tfs-page-hero-body space-y-3 md:space-y-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
                 <Flame size={14} />

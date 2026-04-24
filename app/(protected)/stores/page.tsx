@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { Plus, ArrowUpRight, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Plus, ShieldCheck, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StoreDirectory } from '@/components/stores/store-directory'
+import type { StoreDirectoryStore } from '@/components/stores/types'
+import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 import {
   buildStoreMergeContext,
   getCanonicalStoreId,
@@ -30,6 +32,10 @@ async function getStores() {
 type StoreRelations = {
   incidents: any[]
   actions: any[]
+}
+
+function getOpenRelationCount(items: Array<{ status?: string | null }>, closedStatuses: string[]) {
+  return items.filter((item) => !closedStatuses.includes(String(item.status || '').toLowerCase())).length
 }
 
 async function getStoreRelationsForStores(stores: any[], mergeContext: StoreMergeContext) {
@@ -170,7 +176,7 @@ export default async function StoresPage() {
   const stores = allStores.filter((store) => !shouldHideStore(store))
 
   const relationsByStoreId = await getStoreRelationsForStores(stores, mergeContext)
-  const storesWithData = stores.map((store) => {
+  const storesWithData: StoreDirectoryStore[] = stores.map((store) => {
     const storeId = String(store.id)
     const relations = relationsByStoreId.get(storeId)
     return {
@@ -185,61 +191,40 @@ export default async function StoresPage() {
   const activeStores = storesWithData.filter((s: any) => s.is_active).length
   const inactiveStores = totalStores - activeStores
   const activeRate = totalStores > 0 ? Math.round((activeStores / totalStores) * 100) : 0
+  const attentionStores = storesWithData.filter(
+    (store) =>
+      getOpenRelationCount(store.incidents, ['closed', 'cancelled']) > 0 ||
+      getOpenRelationCount(store.actions, ['complete', 'cancelled']) > 0
+  ).length
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6 p-4 md:p-6 min-h-screen bg-slate-50/60">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 sm:p-4 md:rounded-3xl md:p-7">
-        <div className="tfs-page-hero-orb-top" />
-        <div className="tfs-page-hero-orb-bottom" />
-
-        <div className="tfs-page-hero-body flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest md:px-3 md:text-[11px] tfs-page-hero-pill">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Store Network
-            </div>
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">CRM</h1>
-            <p className="mt-1.5 max-w-2xl text-xs leading-snug text-white/75 sm:text-sm md:text-base">
-              Manage store locations, compliance activity, and incident records across your estate.
-            </p>
-          </div>
-
-          {profile.role === 'admin' && (
-            <div className="w-full flex-shrink-0 md:w-auto">
+    <WorkspaceShell className="p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Store CRM"
+        icon={ShieldCheck}
+        title="Store network"
+        description="Manage live store records, operational exceptions, and location context from one workspace."
+        actions={
+          profile.role === 'admin' ? (
+            <Button asChild>
               <Link href="/stores/new" prefetch={false}>
-                <Button className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:bg-slate-100 active:scale-[0.98] sm:min-h-[44px] md:w-auto md:rounded-xl md:px-4 md:py-2.5">
-                  <Plus className="h-4 w-4 text-indigo-600" />
-                  <span>Add New Store</span>
-                  <ArrowUpRight className="h-3.5 w-3.5 text-slate-500" />
-                </Button>
+                <Plus className="h-4 w-4" />
+                Add store
+                <ArrowUpRight className="h-4 w-4" />
               </Link>
-            </div>
-          )}
-        </div>
+            </Button>
+          ) : null
+        }
+      />
 
-        <div className="tfs-page-hero-body mt-3 grid grid-cols-2 gap-2 md:mt-5 md:grid-cols-4 md:gap-2.5">
-          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
-            <p className="text-[10px] uppercase tracking-widest text-white/65">Total Stores</p>
-            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{totalStores}</p>
-          </div>
-          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
-            <p className="text-[10px] uppercase tracking-widest text-white/65">Active</p>
-            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{activeStores}</p>
-          </div>
-          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
-            <p className="text-[10px] uppercase tracking-widest text-white/65">Inactive</p>
-            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{inactiveStores}</p>
-          </div>
-          <div className="rounded-lg border px-2.5 py-1.5 md:rounded-xl md:px-3 md:py-2 tfs-page-hero-glass">
-            <p className="text-[10px] uppercase tracking-widest text-white/65">Active Rate</p>
-            <p className="mt-0.5 text-base font-semibold text-white md:mt-1 md:text-lg">{activeRate}%</p>
-          </div>
-        </div>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat label="Total stores" value={totalStores} note="Records in the live CRM workspace" icon={ShieldCheck} tone="info" />
+        <WorkspaceStat label="Active" value={activeStores} note={`${activeRate}% of the estate`} icon={CheckCircle2} tone="success" />
+        <WorkspaceStat label="Inactive" value={inactiveStores} note="Stores not currently trading" icon={XCircle} tone="neutral" />
+        <WorkspaceStat label="Needs attention" value={attentionStores} note="Open incidents or actions attached" icon={AlertTriangle} tone="warning" />
+      </WorkspaceStatGrid>
 
-      {/* Store Directory with Search */}
       <StoreDirectory stores={storesWithData} />
-    </div>
+    </WorkspaceShell>
   )
 }

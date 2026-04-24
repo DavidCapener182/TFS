@@ -7,6 +7,17 @@ import { Input } from '@/components/ui/input'
 import { ActionsTableRow } from '@/components/shared/actions-table-row'
 import { ActionMobileCard } from '@/components/shared/action-mobile-card'
 import { AutoSubmitSelect } from '@/components/shared/auto-submit-select'
+import {
+  WorkspaceHeader,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+  workspaceDesktopDateInputClass,
+  workspaceDesktopFilterActionsClass,
+  workspaceDesktopFilterFormClass,
+  workspaceDesktopFilterSearchClass,
+  workspaceDesktopSelectClass,
+} from '@/components/workspace/workspace-shell'
 import { Search, CheckSquare2, FileText, Clock, AlertCircle, CheckCircle2, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { getInternalAreaDisplayName } from '@/lib/areas'
@@ -17,6 +28,7 @@ import {
   normalizeStoreActionQuestion,
 } from '@/lib/store-action-titles'
 import { formatStoreName } from '@/lib/store-display'
+import { cn } from '@/lib/utils'
 
 type ActionFilters = {
   assigned_to?: string
@@ -783,70 +795,20 @@ export default async function ActionsPage({
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
 
   return (
-    <div className="flex flex-col gap-8 p-6 md:p-8 bg-slate-50/50 min-h-screen">
-      
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1 flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-slate-900">
-            <div className="p-2 bg-blue-600 rounded-lg shadow-sm flex-shrink-0">
-              <CheckSquare2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Actions</h1>
-          </div>
-          <p className="max-w-2xl text-sm text-slate-500 sm:text-base md:ml-11">
-            Track action items, monitor due dates, and manage completion status across all incidents.
-          </p>
-        </div>
-      </div>
+    <WorkspaceShell className="p-4 md:p-6">
+      <WorkspaceHeader
+        eyebrow="Actions"
+        icon={CheckSquare2}
+        title="Action workspace"
+        description="Track action items, monitor due dates, and manage completion status across incidents and store follow-up work."
+      />
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-4 gap-2 md:grid-cols-4 md:gap-4">
-        <Card className="bg-white shadow-sm border-slate-200">
-          <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 md:text-xs">Total Actions</p>
-              <p className="text-xl md:text-2xl font-bold text-slate-900">{totalActions}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 md:ml-2 md:h-10 md:w-10">
-              <FileText className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white shadow-sm border-slate-200">
-          <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 md:text-xs">Active</p>
-              <p className="text-xl md:text-2xl font-bold text-blue-600">{activeActions}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 md:ml-2 md:h-10 md:w-10">
-              <Clock className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white shadow-sm border-slate-200">
-          <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 md:text-xs">Overdue</p>
-              <p className="text-xl md:text-2xl font-bold text-rose-600">{overdueCount}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 md:ml-2 md:h-10 md:w-10">
-              <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-rose-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white shadow-sm border-slate-200">
-          <CardContent className="flex h-full flex-col justify-between gap-3 p-3 md:flex-row md:items-center md:p-6">
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 md:text-xs">Completed</p>
-              <p className="text-xl md:text-2xl font-bold text-emerald-600">{completedActions}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 md:ml-2 md:h-10 md:w-10">
-              <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat label="Total actions" value={totalActions} note="All tasks in the current data set" icon={FileText} tone="info" />
+        <WorkspaceStat label="Active" value={activeActions} note="Open or in-progress tasks" icon={Clock} tone="info" />
+        <WorkspaceStat label="Overdue" value={overdueCount} note="Tasks beyond their target date" icon={AlertCircle} tone="critical" />
+        <WorkspaceStat label="Completed" value={completedActions} note="Tasks marked complete" icon={CheckCircle2} tone="success" />
+      </WorkspaceStatGrid>
 
       {/* Main Table Card */}
       <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
@@ -962,21 +924,21 @@ export default async function ActionsPage({
               </details>
             </form>
 
-            <form method="get" className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-8">
-              <div className="relative md:col-span-2">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <form method="get" className={workspaceDesktopFilterFormClass}>
+              <div className={workspaceDesktopFilterSearchClass}>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   name="q"
                   defaultValue={searchParams.q || ''}
                   placeholder="Search title/question, store, assignee..."
-                  className="bg-white pl-12 sm:pl-12"
+                  className="w-full bg-white pl-10"
                 />
               </div>
 
               <select
                 name="store_question"
                 defaultValue={searchParams.store_question || 'all'}
-                className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm md:col-span-2"
+                className={`${workspaceDesktopSelectClass} md:col-span-2 lg:col-span-6`}
               >
                 <option value="all">All store questions</option>
                 {storeQuestionOptions.map((question) => (
@@ -989,7 +951,7 @@ export default async function ActionsPage({
               <AutoSubmitSelect
                 name="status"
                 defaultValue={searchParams.status || 'all'}
-                className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className={`${workspaceDesktopSelectClass} md:col-span-1 lg:col-span-3`}
                 options={[
                   { value: 'all', label: 'All statuses' },
                   { value: 'open', label: 'Open' },
@@ -1002,7 +964,7 @@ export default async function ActionsPage({
               <select
                 name="priority"
                 defaultValue={searchParams.priority || 'all'}
-                className="h-10 min-h-[44px] rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className={`${workspaceDesktopSelectClass} md:col-span-1 lg:col-span-3`}
               >
                 <option value="all">All priorities</option>
                 <option value="urgent">Urgent</option>
@@ -1015,17 +977,17 @@ export default async function ActionsPage({
                 type="date"
                 name="date_from"
                 defaultValue={searchParams.date_from || ''}
-                className="bg-white"
+                className={workspaceDesktopDateInputClass}
               />
               <Input
                 type="date"
                 name="date_to"
                 defaultValue={searchParams.date_to || ''}
-                className="bg-white"
+                className={workspaceDesktopDateInputClass}
               />
 
-              <div className="md:col-span-6 flex flex-wrap gap-2">
-                <Button type="submit" size="sm" className="h-9 min-h-[44px] md:min-h-0">
+              <div className={cn(workspaceDesktopFilterActionsClass, 'lg:col-span-6')}>
+                <Button type="submit" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                   Apply Filters
                 </Button>
                 <Button
@@ -1034,11 +996,11 @@ export default async function ActionsPage({
                   value="true"
                   variant={filters.overdue ? 'default' : 'outline'}
                   size="sm"
-                  className="h-9 min-h-[44px] md:min-h-0"
+                  className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9"
                 >
                   Overdue Only
                 </Button>
-                <Button asChild variant="outline" size="sm" className="h-9 min-h-[44px] md:min-h-0">
+                <Button asChild variant="outline" size="sm" className="min-h-[44px] flex-1 sm:flex-none lg:min-h-9">
                   <Link href="/actions">Reset</Link>
                 </Button>
               </div>
@@ -1152,6 +1114,6 @@ export default async function ActionsPage({
           </div>
         </CardContent>
       </Card>
-    </div>
+    </WorkspaceShell>
   )
 }

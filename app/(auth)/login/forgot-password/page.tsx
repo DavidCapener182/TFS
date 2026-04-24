@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { AUTH_CARD_CLASS, AUTH_LINK_CLASS } from '@/components/auth/auth-ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,7 +40,7 @@ export default function ForgotPasswordPage() {
   if (success) {
     return (
       <AuthShell logoSize="compact" desktopLogoPosition="corner">
-          <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+          <Card className={AUTH_CARD_CLASS}>
             <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
               <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 Check your email
@@ -52,7 +53,7 @@ export default function ForgotPasswordPage() {
               <p className="text-sm text-slate-600 mb-4">
                 Click the link in the email to reset your password. The link will expire in 1 hour.
               </p>
-              <Button asChild className="w-full bg-[#0e1925] text-white hover:bg-[#1a2f3f]">
+              <Button asChild className="w-full">
                 <Link href="/login">
                   Back to login
                 </Link>
@@ -65,7 +66,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell logoSize="compact" desktopLogoPosition="corner">
-        <Card className="w-full rounded-[28px] border border-white/65 bg-white/94 shadow-[0_20px_60px_rgba(2,12,27,0.28)] backdrop-blur-xl sm:rounded-lg sm:border-0 sm:bg-white/95 sm:shadow-2xl sm:backdrop-blur-sm">
+        <Card className={AUTH_CARD_CLASS}>
           <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
             <CardTitle className="mb-2 text-2xl font-bold text-slate-900 sm:text-3xl">
               Reset your password
@@ -94,7 +95,7 @@ export default function ForgotPasswordPage() {
                   {error}
                 </div>
               )}
-              <Button type="submit" className="w-full bg-[#0e1925] hover:bg-[#1a2f3f] text-white" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Sending...' : 'Send reset link'}
               </Button>
               <Link
@@ -104,10 +105,7 @@ export default function ForgotPasswordPage() {
                 Back to login
               </Link>
               <div className="hidden text-center sm:block">
-                <Link
-                  href="/login"
-                  className="text-sm font-medium text-[#0e1925] hover:text-[#1a2f3f] hover:underline"
-                >
+                <Link href="/login" className={`text-sm ${AUTH_LINK_CLASS}`}>
                   Back to login
                 </Link>
               </div>

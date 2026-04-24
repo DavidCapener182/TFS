@@ -16,7 +16,9 @@ import { InboundEmailStorePanel } from '@/components/inbound-emails/inbound-emai
 import { StoreInboundEmailDialog } from '@/components/inbound-emails/store-inbound-email-dialog'
 import { StoreVisitModal } from '@/components/visit-tracker/store-visit-modal'
 import { StoreVisitActivitySummary } from '@/components/visit-tracker/store-visit-activity-summary'
+import { StoreCaseFile } from '@/components/cases/store-case-file'
 import type { InboundEmailRow } from '@/lib/inbound-emails'
+import type { StoreCaseFileData } from '@/lib/cases/service'
 import type { VisitHistoryEntry, VisitTrackerRow } from '@/components/visit-tracker/types'
 import { UserRole } from '@/lib/auth'
 import { getStoreActionListTitle } from '@/lib/store-action-titles'
@@ -31,6 +33,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  WorkspaceHeader,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+} from '@/components/workspace/workspace-shell'
 import {
   buildVisitReportPdfUrl,
   extractLinkedVisitReportId,
@@ -72,6 +80,7 @@ interface StoreDetailWorkspaceProps {
   visitTrackerRow: VisitTrackerRow
   productCatalog: StoreVisitProductCatalogItem[]
   currentUserName: string | null
+  caseFileData: StoreCaseFileData
 }
 
 function getScoreColor(score: number) {
@@ -249,6 +258,7 @@ export function StoreDetailWorkspace({
   visitTrackerRow,
   productCatalog,
   currentUserName,
+  caseFileData,
 }: StoreDetailWorkspaceProps) {
   const [activeTab, setActiveTab] = useState('crm')
   const [selectedActionIncident, setSelectedActionIncident] = useState<any | null>(null)
@@ -447,102 +457,83 @@ export function StoreDetailWorkspace({
         : null
 
   return (
-    <div className="space-y-6">
+    <WorkspaceShell className="space-y-6">
       <nav className="flex items-center gap-2 text-sm text-slate-400">
         <Link href="/stores" className="transition-colors hover:text-blue-600">
-          CRM
+          Store CRM
         </Link>
         <ChevronRight size={14} />
         <span className="font-medium text-slate-900">{formatStoreName(store.store_name)}</span>
       </nav>
 
-      <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
-        <div className="flex items-center gap-6">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-            <Store size={32} />
+      <WorkspaceHeader
+        eyebrow="Store CRM"
+        icon={Store}
+        title={formatStoreName(store.store_name)}
+        description={`${store.store_code || 'No code'} · ${getInternalAreaDisplayName(store.region, {
+          fallback: 'Unassigned',
+          includeCode: false,
+        })}${store.reporting_area ? ` · Reporting area ${getReportingAreaDisplayName(store.reporting_area)}` : ''}`}
+        actions={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Badge variant={store.is_active ? 'success' : 'outline'}>
+              {store.is_active ? 'Active' : 'Inactive'}
+            </Badge>
+            {inboundEmailAlertCounts.linked > 0 ? (
+              <Badge variant="outline">
+                {inboundEmailAlertCounts.linked} linked email{inboundEmailAlertCounts.linked === 1 ? '' : 's'}
+              </Badge>
+            ) : null}
+            {inboundEmailAlertCounts.total > 0 ? (
+              <Badge variant="warning">{inboundEmailAlertCounts.total} to review</Badge>
+            ) : null}
           </div>
-          <div>
-            <div className="mb-1 flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">{formatStoreName(store.store_name)}</h1>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  store.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {store.is_active ? 'Active' : 'Inactive'}
-              </span>
-              {inboundEmailAlertCounts.linked > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                    {inboundEmailAlertCounts.linked} linked email{inboundEmailAlertCounts.linked === 1 ? '' : 's'}
-                  </span>
-                  {inboundEmailAlertCounts.total > 0 ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
-                      {inboundEmailAlertCounts.total} to review
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-500">
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-700">
-                {store.store_code || 'No code'}
-              </span>
-              <span className="font-medium">
-                Region: {getInternalAreaDisplayName(store.region, { fallback: 'Unassigned', includeCode: false })}
-              </span>
-            </div>
-            {store.reporting_area && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
-                  Reporting Area: {getReportingAreaDisplayName(store.reporting_area)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+        }
+      />
 
-        <div className="flex w-full gap-4 border-t border-slate-100 pt-4 md:w-auto md:border-t-0 md:pt-0">
-          <div className="flex-1 border-r border-slate-100 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Incidents</p>
-            <p className="text-2xl font-bold text-red-500">{incidents.length}</p>
-          </div>
-          <div className="flex-1 border-r border-slate-100 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Open Actions</p>
-            <p className="text-2xl font-bold text-blue-600">{ongoingActions.length}</p>
-          </div>
-          <div className="flex-1 border-r border-slate-100 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Latest Visit</p>
-            <p className="text-2xl font-bold text-slate-900">
-              {latestVisitDate ? format(new Date(latestVisitDate), 'dd MMM') : '—'}
-            </p>
-          </div>
-          <div className="flex-1 px-6 md:text-right">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Recent Stocktake</p>
-            {recentStocktake ? (
-              <div className="space-y-1">
-                <p
-                  className={`text-sm font-bold uppercase ${
-                    recentStocktake.colour === 'green'
-                      ? 'text-green-700'
-                      : recentStocktake.colour === 'amber'
-                        ? 'text-amber-700'
-                        : 'text-red-700'
-                  }`}
-                >
-                  {recentStocktake.colour}
-                </p>
-                <p className="text-xs font-semibold text-slate-700">
-                  {recentStocktake.resultType || 'result'}{' '}
-                  {recentStocktake.amountGbp !== null ? `£${Math.abs(recentStocktake.amountGbp).toLocaleString()}` : '—'}
-                </p>
-              </div>
-            ) : (
-              <p className="text-2xl font-bold text-slate-900">—</p>
-            )}
-          </div>
-        </div>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat
+          label="Incidents"
+          value={incidents.length}
+          note="All linked case records"
+          icon={AlertCircle}
+          tone="critical"
+        />
+        <WorkspaceStat
+          label="Open Actions"
+          value={ongoingActions.length}
+          note={`${completedActions.length} completed`}
+          icon={ClipboardList}
+          tone="warning"
+        />
+        <WorkspaceStat
+          label="Latest Visit"
+          value={latestVisitDate ? format(new Date(latestVisitDate), 'dd MMM') : '—'}
+          note={visitTrackerRow.lastVisitType || 'No visit logged'}
+          icon={Calendar}
+          tone="info"
+        />
+        <WorkspaceStat
+          label="Recent Stocktake"
+          value={recentStocktake ? recentStocktake.colour.toUpperCase() : '—'}
+          note={
+            recentStocktake && recentStocktake.amountGbp !== null
+              ? `£${Math.abs(recentStocktake.amountGbp).toLocaleString()}`
+              : 'No recent stocktake'
+          }
+          icon={FileText}
+          tone="neutral"
+        />
+      </WorkspaceStatGrid>
+
+      <StoreCaseFile
+        storeId={String(store.id)}
+        caseData={caseFileData}
+        visitTrackerRow={visitTrackerRow}
+        contactCount={crmData.contacts.length}
+        noteCount={crmData.notes.length}
+        trackerEntryCount={crmData.trackerEntries.length}
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1228,7 +1219,7 @@ export function StoreDetailWorkspace({
                             key={report.id}
                             className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                           >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                               <div>
                                 <p className="font-semibold text-slate-900">{report.title}</p>
                                 <p className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
@@ -1380,6 +1371,6 @@ export function StoreDetailWorkspace({
           setSelectedStoreAction(null)
         }}
       />
-    </div>
+    </WorkspaceShell>
   )
 }

@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Image from 'next/image'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { useRouter, useSearchParams } from 'next/navigation'
+
+import { AuthShell } from '@/components/auth/auth-shell'
+import { AUTH_CARD_CLASS, AUTH_LINK_CLASS } from '@/components/auth/auth-ui'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/client'
 
 function LoginContent() {
   const router = useRouter()
@@ -22,7 +24,7 @@ function LoginContent() {
   useEffect(() => {
     const passwordReset = searchParams?.get('password_reset')
     if (passwordReset === 'success') {
-      setSuccess('Your password has been reset successfully. Please sign in with your new password.')
+      setSuccess('Your password has been reset. Sign in with your new password.')
     }
   }, [searchParams])
 
@@ -45,13 +47,13 @@ function LoginContent() {
       }
 
       if (data?.user) {
-        // Successfully authenticated, redirect to home
         router.push('/')
         router.refresh()
-      } else {
-        setError('Login failed. Please try again.')
-        setLoading(false)
+        return
       }
+
+      setError('Sign in failed. Please try again.')
+      setLoading(false)
     } catch (err) {
       console.error('Login error:', err)
       setError('An unexpected error occurred. Please try again.')
@@ -60,122 +62,109 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[linear-gradient(140deg,#1c0259_0%,#232154_52%,#312d73_100%)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_42%)]"></div>
-      <div className="absolute inset-x-0 bottom-0 h-64 bg-[radial-gradient(circle_at_bottom,rgba(42,135,66,0.26),transparent_58%)]"></div>
-
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="mb-8 flex justify-center">
-          <Image
-            src="/tfs-logo.svg"
-            alt="The Fragrance Shop"
-            width={240}
-            height={70}
-            className="h-auto w-auto object-contain"
-            priority
-          />
-        </div>
-
-        <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm shadow-2xl border-0">
-          <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 text-center">
-            <CardTitle className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-              The Fragrance Shop Platform
-            </CardTitle>
-            <CardDescription className="text-sm sm:text-base text-slate-600">
-              Sign in to access operations, incidents, visits, and route planning.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  required
-                  className="bg-white h-10 min-h-[44px] rounded-md px-3 py-2 text-sm"
-                />
+    <AuthShell contentClassName="max-w-lg">
+      <Card className={AUTH_CARD_CLASS}>
+        <CardHeader className="px-5 pt-5 text-center sm:px-6 sm:pt-6">
+          <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+            TFS Operations Platform
+          </div>
+          <CardTitle className="text-3xl text-slate-950 sm:text-[2rem]">Sign in</CardTitle>
+          <CardDescription className="mx-auto max-w-sm text-sm text-slate-600 sm:text-base">
+            Access operations, incidents, store visits, route planning, and reporting from one workspace.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="font-medium text-slate-700">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="font-medium text-slate-700">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            {error ? (
+              <div className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-3 text-sm text-critical">
+                {error}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-700 font-medium">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                  className="bg-white h-10 min-h-[44px] rounded-md px-3 py-2 text-sm"
-                />
+            ) : null}
+            {success ? (
+              <div className="rounded-lg border border-success/20 bg-success-soft px-3 py-3 text-sm text-success">
+                {success}
               </div>
-              {error && (
-                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md border border-destructive/20">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="text-sm text-green-700 bg-green-50 p-3 rounded-md border border-green-200">
-                  {success}
-                </div>
-              )}
-              <Button type="submit" className="w-full bg-[#232154] text-white hover:bg-[#1c0259]" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign in'}
+            ) : null}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign in'}
+            </Button>
+
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">or</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <Link href="/store-login" className="block">
+              <Button type="button" variant="outline" className="w-full">
+                Store login with code
               </Button>
-              <div className="flex items-center gap-3 py-1">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
-                <div className="h-px flex-1 bg-slate-200" />
-              </div>
-              <Link href="/store-login" className="block">
-                <Button type="button" variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50">
-                  Store login with code
-                </Button>
+            </Link>
+
+            <p className="text-center text-xs text-slate-500">
+              Store teams can sign in with their store code only.
+            </p>
+
+            <div className="space-y-2 text-center">
+              <Link href="/login/forgot-password" className={`text-sm ${AUTH_LINK_CLASS}`}>
+                Forgot your password?
               </Link>
-              <p className="text-center text-xs text-slate-500">
-                Stores can sign in with their store code only.
-              </p>
-              <div className="space-y-2 text-center">
-                <a
-                  href="/login/forgot-password"
-                  className="text-sm text-[#232154] hover:text-[#1c0259] hover:underline block font-medium"
-                >
-                  Forgot your password?
-                </a>
-                <div className="text-sm text-slate-600">
-                  Don&apos;t have an account?{' '}
-                  <a
-                    href="/login/signup"
-                    className="text-[#232154] hover:text-[#1c0259] hover:underline font-medium"
-                  >
-                    Sign up
-                  </a>
-                </div>
+              <div className="text-sm text-slate-600">
+                Don&apos;t have an account?{' '}
+                <Link href="/login/signup" className={AUTH_LINK_CLASS}>
+                  Sign up
+                </Link>
               </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </AuthShell>
   )
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[linear-gradient(140deg,#1c0259_0%,#232154_52%,#312d73_100%)] flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm">
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <p className="text-slate-600">Loading...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <AuthShell contentClassName="max-w-lg">
+          <Card className={AUTH_CARD_CLASS}>
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-600">Loading sign-in...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </AuthShell>
+      }
+    >
       <LoginContent />
     </Suspense>
   )

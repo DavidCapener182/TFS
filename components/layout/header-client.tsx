@@ -558,148 +558,139 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
   }, [currentUser.role, onlineUsers])
 
   const visibleUsers = onlineUsers.slice(0, 5)
-  const mobileVisibleUsers = visibleUsers.slice(0, 2)
   const overflowCount = Math.max(onlineUsers.length - visibleUsers.length, 0)
-  const mobileOverflowCount = Math.max(onlineUsers.length - mobileVisibleUsers.length, 0)
   const isAdmin = currentUser.role === 'admin'
-  const mobilePageTitle = getMobilePageTitle(pathname || '/')
+  const mobilePageTitle = getMobilePageTitle(pathname || '/', currentUser.role)
+  const currentUserInitials = getInitials(currentUser.name)
 
   return (
     <header
       ref={headerRef}
       className={cn(
-        'no-print fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:flex md:h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:pt-0 lg:px-8',
+        'no-print fixed inset-x-0 top-0 z-30 border-b border-line bg-canvas/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:sticky md:px-6 md:pt-0 lg:px-8',
         isReportsSheetMode ? 'hidden' : ''
       )}
     >
-      <div className="flex w-full flex-col gap-3.5 pb-4 pt-3 md:flex-row md:items-center md:justify-between md:gap-4 md:pb-0 md:pt-0">
+      <div className="flex w-full flex-col gap-3 pb-3 pt-3 md:gap-4 md:pb-4 md:pt-4">
         <div className="flex items-center gap-3 md:hidden">
           <button
             onClick={handleMenuClick}
             className={cn(
-              'relative z-[100] flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[18px] border border-white/10 bg-white/8 p-2 text-white shadow-[0_8px_20px_rgba(2,12,24,0.18)] transition-colors hover:bg-white/12 active:bg-white/20 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40 touch-manipulation cursor-pointer',
-              isOpen && 'bg-white/14'
+              'relative z-[100] flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line bg-surface-raised p-2 text-foreground shadow-soft transition-colors hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation cursor-pointer',
+              isOpen && 'bg-surface-subtle'
             )}
             aria-label="Toggle navigation menu"
             aria-expanded={isOpen}
             type="button"
           >
-            <Menu className="h-6 w-6 text-white pointer-events-none" />
+            <Menu className="h-5 w-5 pointer-events-none" />
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold tracking-[0.16em] text-white/55">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
               The Fragrance Shop
             </p>
-            <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-white">{mobilePageTitle}</h1>
+            <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-foreground">{mobilePageTitle}</h1>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5" aria-label="Currently online users">
-              {mobileVisibleUsers.map((user) => (
-                <div key={user.id} title={user.name} className="relative">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[10px] font-bold text-white shadow-[0_8px_18px_rgba(2,12,24,0.14)] backdrop-blur-sm">
-                    {getInitials(user.name)}
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[#0e1925] bg-emerald-400" />
-                </div>
-              ))}
-              {mobileOverflowCount > 0 ? (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[10px] font-bold text-white shadow-[0_8px_18px_rgba(2,12,24,0.14)] backdrop-blur-sm">
-                  +{mobileOverflowCount}
-                </div>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => logoutFormRef.current?.requestSubmit()}
-              className="h-10 w-10 rounded-full border border-white/10 bg-white/8 p-0 text-white shadow-[0_8px_18px_rgba(2,12,24,0.14)] hover:bg-white/12 hover:text-white"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="sr-only">Log Out</span>
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => logoutFormRef.current?.requestSubmit()}
+            className="h-10 w-10 rounded-xl p-0"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="sr-only">Log Out</span>
+          </Button>
         </div>
 
         <div className="md:hidden">
           <StoreSearch />
-          <FollowUpBanner />
+          <FollowUpBanner className="mt-2" />
         </div>
 
-        <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex md:gap-4">
-          <button
-            onClick={handleMenuClick}
-            className={cn(
-              'relative z-[100] hidden min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl bg-white/5 p-2 text-white transition-colors hover:bg-white/10 active:bg-white/20 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/50 touch-manipulation cursor-pointer md:hidden',
-              isOpen && 'bg-white/10'
-            )}
-            aria-label="Toggle navigation menu"
-            aria-expanded={isOpen}
-            type="button"
-          >
-            <Menu className="h-6 w-6 text-white pointer-events-none" />
-          </button>
+        <div className="hidden items-start gap-4 md:flex">
+          <div className="min-w-0 flex-1 space-y-3">
+            <StoreSearch />
+            <FollowUpBanner className="mt-0" />
+          </div>
 
-          <StoreSearch />
-        </div>
-        <div className="hidden md:block">
-          <FollowUpBanner />
-        </div>
-
-        <div className="hidden items-center gap-2 md:flex md:gap-4">
-          <div className="flex items-center gap-2" aria-label="Currently online users">
-          {visibleUsers.map((user) => (
-            <div
-              key={user.id}
-              title={user.name}
-              className="group relative"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs">
-                {getInitials(user.name)}
+          <div className="flex shrink-0 items-center gap-3 pt-0.5">
+            <div className="group relative">
+              <div className="app-panel-muted flex items-center gap-2 rounded-full px-3 py-2 text-sm">
+                <span className="h-2.5 w-2.5 rounded-full bg-success" />
+                <span className="font-semibold text-foreground">Live {onlineUsers.length}</span>
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[#0e1925] bg-emerald-400" />
 
               {isAdmin ? (
-                <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-72 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs text-slate-700 shadow-lg group-hover:block">
-                  <p className="font-semibold text-slate-900">{user.name}</p>
-                  <p className="mt-1 text-slate-600">
-                    <span className="font-semibold text-slate-800">Page:</span> {formatPagePath(user.page, latestActivityByUser[user.id])}
+                <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-80 rounded-xl border border-line bg-surface-raised p-3 text-left text-xs text-ink-soft shadow-floating group-hover:block">
+                  <p className="pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                    Active session overview
                   </p>
-                  <p className="mt-1 text-slate-600">
-                    <span className="font-semibold text-slate-800">Latest action:</span>{' '}
-                    {formatLatestAction(latestActivityByUser[user.id])}
-                  </p>
-                  <p className="mt-1 text-slate-600 break-words">
-                    <span className="font-semibold text-slate-800">Updated:</span>{' '}
-                    {formatLatestChange(latestActivityByUser[user.id])}
-                  </p>
-                  <p className="mt-1 text-slate-600">
-                    <span className="font-semibold text-slate-800">Seen:</span>{' '}
-                    {formatTime(user.lastSeen, latestActivityByUser[user.id]?.createdAt)}
-                  </p>
+                  <div className="space-y-3">
+                    {visibleUsers.map((user) => (
+                      <div key={user.id} className="rounded-lg border border-line bg-surface-subtle/70 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-foreground">{user.name}</p>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-success">
+                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                            Live
+                          </span>
+                        </div>
+                        <p className="mt-2">
+                          <span className="font-semibold text-foreground">Page:</span> {formatPagePath(user.page, latestActivityByUser[user.id])}
+                        </p>
+                        <p className="mt-1">
+                          <span className="font-semibold text-foreground">Latest action:</span>{' '}
+                          {formatLatestAction(latestActivityByUser[user.id])}
+                        </p>
+                        <p className="mt-1 break-words">
+                          <span className="font-semibold text-foreground">Updated:</span>{' '}
+                          {formatLatestChange(latestActivityByUser[user.id])}
+                        </p>
+                        <p className="mt-1">
+                          <span className="font-semibold text-foreground">Seen:</span>{' '}
+                          {formatTime(user.lastSeen, latestActivityByUser[user.id]?.createdAt)}
+                        </p>
+                      </div>
+                    ))}
+                    {overflowCount > 0 ? (
+                      <p className="text-[11px] text-ink-muted">+{overflowCount} more active users</p>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
-          ))}
-          {overflowCount > 0 ? (
-            <div
-              title={`${overflowCount} more online`}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[11px] font-bold text-white backdrop-blur-sm md:h-9 md:w-9 md:text-xs"
-            >
-              +{overflowCount}
+
+            <div className="app-panel-muted flex items-center gap-3 rounded-full px-3 py-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-contrast text-[11px] font-bold">
+                {currentUserInitials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{currentUser.name}</p>
+                <p className="text-xs text-ink-muted">{currentUser.role}</p>
+              </div>
             </div>
-          ) : null}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => logoutFormRef.current?.requestSubmit()}
+              className="min-h-[44px] rounded-full px-4"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log out</span>
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => logoutFormRef.current?.requestSubmit()}
-            className="min-h-[44px] rounded-2xl px-3 text-white hover:bg-white/10 hover:text-white md:rounded-full md:px-4"
-          >
-            <LogOut className="mr-2 h-4 w-4 md:h-5 md:w-5" />
-            <span className="hidden sm:inline">Log Out</span>
-          </Button>
+        </div>
+
+        <div className="hidden md:flex md:items-center md:justify-between">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
+            The Fragrance Shop platform
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
+            {mobilePageTitle}
+          </div>
         </div>
       </div>
       <form action={signOut} ref={logoutFormRef} className="hidden" />
@@ -708,7 +699,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <AlertTriangle className="h-4 w-4 text-warning" />
               Session expiring soon
             </DialogTitle>
             <DialogDescription>
@@ -718,7 +709,7 @@ export function HeaderClient({ signOut, currentUser }: HeaderClientProps) {
           </DialogHeader>
           <div className="mt-2 text-sm">
             <p className="mb-1 font-medium">Time remaining before auto log out:</p>
-            <p className="text-2xl font-mono font-semibold text-amber-600">{formatRemaining()}</p>
+            <p className="text-2xl font-mono font-semibold text-warning">{formatRemaining()}</p>
           </div>
           <DialogFooter className="mt-4">
             <Button

@@ -20,6 +20,7 @@ import {
 
 import { deleteDraftVisitReport, saveVisitReport } from '@/app/actions/visit-reports'
 import { ActivityVisitReportBuilder } from '@/components/reports/activity-visit-report-builder'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +33,12 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  WorkspaceHeader,
+  WorkspaceShell,
+  WorkspaceStat,
+  WorkspaceStatGrid,
+} from '@/components/workspace/workspace-shell'
 import { toast } from '@/hooks/use-toast'
 import {
   buildVisitReportSummary,
@@ -315,8 +322,10 @@ const RISK_LEVEL_OPTIONS: Array<{ value: VisitReportRiskLevel; label: string; cl
   { value: 'low', label: 'Low', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
   { value: 'medium', label: 'Medium', className: 'border-amber-200 bg-amber-50 text-amber-700' },
   { value: 'high', label: 'High', className: 'border-rose-200 bg-rose-50 text-rose-700' },
-  { value: 'critical', label: 'Critical', className: 'border-[#232154] bg-[#f5f1fb] text-[#232154]' },
+  { value: 'critical', label: 'Critical', className: 'border-critical/20 bg-critical-soft text-critical' },
 ]
+
+const ACTIVE_SELECTION_CLASS = 'border-info/20 bg-info-soft text-info'
 
 const INCIDENT_PERSON_ROLE_OPTIONS: Array<{
   value: VisitReportIncidentPersonRole
@@ -508,7 +517,7 @@ function ChecklistGrid<T extends string>({
           className={cn(
             'rounded-2xl border px-4 py-3',
             values[field.key]
-              ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
+              ? ACTIVE_SELECTION_CLASS
               : 'border-slate-200 bg-slate-50 text-slate-700',
             disabled ? 'opacity-60' : ''
           )}
@@ -698,6 +707,8 @@ export function VisitReportsWorkspace({
   const isFirstStep = currentStep === 0
   const isLastStep = currentStep === builderSteps.length - 1
   const isSheetMode = searchParams?.get('sheet') === '1'
+  const draftReportCount = recentReports.filter((report) => report.status === 'draft').length
+  const finalReportCount = recentReports.length - draftReportCount
 
   useEffect(() => {
     if (!hasBuilderIntent) return
@@ -1205,73 +1216,102 @@ export function VisitReportsWorkspace({
   }
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
-      <div
-        className={cn(
-          'relative overflow-hidden rounded-3xl bg-[linear-gradient(145deg,#1c0259_0%,#232154_52%,#2f2b72_100%)] p-5 text-white shadow-[0_20px_44px_rgba(28,2,89,0.18)] md:p-8',
-          selectedTemplate && activeTab === 'builder' ? 'hidden md:block' : 'block'
-        )}
-      >
-        <div className="absolute right-0 top-0 h-80 w-80 translate-x-1/3 -translate-y-1/2 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-56 w-56 -translate-x-1/3 translate-y-1/3 rounded-full bg-[#2A8742]/20 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#c9c2eb]">
-              <FileText size={14} />
-              TFS Reporting
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Reports</h1>
-            <p className="mt-2 max-w-3xl text-sm text-white/75">
-              Select a report template to start. This report home supports additional report types as they are added.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            {selectedTemplate ? (
+    <WorkspaceShell className="pb-24 md:pb-0">
+      <WorkspaceHeader
+        eyebrow="Reports"
+        icon={FileText}
+        title={selectedTemplate ? getVisitReportTypeLabel(draft.reportType) : 'Visit reports'}
+        description={
+          selectedTemplate
+            ? 'Capture structured visit findings, manage drafts, and export final PDFs from one reporting workspace.'
+            : 'Start the right LP report template, reopen drafts, and export final PDFs from one reporting workspace.'
+        }
+        className={cn(selectedTemplate && activeTab === 'builder' ? 'hidden md:block' : '')}
+        actions={
+          selectedTemplate ? (
+            <div className="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleBackToReportHome}
-                className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 px-4 text-white hover:bg-white/20 sm:w-auto"
+                className="rounded-full"
               >
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Report home
               </Button>
-            ) : null}
-            {selectedTemplate ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDownloadPdf}
-                  className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 px-4 text-white hover:bg-white/20 sm:w-auto"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  PDF
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleNewReport}
-                  className="min-h-[44px] w-full rounded-2xl border-white/20 bg-white/10 px-4 text-white hover:bg-white/20 sm:w-auto"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  New report
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={!canUseBuilder || isSaving}
-                  className="min-h-[44px] w-full rounded-2xl bg-white px-4 text-slate-900 hover:bg-slate-100 sm:w-auto"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? 'Saving...' : draft.status === 'final' ? 'Save Final Report' : 'Save Draft'}
-                </Button>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDownloadPdf}
+                className="rounded-full"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                PDF
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleNewReport}
+                className="rounded-full"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                New report
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={!canUseBuilder || isSaving}
+                className="rounded-full"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? 'Saving...' : draft.status === 'final' ? 'Save Final Report' : 'Save Draft'}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Badge variant={reportsAvailable ? 'success' : 'warning'}>
+                {reportsAvailable ? 'Reports ready' : 'Reports unavailable'}
+              </Badge>
+              <Badge variant={canEdit ? 'success' : 'outline'}>
+                {canEdit ? 'Editor access' : 'Read only'}
+              </Badge>
+            </div>
+          )
+        }
+      />
+
+      {!selectedTemplate ? (
+        <WorkspaceStatGrid>
+          <WorkspaceStat
+            label="Templates"
+            value={VISIT_REPORT_TEMPLATES.length}
+            note="Active report templates"
+            icon={FileText}
+            tone="info"
+          />
+          <WorkspaceStat
+            label="Draft Reports"
+            value={draftReportCount}
+            note="Reports still in progress"
+            icon={ClipboardList}
+            tone="warning"
+          />
+          <WorkspaceStat
+            label="Final Reports"
+            value={finalReportCount}
+            note="Published report outputs"
+            icon={ShieldAlert}
+            tone="success"
+          />
+          <WorkspaceStat
+            label="Builder Access"
+            value={canEdit ? 'Editor' : 'Read only'}
+            note={reportsAvailable ? 'Reporting tables available' : 'Awaiting reporting tables'}
+            icon={Save}
+            tone={canEdit ? 'success' : 'neutral'}
+          />
+        </WorkspaceStatGrid>
+      ) : null}
 
       {!reportsAvailable && unavailableMessage ? (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:px-6">
@@ -1318,7 +1358,7 @@ export function VisitReportsWorkspace({
                     type="button"
                     onClick={() => handleStartTemplate(template.value)}
                     disabled={!canUseBuilder || !reportsAvailable}
-                    className="mt-4 min-h-[42px] w-full rounded-2xl bg-[#232154] text-white hover:bg-[#1c0259]"
+                    className="mt-4 w-full rounded-2xl"
                   >
                     Start template
                   </Button>
@@ -1329,7 +1369,7 @@ export function VisitReportsWorkspace({
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             <div className="mb-4 flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-[#232154]" />
+              <ClipboardList className="h-5 w-5 text-ink-soft" />
               <h2 className="text-lg font-bold text-slate-900">Recent Reports</h2>
             </div>
             <div className="space-y-3">
@@ -1399,7 +1439,7 @@ export function VisitReportsWorkspace({
             <div className="space-y-6 xl:col-span-12">
               <div className="h-[112px] md:hidden" aria-hidden />
               <div className="fixed inset-x-3.5 top-[calc(var(--mobile-header-height,0px)+1rem)] z-20 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:inset-x-4 md:static md:inset-auto md:top-auto md:p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1409,7 +1449,7 @@ export function VisitReportsWorkspace({
                     <button
                       type="button"
                       onClick={handleDownloadPdf}
-                      className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#232154] md:hidden"
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary md:hidden"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Download PDF
@@ -1514,7 +1554,7 @@ export function VisitReportsWorkspace({
                         setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))
                       }
                       disabled={isLastStep}
-                      className="min-h-[44px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
+                      className="min-h-[44px] rounded-xl"
                     >
                       Next
                       <ChevronRight className="ml-1 h-4 w-4" />
@@ -1524,8 +1564,8 @@ export function VisitReportsWorkspace({
               </div>
 
               {isLinkedVisitFlow ? (
-                <div className="rounded-3xl border border-[#dcd6ef] bg-[#f6f2fe] p-4 text-sm shadow-sm md:p-5">
-                  <div className="font-semibold text-[#4b3a78]">Linked visit session</div>
+                <div className="rounded-3xl border border-info/20 bg-info-soft p-4 text-sm shadow-sm md:p-5">
+                  <div className="font-semibold text-info">Linked visit session</div>
                   <div className="mt-2 text-slate-700">
                     This report belongs to an open store visit. Keep it as Draft while you are working, change it to Final when it is complete, then use Return to visit to add more reports or close the visit session.
                   </div>
@@ -1858,7 +1898,7 @@ export function VisitReportsWorkspace({
                                   className={cn(
                                     'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
                                     isActive
-                                      ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
+                                      ? ACTIVE_SELECTION_CLASS
                                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                                   )}
                                 >
@@ -2035,7 +2075,7 @@ export function VisitReportsWorkspace({
                                           className={cn(
                                             'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
                                             isActive
-                                              ? 'border-[#232154] bg-[#f5f1fb] text-[#232154]'
+                                              ? ACTIVE_SELECTION_CLASS
                                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                                           )}
                                         >
@@ -2748,7 +2788,7 @@ export function VisitReportsWorkspace({
                   type="button"
                   onClick={() => setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))}
                   disabled={isLastStep}
-                  className="min-h-[44px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
+                  className="min-h-[44px] rounded-xl"
                 >
                   Next
                   <ChevronRight className="ml-1 h-4 w-4" />
@@ -2759,7 +2799,7 @@ export function VisitReportsWorkspace({
             <div className="hidden space-y-6 xl:col-span-4 xl:block">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:sticky md:top-6 md:p-6">
                 <div className="mb-4 flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-[#232154]" />
+                  <ShieldAlert className="h-5 w-5 text-ink-soft" />
                   <h2 className="text-lg font-bold text-slate-900">Report Preview</h2>
                 </div>
 
@@ -2823,7 +2863,7 @@ export function VisitReportsWorkspace({
                     type="button"
                     onClick={handleSave}
                     disabled={!canUseBuilder || isSaving}
-                    className="min-h-[46px] w-full rounded-2xl bg-[#232154] text-white hover:bg-[#1c0259]"
+                    className="min-h-[46px] w-full rounded-2xl"
                   >
                     <Save className="mr-2 h-4 w-4" />
                     {isSaving ? 'Saving...' : draft.status === 'final' ? 'Save Final Report' : 'Save Draft'}
@@ -2833,7 +2873,7 @@ export function VisitReportsWorkspace({
 
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
                 <div className="mb-4 flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-[#232154]" />
+                  <ClipboardList className="h-5 w-5 text-ink-soft" />
                   <h2 className="text-lg font-bold text-slate-900">Recent Reports</h2>
                 </div>
 
@@ -2873,7 +2913,7 @@ export function VisitReportsWorkspace({
                           <p className="mt-2 text-xs leading-relaxed text-slate-600">{report.summary}</p>
                         ) : null}
 
-                        <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#232154]">
+                        <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary">
                           {report.status === 'final' ? 'Open PDF' : 'Load into editor'}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </div>
@@ -2927,7 +2967,7 @@ export function VisitReportsWorkspace({
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Reporting Workflow</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Use the `Report Builder` tab for structured targeted-theft visit reports. The old Footasylum newsletter/audit reporting flow has been removed from this page.
+                  Use the `Report Builder` tab for structured targeted-theft visit reports. The legacy newsletter and audit workflow has been removed from this page.
                 </p>
               </div>
             </div>
@@ -2953,7 +2993,7 @@ export function VisitReportsWorkspace({
               type="button"
               onClick={isLastStep ? handleSave : () => setCurrentStep((step) => Math.min(step + 1, builderSteps.length - 1))}
               disabled={isLastStep ? !canUseBuilder || isSaving : isLastStep}
-              className="min-h-[46px] rounded-xl bg-[#232154] text-white hover:bg-[#1c0259]"
+              className="min-h-[46px] rounded-xl"
             >
               {isLastStep
                 ? isSaving
@@ -2967,6 +3007,6 @@ export function VisitReportsWorkspace({
           </div>
         </div>
       ) : null}
-    </div>
+    </WorkspaceShell>
   )
 }

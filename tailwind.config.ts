@@ -52,16 +52,62 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        shell: {
+          DEFAULT: "hsl(var(--shell))",
+          elevated: "hsl(var(--shell-elevated))",
+          contrast: "hsl(var(--shell-contrast))",
+        },
+        canvas: "hsl(var(--canvas))",
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          subtle: "hsl(var(--surface-subtle))",
+          raised: "hsl(var(--surface-raised))",
+          contrast: "hsl(var(--surface-contrast))",
+        },
+        line: {
+          DEFAULT: "hsl(var(--line))",
+          strong: "hsl(var(--line-strong))",
+        },
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          soft: "hsl(var(--ink-soft))",
+          muted: "hsl(var(--ink-muted))",
+        },
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          contrast: "hsl(var(--brand-contrast))",
+          accent: "hsl(var(--brand-accent))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          soft: "hsl(var(--success-soft))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          soft: "hsl(var(--warning-soft))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          soft: "hsl(var(--info-soft))",
+        },
+        critical: {
+          DEFAULT: "hsl(var(--critical))",
+          soft: "hsl(var(--critical-soft))",
+        },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        "2xl": "1rem",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "calc(var(--radius-xl) + 0.25rem)",
         "30px": "30px",
       },
       boxShadow: {
-        soft: "0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06)",
+        soft: "var(--shadow-soft)",
+        panel: "var(--shadow-panel)",
+        floating: "var(--shadow-floating)",
+        shell: "var(--shadow-shell)",
       },
       keyframes: {
         "accordion-down": {
@@ -83,4 +129,3 @@ const config = {
 } satisfies Config
 
 export default config
-

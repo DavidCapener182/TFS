@@ -6,6 +6,7 @@ import type {
   StoreVisitType,
 } from '@/lib/visit-needs'
 import type { VisitReportStatus, VisitReportType } from '@/lib/reports/visit-report-types'
+import type { FaSeverity, TfsCaseStage } from '@/types/db'
 
 export type VisitState = 'planned' | 'recent' | 'random' | 'none'
 export type VisitSessionStatus = 'draft' | 'completed'
@@ -49,6 +50,23 @@ export interface VisitHistoryEntry {
   needLevelSnapshot: StoreVisitNeedLevel | null
 }
 
+export interface CaseVisitSummary {
+  caseId: string
+  visitId: string
+  visitType: StoreVisitType
+  visitStatus: 'planned' | 'in_progress'
+  scheduledFor: string | null
+  assignedUserId: string | null
+  assignedUserName: string | null
+  caseType: string
+  caseStage: TfsCaseStage
+  severity: FaSeverity
+  originReference: string | null
+  nextActionLabel: string | null
+  lastUpdateSummary: string | null
+  createdAt: string
+}
+
 export interface VisitTrackerRow {
   storeId: string
   storeCode: string | null
@@ -73,4 +91,5 @@ export interface VisitTrackerRow {
   isActive: boolean
   recentVisits: VisitHistoryEntry[]
   activeDraftVisit: VisitHistoryEntry | null
+  caseVisits: CaseVisitSummary[]
 }

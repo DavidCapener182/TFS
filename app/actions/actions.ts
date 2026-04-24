@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/activity-log'
 import { revalidatePath } from 'next/cache'
+import { linkIncidentActionToCase, refreshLinkedCasesForRecord } from '@/lib/cases/service'
 import { FaActionPriority, FaActionStatus } from '@/types/db'
 
 export interface CreateActionInput {
@@ -47,6 +48,8 @@ export async function createAction(incidentId: string, input: CreateActionInput)
     console.error('Failed to log activity for action creation:', logError)
   }
 
+  await linkIncidentActionToCase(incidentId, action.id, action.title || null)
+
   // Update incident status to 'actions_in_progress' if not already closed/cancelled
   const { data: incident } = await supabase
     .from('tfs_incidents')
@@ -68,6 +71,7 @@ export async function createAction(incidentId: string, input: CreateActionInput)
 
   revalidatePath(`/incidents/${incidentId}`)
   revalidatePath('/actions')
+  revalidatePath('/queue')
   return action
 }
 
@@ -161,6 +165,12 @@ export async function updateAction(id: string, updates: Partial<CreateActionInpu
 
   revalidatePath(`/incidents/${action.incident_id}`)
   revalidatePath('/actions')
+  revalidatePath('/queue')
+  await refreshLinkedCasesForRecord(
+    'tfs_actions',
+    id,
+    action.status === 'complete' ? 'Linked incident action completed.' : action.title || 'Linked incident action updated.'
+  )
   return action
 }
 
@@ -234,6 +244,7 @@ export async function deleteAction(id: string) {
   }
   revalidatePath('/actions')
   revalidatePath('/dashboard')
+  revalidatePath('/queue')
+  await refreshLinkedCasesForRecord('tfs_actions', id, 'Linked incident action deleted.')
 }
-
 

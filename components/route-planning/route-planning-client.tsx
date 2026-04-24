@@ -39,6 +39,7 @@ import { getStoreRegionGroup } from '@/lib/store-region-groups'
 import { formatStoreName } from '@/lib/store-display'
 import { VISIT_REPORT_TEMPLATES } from '@/lib/reports/visit-report-types'
 import { getDisplayStoreCode } from '@/lib/utils'
+import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 // Dynamically import the map component to avoid SSR issues
 const MapComponent = dynamic(() => import('./map-component'), { ssr: false })
 
@@ -966,63 +967,20 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
   const storesInRouteAreaMissingCoordsCount = storesInRouteArea.length - storesInRouteAreaWithLocations.length
 
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl tfs-page-hero p-3 text-white sm:p-4 md:rounded-3xl md:p-8">
-        <div className="tfs-page-hero-orb-top" />
-        <div className="tfs-page-hero-orb-bottom" />
+    <WorkspaceShell>
+      <WorkspaceHeader
+        eyebrow="Route Planning"
+        icon={Navigation}
+        title="Route planning"
+        description="Build daily compliance routes, optimize store selection, and track planned rounds by group and manager."
+      />
 
-        <div className="tfs-page-hero-body">
-          <div className="mb-4 flex flex-col items-start justify-between gap-3 md:mb-8 md:flex-row md:items-center">
-            <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#c9c2eb] md:text-xs">
-                <Navigation size={14} /> Route Optimization
-              </div>
-              <h1 className="mb-1 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Route Planning</h1>
-              <p className="max-w-2xl text-xs leading-snug text-white/75 sm:text-sm">
-                Build daily compliance routes, optimize store selection, and track planned rounds by group and manager.
-              </p>
-            </div>
-            <button className="flex min-h-[44px] items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/15 sm:text-sm md:rounded-lg md:px-4 md:py-2 tfs-page-hero-glass">
-              Live Planner
-              <Navigation size={14} className="ml-1" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-white/65">
-                <StoreIcon size={14} className="text-blue-400" />
-                <span className="text-[10px] font-bold uppercase md:text-xs">Available Stores</span>
-              </div>
-              <p className="text-xl font-bold text-white md:text-3xl">{availableStoreCount}</p>
-            </div>
-
-            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-white/65">
-                <MapIcon size={14} className="text-emerald-400" />
-                <span className="text-[10px] font-bold uppercase md:text-xs">Planned Routes</span>
-              </div>
-              <p className="text-xl font-bold text-white md:text-3xl">{plannedRouteCount}</p>
-            </div>
-
-            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-white/65">
-                <CheckCircle2 size={14} className="text-violet-400" />
-                <span className="text-[10px] font-bold uppercase md:text-xs">Planned Stores</span>
-              </div>
-              <p className="text-xl font-bold text-white md:text-3xl">{plannedStoreCount}</p>
-            </div>
-
-            <div className="flex flex-col justify-between rounded-lg border p-2.5 tfs-page-hero-glass md:rounded-2xl md:p-4">
-              <div className="mb-2 flex items-center gap-2 text-white/65">
-                <Users size={14} className="text-amber-400" />
-                <span className="text-[10px] font-bold uppercase md:text-xs">Managers</span>
-              </div>
-              <p className="text-xl font-bold text-white md:text-3xl">{managerCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <WorkspaceStatGrid>
+        <WorkspaceStat label="Available stores" value={availableStoreCount} note="Stores currently eligible for planning" icon={StoreIcon} tone="info" />
+        <WorkspaceStat label="Planned routes" value={plannedRouteCount} note="Active route groups with stores assigned" icon={MapIcon} tone="success" />
+        <WorkspaceStat label="Planned stores" value={plannedStoreCount} note="Stops already allocated into routes" icon={CheckCircle2} tone="warning" />
+        <WorkspaceStat label="Managers" value={managerCount} note="Visible managers available for routing" icon={Users} tone="neutral" />
+      </WorkspaceStatGrid>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-7">
@@ -1319,14 +1277,14 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                     </p>
                   )}
                 </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <div className="flex w-full min-w-0 flex-col flex-wrap gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                   {storesInRouteAreaWithLocations.length >= 2 && (
                     <Button
                       variant="default"
                       size="sm"
                       onClick={handleOptimizeRoute}
                       disabled={isOptimizing}
-                      className="min-h-[44px] w-full rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:rounded-md"
+                      className="min-h-[44px] w-full min-w-0 shrink-0 rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:max-w-[min(100%,20rem)] sm:rounded-md"
                       title={`Suggest an optimal ${Math.min(routeStopLimit, storesInRouteAreaWithLocations.length)}-stop route`}
                     >
                       {isOptimizing ? (
@@ -1357,11 +1315,12 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
                       }
                       setOptimizationSummary(null)
                     }}
-                    className="min-h-[44px] w-full rounded-2xl border-slate-200 bg-white hover:bg-slate-50 sm:w-auto sm:rounded-md"
+                    className="min-h-[44px] w-full min-w-0 shrink-0 rounded-2xl border-slate-200 bg-white hover:bg-slate-50 sm:w-auto sm:rounded-md"
+                    title={`Select up to ${routeStopLimit} stores in this list`}
                   >
                     {routeSelectedStores.size >= routeStopLimit || (routeSelectedStores.size > 0 && routeSelectedStores.size === Math.min(routeStopLimit, storesInRouteArea.length))
-                      ? 'Deselect All'
-                      : `Select All (Max ${routeStopLimit})`}
+                      ? 'Deselect all'
+                      : `Select all (max ${routeStopLimit})`}
                   </Button>
                 </div>
               </div>
@@ -2203,6 +2162,6 @@ export function RoutePlanningClient({ initialData }: RoutePlanningClientProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </WorkspaceShell>
   )
 }

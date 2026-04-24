@@ -5,25 +5,25 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold ring-offset-background transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-black text-white hover:bg-gray-900 shadow-sm",
+        default: "bg-primary text-primary-foreground shadow-soft hover:brightness-110",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground shadow-soft hover:bg-destructive/92",
         outline:
-          "border border-gray-200 bg-white hover:bg-gray-50 text-gray-900 shadow-sm",
+          "border border-line bg-surface-raised text-foreground shadow-soft hover:bg-surface-subtle",
         secondary:
-          "bg-white border border-gray-200 text-gray-900 hover:bg-gray-50 shadow-sm",
-        ghost: "hover:bg-gray-100 text-gray-700",
-        link: "text-gray-900 underline-offset-4 hover:underline",
+          "border border-line bg-surface-subtle text-foreground shadow-soft hover:bg-surface",
+        ghost: "text-ink-soft hover:bg-surface-subtle hover:text-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 min-h-[44px] sm:min-h-[40px] px-6 py-2",
-        sm: "h-9 min-h-[44px] sm:min-h-[36px] px-4",
-        lg: "h-11 min-h-[44px] sm:min-h-[44px] px-8",
-        icon: "h-10 w-10 min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px]",
+        default: "h-11 min-h-[44px] px-4 py-2.5",
+        sm: "h-9 min-h-[40px] px-3.5 text-xs",
+        lg: "h-12 min-h-[48px] px-5 text-sm",
+        icon: "h-10 w-10 min-h-[44px] min-w-[44px]",
       },
     },
     defaultVariants: {

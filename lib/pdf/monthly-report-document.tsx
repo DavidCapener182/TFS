@@ -1,6 +1,11 @@
 import React from 'react'
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
-import type { MonthlyReportData, MonthlyReportRow } from '@/lib/reports/monthly-report'
+import {
+  getMonthlyTheftRowKindLabel,
+  MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY,
+  type MonthlyReportData,
+  type MonthlyReportRow,
+} from '@/lib/reports/monthly-report'
 
 interface MonthlyReportPdfDocumentProps {
   data: MonthlyReportData
@@ -335,9 +340,13 @@ function getDetailValue(
   return typeof override === 'string' ? override : row.generatedDetails
 }
 
-function getRowSourceLabel(source: MonthlyReportRow['source']) {
-  if (source === 'report') return 'Final template'
-  if (source === 'incident') return 'Incident email'
+function getRowSourceLabel(row: MonthlyReportRow) {
+  if (row.source === 'report') return 'Final template'
+  if (row.source === 'incident') {
+    return row.incidentTemplateKey === MONTHLY_STORE_PORTAL_THEFT_TEMPLATE_KEY
+      ? 'Store portal theft'
+      : 'Incident email'
+  }
   return 'Completed visit'
 }
 
@@ -408,7 +417,7 @@ export function MonthlyReportPdfDocument({
           <Text style={styles.heroEyebrow}>Loss prevention monthly reporting</Text>
           <Text style={styles.heroTitle}>Monthly Report - {data.period.label}</Text>
           <Text style={styles.heroSummary}>
-            Consolidated monthly view of completed LP activity, reported store theft emails, and final report templates across The Fragrance Shop estate.
+            Consolidated monthly view of completed LP activity, reported store thefts (emails and store portal), and final report templates across The Fragrance Shop estate.
           </Text>
         </View>
 
@@ -505,7 +514,7 @@ export function MonthlyReportPdfDocument({
                   >
                     <View style={styles.activityCellDate}>
                       <Text style={styles.activityPrimary}>{formatDate(row.visitedAt)}</Text>
-                      <Text style={styles.activitySecondary}>{getRowSourceLabel(row.source)}</Text>
+                      <Text style={styles.activitySecondary}>{getRowSourceLabel(row)}</Text>
                     </View>
 
                     <View style={styles.activityCellStore}>
@@ -540,7 +549,7 @@ export function MonthlyReportPdfDocument({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>3. Thefts Reported</Text>
           {theftRows.length === 0 ? (
-            <Text style={styles.emptyState}>No theft emails were reported for this month.</Text>
+            <Text style={styles.emptyState}>No store thefts were reported for this month.</Text>
           ) : (
             <React.Fragment>
               <View style={styles.activityTable}>
@@ -569,7 +578,7 @@ export function MonthlyReportPdfDocument({
                     >
                       <View style={styles.activityCellDate}>
                         <Text style={styles.activityPrimary}>{formatDate(row.visitedAt)}</Text>
-                        <Text style={styles.activitySecondary}>Theft email</Text>
+                        <Text style={styles.activitySecondary}>{getMonthlyTheftRowKindLabel(row)}</Text>
                       </View>
 
                       <View style={styles.activityCellStore}>

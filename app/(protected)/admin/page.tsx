@@ -2,6 +2,9 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AdminClient } from '@/components/admin/admin-client'
+import { Settings2, ShieldCheck, Bug, Mail, NotebookTabs } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
 
 const ADMIN_EMAIL = 'david.capener@kssnwltd.co.uk'
 
@@ -47,58 +50,73 @@ export default async function AdminPage() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">User Management</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-2">
-          Manage user roles and permissions. Only accessible to administrators.
-        </p>
-      </div>
+    <WorkspaceShell>
+      <WorkspaceHeader
+        eyebrow="Admin"
+        icon={ShieldCheck}
+        title="Admin tools"
+        description="Manage platform administration, release controls, and operational support tools. Only accessible to administrators."
+      />
+
+      <WorkspaceStatGrid className="xl:grid-cols-3">
+        <WorkspaceStat label="Modules" value={4} note="Bug tracker, releases, email inbox, and paste importer" icon={Settings2} tone="info" />
+        <WorkspaceStat label="Access" value="Admin" note="Restricted to the administrator account" icon={ShieldCheck} tone="critical" />
+        <WorkspaceStat label="User management" value="Live" note="Role sync and admin client are active below" icon={NotebookTabs} tone="success" />
+      </WorkspaceStatGrid>
 
       {/* Admin Tools */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-lg sm:border-red-200 sm:bg-red-50 sm:p-4 sm:shadow-none">
-          <h2 className="mb-2 text-base font-semibold text-slate-900 sm:text-lg sm:text-red-900">Bug Tracking</h2>
-          <p className="mb-4 text-sm text-slate-600 sm:mb-3 sm:text-red-700">
+        <div className="app-panel rounded-[1.5rem] p-5">
+          <div className="mb-3 inline-flex rounded-full border border-critical/20 bg-critical-soft px-2 py-1 text-critical">
+            <Bug className="h-4 w-4" />
+          </div>
+          <h2 className="mb-2 text-base font-semibold text-foreground sm:text-lg">Bug Tracking</h2>
+          <p className="mb-4 text-sm text-ink-soft">
             View and manage user-submitted bug reports, feature requests, and feedback.
           </p>
-          <a
-            href="/admin/bugs"
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:min-h-0 sm:w-auto sm:rounded-md sm:bg-red-600 sm:px-4 sm:py-2 sm:hover:bg-red-700"
-          >
-            Open Bug Tracker
-          </a>
+          <Button asChild className="w-full sm:w-auto">
+            <a href="/admin/bugs">
+              Open Bug Tracker
+            </a>
+          </Button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-lg sm:border-purple-200 sm:bg-purple-50 sm:p-4 sm:shadow-none">
-          <h2 className="mb-2 text-base font-semibold text-slate-900 sm:text-lg sm:text-purple-900">Release Notes</h2>
-          <p className="mb-4 text-sm text-slate-600 sm:mb-3 sm:text-purple-700">
+        <div className="app-panel rounded-[1.5rem] p-5">
+          <div className="mb-3 inline-flex rounded-full border border-info/20 bg-info-soft px-2 py-1 text-info">
+            <NotebookTabs className="h-4 w-4" />
+          </div>
+          <h2 className="mb-2 text-base font-semibold text-foreground sm:text-lg">Release Notes</h2>
+          <p className="mb-4 text-sm text-ink-soft">
             Create, edit, and publish release notes. Users see the latest active release on login.
           </p>
-          <a
-            href="/admin/releases"
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:min-h-0 sm:w-auto sm:rounded-md sm:bg-purple-600 sm:px-4 sm:py-2 sm:hover:bg-purple-700"
-          >
-            Manage Releases
-          </a>
+          <Button asChild className="w-full sm:w-auto">
+            <a href="/admin/releases">
+              Manage Releases
+            </a>
+          </Button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-lg sm:border-sky-200 sm:bg-sky-50 sm:p-4 sm:shadow-none">
-          <h2 className="mb-2 text-base font-semibold text-slate-900 sm:text-lg sm:text-sky-900">Inbound Email Import</h2>
-          <p className="mb-4 text-sm text-slate-600 sm:mb-3 sm:text-sky-700">
-            Paste raw email text and save it straight into the inbound email queue without SQL.
+        <div className="app-panel rounded-[1.5rem] p-5">
+          <div className="mb-3 inline-flex rounded-full border border-warning/20 bg-warning-soft px-2 py-1 text-warning">
+            <Mail className="h-4 w-4" />
+          </div>
+          <h2 className="mb-2 text-base font-semibold text-foreground sm:text-lg">Inbound emails</h2>
+          <p className="mb-4 text-sm text-ink-soft">
+            Review the shared inbox (same as the former Email Review nav item) or paste raw email text into the queue.
           </p>
-          <a
-            href="/admin/inbound-email-import"
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 sm:min-h-0 sm:w-auto sm:rounded-md sm:bg-sky-600 sm:px-4 sm:py-2 sm:hover:bg-sky-700"
-          >
-            Open Email Importer
-          </a>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button asChild className="w-full sm:w-auto">
+              <a href="/inbound-emails">Open email inbox</a>
+            </Button>
+            <Button asChild variant="outline" className="w-full sm:w-auto">
+              <a href="/admin/inbound-email-import">Open email importer</a>
+            </Button>
+          </div>
         </div>
 
       </div>
 
       <AdminClient />
-    </div>
+    </WorkspaceShell>
   )
 }

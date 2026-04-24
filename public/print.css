@@ -318,3 +318,262 @@ body.fra-print-document .fra-report-print-footer,
 body.fra-print-document button {
   display: none !important;
 }
+
+/* App-wide print safeguards */
+html, body {
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.no-print,
+button:not(.print-keep),
+nav,
+header:not(.fra-report-print-header),
+header.site-header,
+.toolbar,
+.controls,
+.sidebar,
+.fra-preview-hide-toolbar,
+.fra-report-print-header,
+.fra-report-print-footer,
+aside,
+[role="complementary"],
+[class*="sidebar"],
+[class*="Sidebar"],
+[class*="Header"] {
+  display: none !important;
+}
+
+[class*="ml-64"] {
+  margin-left: 0 !important;
+}
+
+main,
+[role="main"],
+.flex,
+[class*="overflow-hidden"],
+[class*="overflow-auto"] {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+.fra-print-page-root,
+.fra-print-page-content {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+#print-root,
+.print-root,
+.fra-report-print-wrapper {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 0 !important;
+  position: static !important;
+  transform: none !important;
+}
+
+.fra-report-print-content {
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#print-root.min-h-screen,
+.fra-report-print-wrapper.min-h-screen {
+  min-height: 0 !important;
+}
+
+* {
+  box-shadow: none !important;
+}
+
+.fra-view-scroll-container {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.scroll,
+.scroll-y,
+.overflow-auto,
+.overflow-scroll,
+[class*="overflow"],
+.h-screen,
+.h-\[calc\(100vh {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+[style*="transform"]:not(.leaflet-pane):not(.leaflet-map-pane):not(.leaflet-tile-pane):not(.leaflet-overlay-pane):not(.leaflet-marker-pane):not(.leaflet-shadow-pane):not(.leaflet-zoom-animated):not(.leaflet-tile):not(.leaflet-marker-icon):not(.leaflet-marker-shadow),
+[class*="transform"] {
+  transform: none !important;
+}
+
+.fra-a4-page,
+.fra-print-page {
+  width: 100% !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  margin-bottom: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  break-after: page !important;
+  page-break-after: always !important;
+}
+
+.fra-print-page:last-child,
+.fra-a4-page:last-child {
+  break-after: auto !important;
+  page-break-after: auto !important;
+}
+
+.fra-print-page.p-12,
+.fra-a4-page.p-12 {
+  padding: 0 !important;
+}
+
+.fra-travel-distances-tables {
+  margin-top: 8px !important;
+}
+
+.fra-travel-distances-tables table {
+  font-size: 9pt !important;
+  margin-bottom: 6px !important;
+}
+
+.fra-travel-distances-tables th,
+.fra-travel-distances-tables td {
+  padding: 2px 6px !important;
+  border-width: 1px !important;
+}
+
+.fra-travel-distances-tables > * + * {
+  margin-top: 4px !important;
+}
+
+.fra-map-print {
+  max-height: 180mm !important;
+  overflow: hidden !important;
+}
+
+.fra-map-print .leaflet-container,
+.fra-map-print .fra-map-container {
+  height: 180mm !important;
+  max-height: 180mm !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+.fra-hazards-table {
+  font-size: 9pt !important;
+}
+
+.fra-hazards-table th,
+.fra-hazards-table td {
+  padding: 4px 6px !important;
+}
+
+.fra-print-page:has(.fra-travel-distances-tables) h2 {
+  margin-bottom: 6px !important;
+  font-size: 1rem !important;
+}
+
+.fra-print-page:has(.fra-travel-distances-tables) .space-y-4 {
+  margin-bottom: 4px !important;
+}
+
+.fra-print-page:has(.fra-travel-distances-tables) .space-y-4 > * + * {
+  margin-top: 2px !important;
+}
+
+.fra-report-print-content {
+  padding-bottom: 0 !important;
+}
+
+.avoid-break {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.fra-print-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  display: table !important;
+}
+
+.fra-print-table thead {
+  display: table-header-group !important;
+}
+
+.fra-print-table tbody {
+  display: table-row-group !important;
+}
+
+.fra-print-table tfoot {
+  display: table-footer-group !important;
+}
+
+.fra-print-table tr {
+  display: table-row !important;
+}
+
+.fra-print-table td {
+  display: table-cell !important;
+  padding: 4px 6px !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.fra-print-table th {
+  padding: 4px 6px !important;
+}
+
+.fra-print-header-cell,
+.fra-print-footer-cell {
+  width: 100% !important;
+}
+
+.max-w-4xl,
+.max-w-5xl,
+.max-w-6xl,
+.max-w-7xl,
+.page-break-after-always {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+a:link,
+a:visited {
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+img {
+  max-width: 100% !important;
+  height: auto !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getIncidentDisplayReference } from '@/lib/incidents/incident-reference-display'
 import { requireAuth } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
@@ -121,9 +122,18 @@ export default async function IncidentPrintPage({
     notFound()
   }
 
-  const [investigation, actions] = await Promise.all([
+  const supabase = createClient()
+  const [investigation, actions, displayReference] = await Promise.all([
     getInvestigation(params.id),
     getActions(params.id),
+    getIncidentDisplayReference(supabase, {
+      incidentId: String(incident.id),
+      referenceNo: incident.reference_no,
+      storeCode: incident.tfs_stores?.store_code,
+      storeName: incident.tfs_stores?.store_name,
+      occurredAt: incident.occurred_at,
+      storeId: incident.store_id,
+    }),
   ])
   const personsObject = normalizeJsonObject(incident.persons_involved)
   const reportedByLabel = pickString(personsObject, ['reported_by_label', 'reportedByLabel'])
@@ -133,7 +143,7 @@ export default async function IncidentPrintPage({
     <div className="p-8 max-w-4xl mx-auto print:p-4">
       <div className="space-y-6">
         <div className="border-b pb-4">
-          <h1 className="text-3xl font-bold">{incident.reference_no}</h1>
+          <h1 className="text-3xl font-bold">{displayReference}</h1>
           <p className="text-lg mt-2">{incident.summary}</p>
         </div>
 
