@@ -14,6 +14,12 @@ export type QueueCaseRecord = {
   caseType: string
   intakeSource: TfsIntakeSource
   originReference: string | null
+  originTargetTable: string | null
+  originTargetId: string | null
+  originIncidentSummary: string | null
+  originIncidentDescription: string | null
+  originTheftValueGbp: number | null
+  originTheftItemsSummary: string | null
   severity: FaSeverity
   ownerUserId: string | null
   ownerName: string | null

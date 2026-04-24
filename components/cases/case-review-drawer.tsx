@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { CalendarClock, CheckCircle2, ClipboardList, ShieldAlert, XCircle } from 'lucide-react'
 
 import { closeCaseAction, reviewCaseAction } from '@/app/actions/cases'
@@ -128,6 +129,13 @@ export function CaseReviewDrawer({
   if (!caseRecord) return null
 
   const isCloseFlow = mode === 'close' || caseRecord.stage === 'ready_to_close'
+  const originHref =
+    caseRecord.originTargetId &&
+    (caseRecord.originTargetTable === 'tfs_incidents' ||
+      caseRecord.originTargetTable === 'tfs_closed_incidents' ||
+      caseRecord.originTargetTable === 'fa_incident')
+      ? `/incidents/${caseRecord.originTargetId}`
+      : null
 
   const submit = () => {
     startTransition(async () => {
@@ -196,7 +204,10 @@ export function CaseReviewDrawer({
                 {isCloseFlow ? 'Close work item' : 'Review work item'}
               </h2>
               <p className="mt-2 text-sm text-ink-soft">
-                {caseRecord.lastUpdateSummary || 'Use the workflow decision below to move the case on.'}
+                {caseRecord.originIncidentDescription ||
+                  caseRecord.originIncidentSummary ||
+                  caseRecord.lastUpdateSummary ||
+                  'Use the workflow decision below to move the case on.'}
               </p>
             </div>
           </div>
@@ -208,6 +219,13 @@ export function CaseReviewDrawer({
                 <p className="mt-1 text-sm font-semibold text-foreground">
                   {caseRecord.originReference || 'No reference'}
                 </p>
+                {originHref ? (
+                  <Button asChild type="button" variant="ghost" size="sm" className="mt-1 h-auto px-0 text-primary hover:bg-transparent hover:text-primary/80">
+                    <Link href={originHref} prefetch={false}>
+                      View incident details
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">Owner</p>
@@ -227,6 +245,32 @@ export function CaseReviewDrawer({
               </div>
             </div>
           </div>
+          <div className="rounded-2xl border border-line bg-surface-subtle/72 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+              Incident description
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+              {caseRecord.originIncidentDescription ||
+                caseRecord.originIncidentSummary ||
+                'No incident description recorded for this linked item.'}
+            </p>
+          </div>
+          {caseRecord.caseType === 'portal_theft' ? (
+            <div className="rounded-2xl border border-line bg-surface-subtle/72 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                Theft details
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                {caseRecord.originTheftItemsSummary || 'No stolen item lines recorded.'}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-foreground">
+                Theft value:{' '}
+                {typeof caseRecord.originTheftValueGbp === 'number'
+                  ? `£${caseRecord.originTheftValueGbp.toFixed(2)}`
+                  : 'Not recorded'}
+              </p>
+            </div>
+          ) : null}
 
           {isCloseFlow ? (
             <div className="space-y-4">

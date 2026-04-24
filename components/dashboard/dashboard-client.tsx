@@ -87,6 +87,16 @@ interface DashboardStocktakeReview {
   receivedAt: string | null
 }
 
+interface DashboardQueueReviewCase {
+  caseId: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  caseType: string
+  summary: string | null
+  updatedAt: string
+}
+
 interface DashboardData {
   openIncidents: number
   underInvestigation: number
@@ -107,6 +117,7 @@ interface DashboardData {
   plannedVisits: DashboardPlannedVisit[]
   theftReviews: DashboardTheftReview[]
   stocktakeReviews: DashboardStocktakeReview[]
+  queueReviews: DashboardQueueReviewCase[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -148,6 +159,14 @@ function formatPlannedPurpose(value: string | null): string {
     .split('_')
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
     .join(' ')
+}
+
+function formatCaseTypeLabel(value: string): string {
+  return String(value || '')
+    .trim()
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
 }
 
 function ProgressStrip({
@@ -207,6 +226,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   const updatedTime = format(new Date(), 'HH:mm')
   const reviewItems = [...initialData.theftReviews, ...initialData.stocktakeReviews]
+  const reviewQueueCount = initialData.queueReviews.length + reviewItems.length
   const severityRows = [
     { label: 'Critical', value: incidentBreakdown.critical, tone: 'critical' as const },
     { label: 'High', value: incidentBreakdown.high, tone: 'warning' as const },
@@ -237,8 +257,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     },
     {
       label: 'Reviews queued',
-      value: reviewItems.length,
-      note: `${initialData.visitStats.potentialTheftReviews} theft-related`,
+      value: reviewQueueCount,
+      note: `${initialData.queueReviews.length} from case queue`,
       icon: Mail,
       tone: 'info' as const,
     },
@@ -346,20 +366,24 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Reviews waiting</p>
-                <p className="text-sm text-ink-soft">Inbound theft or stocktake items pending review.</p>
+                <p className="text-sm text-ink-soft">Queue and inbound items currently waiting for review.</p>
               </div>
-              <Link href="/inbound-emails" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+              <Link href="/queue" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
                 Review <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
             <div className="mt-3 space-y-2">
-              {reviewItems.slice(0, 3).map((review) => (
-                <div key={review.emailId} className="rounded-lg border border-line bg-surface-raised px-3 py-2.5">
+              {initialData.queueReviews.slice(0, 3).map((review) => (
+                <Link
+                  key={review.caseId}
+                  href="/queue"
+                  className="block rounded-lg border border-line bg-surface-raised px-3 py-2.5"
+                >
                   <p className="text-sm font-semibold text-foreground">{review.storeName}</p>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{review.subject}</p>
-                </div>
+                  <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{formatCaseTypeLabel(review.caseType)}</p>
+                </Link>
               ))}
-              {reviewItems.length === 0 ? (
+              {initialData.queueReviews.length === 0 && reviewItems.length === 0 ? (
                 <p className="text-sm text-ink-soft">No review items are waiting right now.</p>
               ) : null}
             </div>
@@ -591,6 +615,22 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
           <TabsContent value="reviews">
             <div className="grid gap-3 md:grid-cols-2">
+              {initialData.queueReviews.map((review) => (
+                <Link
+                  key={review.caseId}
+                  href="/queue"
+                  className="rounded-xl border border-line bg-surface-raised px-4 py-4 transition-colors hover:bg-surface-subtle"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-foreground">{review.storeName}</p>
+                    <span className="rounded-full border border-warning/20 bg-warning-soft px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-warning">
+                      Queue
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm text-ink-soft">{formatCaseTypeLabel(review.caseType)}</p>
+                  {review.summary ? <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{review.summary}</p> : null}
+                </Link>
+              ))}
               {reviewItems.map((review) => (
                 <Link
                   key={review.emailId}
@@ -607,8 +647,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   {review.summary ? <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{review.summary}</p> : null}
                 </Link>
               ))}
-              {reviewItems.length === 0 ? (
-                <EmptyState title="No queued reviews" body="Inbound review work will surface here when emails need triage." />
+              {initialData.queueReviews.length === 0 && reviewItems.length === 0 ? (
+                <EmptyState title="No queued reviews" body="Queue or inbound review work will surface here when triage is needed." />
               ) : null}
             </div>
           </TabsContent>

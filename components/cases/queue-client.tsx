@@ -1,16 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Activity, ArrowUpRight, Inbox, Search } from 'lucide-react'
 
-import { importLegacyCasesAction } from '@/app/actions/cases'
 import { CaseReviewDrawer } from '@/components/cases/case-review-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   WorkspaceHeader,
   WorkspaceShell,
@@ -19,7 +19,6 @@ import {
   WorkspaceToolbar,
   WorkspaceToolbarGroup,
 } from '@/components/workspace/workspace-shell'
-import { toast } from '@/hooks/use-toast'
 import {
   buildContinueWorkResolution,
   getCaseStageTone,
@@ -34,18 +33,26 @@ import { formatAppDate, getDisplayStoreCode } from '@/lib/utils'
 
 type QueueClientProps = {
   initialCases: QueueCaseRecord[]
-  canManage: boolean
 }
 
 function QueueRow({
   caseRecord,
   onReview,
   onClose,
+  onViewIncidentDetails,
 }: {
   caseRecord: QueueCaseRecord
   onReview: (caseId: string) => void
   onClose: (caseId: string) => void
+  onViewIncidentDetails: (caseId: string) => void
 }) {
+  const originHref =
+    caseRecord.originTargetId &&
+    (caseRecord.originTargetTable === 'tfs_incidents' ||
+      caseRecord.originTargetTable === 'tfs_closed_incidents' ||
+      caseRecord.originTargetTable === 'fa_incident')
+      ? `/incidents/${caseRecord.originTargetId}`
+      : null
   const resolution = buildContinueWorkResolution(caseRecord)
   const openMode = caseRecord.stage === 'ready_to_close' ? 'close' : 'review'
   const isDrawerFlow = resolution.mode === 'review' || resolution.mode === 'close'
@@ -92,7 +99,10 @@ function QueueRow({
               ) : null}
             </div>
             <p className="mt-1 text-sm text-ink-soft">
-              {caseRecord.lastUpdateSummary || 'No update summary is recorded for this case yet.'}
+              {caseRecord.originIncidentDescription ||
+                caseRecord.originIncidentSummary ||
+                caseRecord.lastUpdateSummary ||
+                'No update summary is recorded for this case yet.'}
             </p>
           </div>
 
@@ -119,6 +129,11 @@ function QueueRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {originHref ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => onViewIncidentDetails(caseRecord.id)}>
+              View incident details
+            </Button>
+          ) : null}
           {primaryAction}
           {isDrawerFlow ? (
             <Button
@@ -142,13 +157,13 @@ function QueueRow({
   )
 }
 
-export function QueueClient({ initialCases, canManage }: QueueClientProps) {
+export function QueueClient({ initialCases }: QueueClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [drawerMode, setDrawerMode] = useState<'review' | 'close'>('review')
-  const [isImporting, startImport] = useTransition()
+  const [previewCaseId, setPreviewCaseId] = useState<string | null>(null)
 
   useEffect(() => {
     const caseId = searchParams?.get('case') || null
@@ -184,8 +199,16 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
     () => filteredCases.find((record) => record.id === selectedCaseId) || initialCases.find((record) => record.id === selectedCaseId) || null,
     [filteredCases, initialCases, selectedCaseId]
   )
+  const previewCase = useMemo(
+    () =>
+      filteredCases.find((record) => record.id === previewCaseId) ||
+      initialCases.find((record) => record.id === previewCaseId) ||
+      null,
+    [filteredCases, initialCases, previewCaseId]
+  )
 
   const openCaseIds = filteredCases.filter((record) => record.stage !== 'closed')
+  const closedCaseCount = filteredCases.filter((record) => record.stage === 'closed').length
   const needsReviewCount = filteredCases.filter(
     (record) => record.stage === 'new_submission' || record.stage === 'under_review'
   ).length
@@ -203,25 +226,12 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
     setSelectedCaseId(null)
     router.replace('/queue')
   }
-
-  const runImport = () => {
-    startImport(async () => {
-      try {
-        const result = await importLegacyCasesAction()
-        toast({
-          title: 'Queue import complete',
-          description: `${result.created} legacy items were linked into the case queue.`,
-          variant: 'success',
-        })
-        router.refresh()
-      } catch (error) {
-        toast({
-          title: 'Queue import failed',
-          description: error instanceof Error ? error.message : 'The legacy import could not be completed.',
-          variant: 'destructive',
-        })
-      }
-    })
+  const openPreview = (caseId: string) => {
+    setPreviewCaseId(caseId)
+  }
+  const closePreview = (open: boolean) => {
+    if (open) return
+    setPreviewCaseId(null)
   }
 
   return (
@@ -238,17 +248,18 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
                 Dashboard
               </Link>
             </Button>
-            {canManage ? (
-              <Button type="button" onClick={runImport} disabled={isImporting}>
-                {isImporting ? 'Importing...' : 'Import legacy work'}
-              </Button>
-            ) : null}
           </>
         }
       />
 
       <WorkspaceStatGrid>
-        <WorkspaceStat label="Open cases" value={openCaseIds.length} note="Active work across all queue stages" icon={Activity} tone="info" />
+        <WorkspaceStat
+          label="Open cases"
+          value={openCaseIds.length}
+          note={`${closedCaseCount} closed`}
+          icon={Activity}
+          tone="info"
+        />
         <WorkspaceStat label="Needs review" value={needsReviewCount} note="New submissions and items still under review" icon={Inbox} tone="critical" />
         <WorkspaceStat label="Visit required" value={visitCount} note="Cases waiting for on-site execution" icon={Activity} tone="warning" />
         <WorkspaceStat label="Ready to close" value={closeCount} note="Blockers are clear and closure is available" icon={Activity} tone="success" />
@@ -304,6 +315,7 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
                     caseRecord={caseRecord}
                     onReview={(caseId) => openDrawer(caseId, 'review')}
                     onClose={(caseId) => openDrawer(caseId, 'close')}
+                    onViewIncidentDetails={openPreview}
                   />
                 ))}
               </CardContent>
@@ -320,14 +332,9 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
               <div>
                 <h3 className="text-lg font-semibold text-foreground">No queue items are visible</h3>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Adjust the search or import legacy incidents and unresolved store actions into the queue.
+                  Adjust the search, or create new work from store portal submissions and visit follow-ups.
                 </p>
               </div>
-              {canManage ? (
-                <Button type="button" onClick={runImport} disabled={isImporting}>
-                  {isImporting ? 'Importing...' : 'Import legacy work'}
-                </Button>
-              ) : null}
             </CardContent>
           </Card>
         ) : null}
@@ -339,6 +346,53 @@ export function QueueClient({ initialCases, canManage }: QueueClientProps) {
         mode={drawerMode}
         onOpenChange={closeDrawer}
       />
+      <Dialog open={Boolean(previewCase)} onOpenChange={closePreview}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Incident details preview</DialogTitle>
+            <DialogDescription>
+              {previewCase?.storeName || 'Store'} • {previewCase?.originReference || 'No reference'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-line bg-surface-subtle/72 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-muted">Summary</p>
+              <p className="mt-1 text-sm text-foreground">
+                {previewCase?.originIncidentSummary || previewCase?.lastUpdateSummary || 'No summary recorded.'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-line bg-surface-subtle/72 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-muted">Description</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                {previewCase?.originIncidentDescription || 'No incident description recorded.'}
+              </p>
+            </div>
+            {previewCase?.caseType === 'portal_theft' ? (
+              <div className="rounded-xl border border-line bg-surface-subtle/72 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-muted">Theft details</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {previewCase.originTheftItemsSummary || 'No stolen item lines recorded.'}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  Theft value:{' '}
+                  {typeof previewCase.originTheftValueGbp === 'number'
+                    ? `£${previewCase.originTheftValueGbp.toFixed(2)}`
+                    : 'Not recorded'}
+                </p>
+              </div>
+            ) : null}
+            {previewCase?.originTargetId ? (
+              <div className="flex justify-end">
+                <Button asChild>
+                  <Link href={`/incidents/${previewCase.originTargetId}`} prefetch={false}>
+                    Open incident page
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </WorkspaceShell>
   )
 }

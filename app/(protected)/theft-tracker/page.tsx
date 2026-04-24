@@ -1,6 +1,8 @@
 import { AlertTriangle, ClipboardList, FileText } from 'lucide-react'
+import Link from 'next/link'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { WorkspaceHeader, WorkspaceShell, WorkspaceStat, WorkspaceStatGrid } from '@/components/workspace/workspace-shell'
@@ -162,7 +164,14 @@ export default async function TheftTrackerPage() {
         icon={AlertTriangle}
         title="Theft log"
         description="All theft reports from stores and team users, including closed cases (closed stays on this log; it only leaves open triage lists)."
-        actions={<Badge variant="outline">Last 200 incidents</Badge>}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">Last 200 incidents</Badge>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/theft-tracker/rankings">Theft rankings</Link>
+            </Button>
+          </div>
+        }
       />
 
       <WorkspaceStatGrid className="xl:grid-cols-3">

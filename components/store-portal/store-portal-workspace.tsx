@@ -270,9 +270,9 @@ export function StorePortalWorkspace({
 
   const sidebarContent = (
     <>
-      <div className="flex items-center justify-between px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:h-20 md:px-6 md:py-0">
+      <div className="flex items-center justify-between px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] md:px-6 md:pb-6 md:pt-7">
         <div className="flex items-center gap-3">
-          <div className="relative h-12 w-28 md:h-20 md:w-44">
+          <div className="relative h-10 w-28 md:h-11 md:w-32">
             <Image
               src="/tfs-logo.svg"
               alt="The Fragrance Shop"
@@ -282,22 +282,25 @@ export function StorePortalWorkspace({
             />
           </div>
           <div className="min-w-0 md:hidden">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-[#4b3a78]">The Fragrance Shop</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">The Fragrance Shop</p>
             <p className="text-sm font-semibold text-slate-900">Store portal</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => setMobileNavOpen(false)}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 md:hidden"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-soft shadow-soft transition-colors hover:bg-surface-subtle md:hidden"
           aria-label="Close store navigation"
         >
-          <X className="h-5 w-5 text-slate-600" />
+          <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_16px_30px_rgba(15,23,42,0.08)] md:space-y-1.5 md:rounded-none md:border-0 md:bg-transparent md:shadow-none">
+      <nav className="flex-1 overflow-y-auto px-4 pb-5">
+        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 shadow-[0_16px_30px_rgba(15,23,42,0.08)] md:space-y-1 md:rounded-none md:border-0 md:bg-transparent md:shadow-none">
+          <div className="px-4 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 md:px-3 md:pt-2 md:text-white/40">
+            Portal
+          </div>
           {portalNavItems.map((item) => {
             const Icon = item.icon
             const isActive = item.id === tab
@@ -308,16 +311,16 @@ export function StorePortalWorkspace({
                 type="button"
                 onClick={() => resetForm(item.id)}
                 className={cn(
-                  'flex w-full items-start gap-3 border-t border-slate-100 px-4 py-4 text-left first:border-t-0 md:rounded-2xl md:border-t-0',
+                  'flex min-h-[52px] w-full items-start gap-3 border-t border-slate-100 px-4 py-3 text-left first:border-t-0 md:min-h-[44px] md:rounded-xl md:border-t-0 md:px-3 md:py-2.5',
                   isActive
-                    ? 'bg-white text-slate-950 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)] md:bg-white'
-                    : 'text-slate-700 hover:bg-slate-50 md:text-white/92 md:hover:bg-slate-950/35 md:hover:text-white'
+                    ? 'bg-white text-slate-950 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)] md:bg-white/10 md:text-white md:shadow-none'
+                    : 'text-slate-700 hover:bg-slate-50 md:text-white/90 md:hover:bg-slate-800/70 md:hover:text-white'
                 )}
               >
-                <Icon className={cn('mt-0.5 h-5 w-5 flex-shrink-0', isActive ? 'text-slate-900' : 'text-slate-400 md:text-white/80')} />
+                <Icon className={cn('mt-0.5 h-5 w-5 flex-shrink-0 md:h-4.5 md:w-4.5', isActive ? 'text-slate-900 md:text-white' : 'text-slate-400 md:text-white/80')} />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold">{item.label}</span>
-                  <span className={cn('mt-1 block text-xs leading-5', isActive ? 'text-slate-500' : 'text-slate-500 md:text-white/70')}>
+                  <span className="block text-sm font-semibold md:text-[13px]">{item.label}</span>
+                  <span className={cn('mt-1 block text-xs leading-5 md:text-[11px] md:leading-4', isActive ? 'text-slate-500 md:text-white/70' : 'text-slate-500 md:text-white/70')}>
                     {item.description}
                   </span>
                 </span>
@@ -328,7 +331,7 @@ export function StorePortalWorkspace({
       </nav>
 
       <div className="p-4 pt-2">
-        <div className="rounded-[24px] border border-slate-200 bg-white/85 px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm md:rounded-[24px] md:border-white/10 md:bg-white/10 md:shadow-none">
+        <div className="app-shell-glass rounded-[24px] px-4 py-4 md:rounded-[24px] md:border-white/10 md:bg-white/6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--brand))] md:bg-white/16">
               <Store className="h-5 w-5 text-white" />
@@ -345,13 +348,13 @@ export function StorePortalWorkspace({
 
   return (
     <div className="min-h-[100svh] bg-[#1c0259]">
-      <aside className="no-print hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-64 md:flex-col md:bg-[linear-gradient(180deg,#1c0259_0%,#232154_60%,#2a265f_100%)]">
+      <aside className="no-print hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-[18rem] md:flex-col tfs-shell-gradient">
         {sidebarContent}
       </aside>
 
       {mobileNavOpen ? (
         <div
-          className="fixed inset-0 z-[60] bg-[#0b1320]/28 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-[60] bg-shell/38 backdrop-blur-sm md:hidden"
           onClick={() => setMobileNavOpen(false)}
           aria-hidden="true"
         />
@@ -359,41 +362,41 @@ export function StorePortalWorkspace({
 
       <aside
         className={cn(
-          'no-print fixed left-0 top-0 z-[70] flex h-screen w-[86vw] max-w-[348px] flex-col rounded-r-[32px] border-r border-slate-200/70 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(236,242,247,0.98)_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.22)] transition-all duration-300 md:hidden',
+          'no-print fixed inset-y-0 left-0 z-[70] flex w-[86vw] max-w-[22rem] flex-col rounded-r-[2rem] border-r border-line bg-[linear-gradient(180deg,hsl(var(--surface-raised))_0%,hsl(var(--surface-subtle))_100%)] shadow-floating transition-all duration-300 ease-out md:hidden',
           mobileNavOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
         )}
       >
         {sidebarContent}
       </aside>
 
-      <div className="flex min-h-[100svh] flex-col bg-[#232154] md:ml-64">
-        <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(28,2,89,0.98)_0%,rgba(35,33,84,0.95)_100%)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:fixed md:left-64 md:right-0 md:top-0 md:z-50 md:flex md:min-h-16 md:items-center md:justify-between md:border-b-0 md:bg-[#232154] md:px-6 md:py-2.5 lg:px-8">
+      <div className="flex min-h-[100svh] flex-col bg-canvas md:ml-[18rem]">
+        <header className="no-print sticky top-0 z-30 border-b border-line bg-canvas px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:fixed md:left-[18rem] md:right-0 md:top-0 md:z-40 md:flex md:min-h-16 md:items-center md:justify-between md:px-6 md:py-2.5 lg:px-8">
           <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3 pb-4 pt-3 md:pb-0 md:pt-0">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => setMobileNavOpen(true)}
-                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[18px] border border-white/10 bg-white/8 p-2 text-white shadow-[0_8px_20px_rgba(2,12,24,0.18)] transition-colors hover:bg-white/12 md:hidden"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[18px] border border-line bg-surface-raised p-2 text-ink-soft shadow-soft transition-colors hover:bg-surface-subtle md:hidden"
                 aria-label="Open store navigation"
               >
-                <Menu className="h-6 w-6 text-white" />
+                <Menu className="h-6 w-6" />
               </button>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
                   Store portal
                 </p>
-                <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-white md:text-xl">
+                <h1 className="truncate text-[1.08rem] font-semibold tracking-[-0.01em] text-foreground md:text-xl">
                   {activeNav.label}
                 </h1>
               </div>
             </div>
 
             <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-2">
-              <div className="hidden max-w-[min(100%,16rem)] truncate rounded-full border border-white/10 bg-white/8 px-3 py-2 text-xs font-medium text-white/90 md:block">
+              <div className="hidden max-w-[min(100%,16rem)] truncate rounded-full border border-line bg-surface-raised px-3 py-2 text-xs font-medium text-ink-soft md:block">
                 {storeName} · {storeCode}
               </div>
               <Button
-                variant="ghost"
+                variant="outline"
                 onClick={() =>
                   startTransition(async () => {
                     await logoutStorePortal()
@@ -402,7 +405,7 @@ export function StorePortalWorkspace({
                   })
                 }
                 disabled={pending}
-                className="h-10 rounded-full border border-white/10 bg-white/8 px-4 text-white shadow-[0_8px_18px_rgba(2,12,24,0.14)] hover:bg-white/12 hover:text-white"
+                className="h-10 rounded-full px-4"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
@@ -411,7 +414,7 @@ export function StorePortalWorkspace({
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden bg-[#f7f4fb] px-3.5 pb-10 pt-4 sm:px-4 md:px-6 md:pb-12 md:pt-24 lg:px-8 lg:pt-24">
+        <main className="flex-1 overflow-x-hidden bg-canvas px-3.5 pb-10 pt-4 sm:px-4 md:px-6 md:pb-12 md:pt-24 lg:px-8 lg:pt-24">
           <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,22rem)]">
             <section className="min-w-0 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
               <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-5 md:px-6">

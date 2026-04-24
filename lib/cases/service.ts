@@ -142,6 +142,10 @@ function isCaseTablesMissingError(error: { code?: string; message?: string } | n
   )
 }
 
+function isMissingRelationError(error: { code?: string } | null | undefined): boolean {
+  return String(error?.code || '').trim() === '42P01'
+}
+
 function inferIncidentSource(personsInvolved: unknown): TfsIntakeSource {
   if (!personsInvolved || typeof personsInvolved !== 'object' || Array.isArray(personsInvolved)) {
     return 'legacy_incident'
@@ -296,6 +300,53 @@ async function getCaseIdForTargetTables(
   }
 
   return String((data as { case_id?: string | null } | null)?.case_id || '').trim() || null
+}
+
+async function getOriginIncidentIdsForCase(supabase: SupabaseLike, caseId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('tfs_case_links')
+    .select('*')
+    .eq('case_id', caseId)
+    .eq('link_role', 'origin')
+
+  if (error) {
+    if (isCaseTablesMissingError(error)) return []
+    throw new Error(`Failed to load incident origin links: ${error.message}`)
+  }
+
+  return Array.from(
+    new Set(
+      ((data || []) as Array<Record<string, unknown>>)
+        .filter((link) => {
+          const table = String(link.target_table || link.record_type || '').trim().toLowerCase()
+          return table === 'tfs_incidents' || table === 'fa_incident'
+        })
+        .map((link) => String(link.target_id || link.record_id || '').trim())
+        .filter(Boolean)
+    )
+  )
+}
+
+async function closeLinkedIncidentsForCase(
+  supabase: SupabaseLike,
+  caseId: string,
+  summary: string
+): Promise<void> {
+  const incidentIds = await getOriginIncidentIdsForCase(supabase, caseId)
+  if (incidentIds.length === 0) return
+
+  const { error } = await supabase
+    .from('tfs_incidents')
+    .update({
+      status: 'closed',
+      closed_at: new Date().toISOString(),
+      closure_summary: summary,
+    })
+    .in('id', incidentIds)
+
+  if (error && !isCaseTablesMissingError(error)) {
+    throw new Error(`Failed to close linked incident: ${error.message}`)
+  }
 }
 
 async function getIncidentCaseId(
@@ -695,19 +746,27 @@ export async function listQueueCases(input: ListQueueCasesInput = {}): Promise<Q
   const storeIds = Array.from(new Set(cases.map((record) => record.store_id)))
   const ownerIds = Array.from(new Set(cases.map((record) => record.owner_user_id).filter(Boolean))) as string[]
 
-  const [storesResult, ownersResult, blockerCounts] = await Promise.all([
+  const [storesResult, ownersResult, blockerCounts, originLinksResult] = await Promise.all([
     supabase.from('tfs_stores').select('id, store_name, store_code').in('id', storeIds),
     ownerIds.length > 0
       ? supabase.from('fa_profiles').select('id, full_name').in('id', ownerIds)
       : Promise.resolve({ data: [], error: null }),
     getBlockingLinkCounts(supabase, cases.map((record) => record.id)),
+    supabase
+      .from('tfs_case_links')
+      .select('*')
+      .in('case_id', cases.map((record) => record.id))
+      .eq('link_role', 'origin'),
   ])
 
-  if (storesResult.error) {
+  if (storesResult.error && !isMissingRelationError(storesResult.error)) {
     throw new Error(`Failed to load queue stores: ${storesResult.error.message}`)
   }
   if (ownersResult.error) {
     throw new Error(`Failed to load queue owners: ${ownersResult.error.message}`)
+  }
+  if (originLinksResult.error && !isCaseTablesMissingError(originLinksResult.error)) {
+    throw new Error(`Failed to load queue origin links: ${originLinksResult.error.message}`)
   }
 
   const storesById = new Map(
@@ -719,10 +778,117 @@ export async function listQueueCases(input: ListQueueCasesInput = {}): Promise<Q
   const ownersById = new Map(
     ((ownersResult.data || []) as Array<{ id: string; full_name: string | null }>).map((owner) => [owner.id, owner])
   )
+  const originLinksByCaseId = new Map<string, { targetTable: string | null; targetId: string | null }>()
+  ;((originLinksResult.data || []) as Array<Record<string, unknown>>).forEach((rawLink) => {
+    const caseId = String(rawLink.case_id || '').trim()
+    if (!caseId || originLinksByCaseId.has(caseId)) return
+
+    const targetTable = String(rawLink.target_table || rawLink.record_type || '').trim() || null
+    const targetId = String(rawLink.target_id || rawLink.record_id || '').trim() || null
+    originLinksByCaseId.set(caseId, { targetTable, targetId })
+  })
+  const linkedIncidentIds = Array.from(
+    new Set(
+      Array.from(originLinksByCaseId.values())
+        .map((link) => String(link.targetId || '').trim())
+        .filter(Boolean)
+    )
+  )
+  const [openOriginIncidentsResult, closedOriginIncidentsResult] = await Promise.all([
+    linkedIncidentIds.length > 0
+      ? supabase
+          .from('tfs_incidents')
+          .select('id, summary, description, persons_involved')
+          .in('id', linkedIncidentIds)
+      : Promise.resolve({ data: [], error: null }),
+    linkedIncidentIds.length > 0
+      ? supabase
+          .from('tfs_closed_incidents')
+          .select('id, summary, description, persons_involved')
+          .in('id', linkedIncidentIds)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (openOriginIncidentsResult.error && !isCaseTablesMissingError(openOriginIncidentsResult.error)) {
+    throw new Error(`Failed to load linked incidents: ${openOriginIncidentsResult.error.message}`)
+  }
+  if (closedOriginIncidentsResult.error && !isCaseTablesMissingError(closedOriginIncidentsResult.error)) {
+    throw new Error(`Failed to load linked closed incidents: ${closedOriginIncidentsResult.error.message}`)
+  }
+  const incidentDetailsById = new Map<
+    string,
+    {
+      summary: string | null
+      description: string | null
+      theftValueGbp: number | null
+      theftItemsSummary: string | null
+    }
+  >()
+  const mapIncidentDetails = (
+    incidents: Array<{
+      id: string
+      summary: string | null
+      description: string | null
+      persons_involved?: unknown
+    }>
+  ) => {
+    incidents.forEach((incident) => {
+      if (incidentDetailsById.has(incident.id)) return
+      const meta =
+        incident.persons_involved &&
+        typeof incident.persons_involved === 'object' &&
+        !Array.isArray(incident.persons_involved)
+          ? (incident.persons_involved as Record<string, unknown>)
+          : null
+      const theftValueRaw = Number(meta?.theftValueGbp)
+      const theftValueGbp = Number.isFinite(theftValueRaw) ? theftValueRaw : null
+      const theftItems = Array.isArray(meta?.theftItems) ? meta?.theftItems : []
+      const theftItemsSummary = theftItems
+        .map((item) => {
+          const payload = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+          const title = String(payload.title || '').trim()
+          if (!title) return null
+          const quantity = Math.max(1, Number(payload.quantity) || 1)
+          const unitPrice = Number(payload.unitPrice)
+          if (Number.isFinite(unitPrice)) {
+            const lineTotal = quantity * unitPrice
+            return `${title} x${quantity} @ £${unitPrice.toFixed(2)} = £${lineTotal.toFixed(2)}`
+          }
+          return `${title} x${quantity}`
+        })
+        .filter(Boolean)
+        .join(', ')
+
+      incidentDetailsById.set(incident.id, {
+        summary: incident.summary || null,
+        description: incident.description || null,
+        theftValueGbp,
+        theftItemsSummary: theftItemsSummary || null,
+      })
+    })
+  }
+  mapIncidentDetails(
+    (openOriginIncidentsResult.data || []) as Array<{
+      id: string
+      summary: string | null
+      description: string | null
+      persons_involved?: unknown
+    }>
+  )
+  mapIncidentDetails(
+    (closedOriginIncidentsResult.data || []) as Array<{
+      id: string
+      summary: string | null
+      description: string | null
+      persons_involved?: unknown
+    }>
+  )
 
   const records = cases.map((record): QueueCaseRecord => {
     const store = storesById.get(record.store_id)
     const owner = record.owner_user_id ? ownersById.get(record.owner_user_id) : null
+    const originLink = originLinksByCaseId.get(record.id)
+    const originIncidentDetails =
+      originLink?.targetId ? incidentDetailsById.get(String(originLink.targetId).trim()) : null
 
     return {
       id: record.id,
@@ -732,6 +898,12 @@ export async function listQueueCases(input: ListQueueCasesInput = {}): Promise<Q
       caseType: record.case_type,
       intakeSource: record.intake_source,
       originReference: record.origin_reference,
+      originTargetTable: originLink?.targetTable || null,
+      originTargetId: originLink?.targetId || null,
+      originIncidentSummary: originIncidentDetails?.summary || null,
+      originIncidentDescription: originIncidentDetails?.description || null,
+      originTheftValueGbp: originIncidentDetails?.theftValueGbp || null,
+      originTheftItemsSummary: originIncidentDetails?.theftItemsSummary || null,
       severity: normalizeSeverity(record.severity),
       ownerUserId: record.owner_user_id,
       ownerName: owner?.full_name || null,
@@ -1083,8 +1255,15 @@ export async function reviewCase(input: ReviewCaseInput) {
     nextStage = 'under_review'
     nextSummary = nextSummary || 'Incident escalated for investigation.'
   } else if (input.outcome === 'acknowledged_only') {
-    nextStage = 'ready_to_close'
-    nextSummary = nextSummary || 'Submission acknowledged and ready to close.'
+    const blockerCount = (await getBlockingLinkCounts(supabase, [input.caseId])).get(input.caseId) || 0
+    if (blockerCount === 0) {
+      nextStage = 'closed'
+      closureOutcome = 'reviewed_only'
+      nextSummary = nextSummary || 'Submission acknowledged and closed.'
+    } else {
+      nextStage = 'ready_to_close'
+      nextSummary = nextSummary || 'Submission acknowledged and ready to close.'
+    }
   } else if (input.outcome === 'closed_no_further_action') {
     nextStage = 'closed'
     nextSummary = nextSummary || 'Closed with no further action.'
@@ -1129,6 +1308,10 @@ export async function reviewCase(input: ReviewCaseInput) {
       outcome: input.outcome,
     },
   })
+
+  if (nextStage === 'closed') {
+    await closeLinkedIncidentsForCase(supabase, input.caseId, nextSummary)
+  }
 
   return data as TfsCaseRow
 }
@@ -1369,6 +1552,12 @@ export async function closeCase(input: CloseCaseInput) {
       closureOutcome: input.closureOutcome,
     },
   })
+
+  await closeLinkedIncidentsForCase(
+    supabase,
+    input.caseId,
+    input.summary || `Case closed: ${input.closureOutcome}`
+  )
 
   return data as TfsCaseRow
 }

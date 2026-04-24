@@ -140,6 +140,15 @@ type DashboardVisitEntry = {
   createdByName: string | null
 }
 
+type QueueCaseRow = {
+  id: string
+  store_id: string
+  case_type: string
+  stage: string
+  last_update_summary: string | null
+  updated_at: string
+}
+
 type DashboardStoreRow = {
   storeId: string
   storeName: string
@@ -213,6 +222,16 @@ type DashboardStocktakeReview = {
   receivedAt: string | null
 }
 
+type DashboardQueueReviewCase = {
+  caseId: string
+  storeId: string
+  storeName: string
+  storeCode: string | null
+  caseType: string
+  summary: string | null
+  updatedAt: string
+}
+
 type DashboardData = {
   openIncidents: number
   underInvestigation: number
@@ -233,6 +252,7 @@ type DashboardData = {
   plannedVisits: DashboardPlannedVisit[]
   theftReviews: DashboardTheftReview[]
   stocktakeReviews: DashboardStocktakeReview[]
+  queueReviews: DashboardQueueReviewCase[]
   recentFindings: DashboardRecentFinding[]
   visitsUnavailableMessage: string | null
 }
@@ -272,6 +292,7 @@ function getEmptyDashboardData(): DashboardData {
     plannedVisits: [],
     theftReviews: [],
     stocktakeReviews: [],
+    queueReviews: [],
     recentFindings: [],
     visitsUnavailableMessage: null,
   }
@@ -482,6 +503,7 @@ async function getDashboardData(): Promise<DashboardData> {
     incidentRowsResult,
     incidentActionsResult,
     storeActionsResult,
+    queueCasesResult,
     plannedRoutesResult,
     storeVisitsResult,
     routeVisitLogsResult,
@@ -507,6 +529,12 @@ async function getDashboardData(): Promise<DashboardData> {
       .from('tfs_store_actions')
       .select('store_id, title, description, priority, due_date, status, source_flagged_item, created_at')
       .in('store_id', storeIds),
+    supabase
+      .from('tfs_cases')
+      .select('id, store_id, case_type, stage, last_update_summary, updated_at')
+      .in('store_id', storeIds)
+      .in('stage', ['new_submission', 'under_review'])
+      .order('updated_at', { ascending: false }),
     supabase
       .from('tfs_stores')
       .select(`
@@ -584,6 +612,9 @@ async function getDashboardData(): Promise<DashboardData> {
   if (storeActionsResult.error) {
     console.error('Error fetching dashboard store actions:', storeActionsResult.error)
   }
+  if (queueCasesResult.error) {
+    console.error('Error fetching dashboard queue reviews:', queueCasesResult.error)
+  }
 
   if (plannedRoutesResult.error) {
     console.error('Error fetching planned routes:', plannedRoutesResult.error)
@@ -611,6 +642,7 @@ async function getDashboardData(): Promise<DashboardData> {
   const incidentRows = (incidentRowsResult.data || []) as IncidentRow[]
   const incidentActionRows = (incidentActionsResult.data || []) as IncidentActionRow[]
   const storeActionRows = (storeActionsResult.data || []) as StoreActionRow[]
+  const queueCaseRows = (queueCasesResult.data || []) as QueueCaseRow[]
   const plannedRouteStores = ((plannedRoutesResult.data || []) as StoreRow[]).filter(
     (store) => !shouldHideStore(store)
   )
@@ -909,6 +941,23 @@ async function getDashboardData(): Promise<DashboardData> {
       } satisfies DashboardTheftReview
     })
     .filter((item): item is DashboardTheftReview => Boolean(item))
+  const queueReviews = queueCaseRows
+    .map((queueCase) => {
+      const storeId = String(queueCase.store_id || '')
+      const store = storeMap.get(storeId)
+      if (!store || !storeId) return null
+      return {
+        caseId: queueCase.id,
+        storeId,
+        storeName: formatStoreName(store.store_name),
+        storeCode: store.store_code || null,
+        caseType: String(queueCase.case_type || ''),
+        summary: queueCase.last_update_summary || null,
+        updatedAt: queueCase.updated_at,
+      } satisfies DashboardQueueReviewCase
+    })
+    .filter((item): item is DashboardQueueReviewCase => Boolean(item))
+    .slice(0, 20)
   const stocktakeReviews = [...stocktakeReviewEmails]
     .sort((a, b) => {
       const aTime = new Date(a.received_at || a.created_at || '').getTime()
@@ -980,12 +1029,15 @@ async function getDashboardData(): Promise<DashboardData> {
       }).length,
       plannedRoutes: plannedRouteGroupKeys.size,
       plannedRoutesNext14Days: plannedRouteGroupKeysNext14Days.size,
-      potentialTheftReviews: theftReviewEmails.length,
+      potentialTheftReviews: queueReviews.filter((queueCase) =>
+        String(queueCase.caseType || '').toLowerCase().includes('theft')
+      ).length,
     },
     priorityStores,
     plannedVisits,
     theftReviews,
     stocktakeReviews,
+    queueReviews,
     recentFindings,
     visitsUnavailableMessage,
   }

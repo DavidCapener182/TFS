@@ -206,6 +206,14 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
   const resolvedSummary =
     input.kind === 'theft' ? trimmedSummary || buildTheftSummary(theftItems) : trimmedSummary
 
+  const theftValueGbp = theftItems.reduce((total, item) => {
+    const line = typeof item.unitPrice === 'number' ? item.unitPrice * item.quantity : 0
+    return total + line
+  }, 0)
+  const isAdjustedThroughTill = input.kind === 'theft' ? input.adjustedThroughTill === true : false
+  const shouldAutoCloseAdjustedTheft =
+    input.kind === 'theft' && isAdjustedThroughTill && theftValueGbp <= 200
+
   const personsInvolvedPayload = {
     source: 'store_portal',
     reportType: input.kind,
@@ -214,16 +222,14 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
       ...item,
       barcode: String(item.barcode || item.productId || '').trim() || null,
     })),
-    theftValueGbp: theftItems.reduce((total, item) => {
-      const line = typeof item.unitPrice === 'number' ? item.unitPrice * item.quantity : 0
-      return total + line
-    }, 0),
+    theftValueGbp,
     hasTheftBeenReported: input.kind === 'theft' ? input.hasTheftBeenReported !== false : null,
     adjustedThroughTill: input.kind === 'theft' ? input.adjustedThroughTill === true : null,
     stockRecovered: input.kind === 'theft' ? input.stockRecovered === true : null,
   }
 
   const resolvedSeverity = input.kind === 'theft' ? 'low' : input.severity
+  const resolvedStatus = shouldAutoCloseAdjustedTheft ? 'closed' : 'open'
 
   const { data, error } = await supabase
     .from('tfs_incidents')
@@ -238,7 +244,7 @@ export async function createStorePortalReport(input: CreateStoreReportInput) {
       occurred_at: input.occurredAt,
       reported_at: new Date().toISOString(),
       persons_involved: personsInvolvedPayload as any,
-      status: 'open',
+      status: resolvedStatus,
       riddor_reportable: false,
     })
     .select('id, reference_no')
